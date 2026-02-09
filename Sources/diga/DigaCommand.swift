@@ -1,6 +1,11 @@
 import ArgumentParser
 import Foundation
 
+/// Minimum RAM in bytes required to run even the smallest (0.6B) TTS model.
+/// Below this threshold, the CLI falls back to Apple TTS unconditionally.
+/// 4 GB is a conservative minimum for a 0.6B parameter model with MLX overhead.
+private let minimumRAMForTTS: UInt64 = 4 * 1024 * 1024 * 1024
+
 @main
 struct DigaCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -22,7 +27,7 @@ struct DigaCommand: AsyncParsableCommand {
 
     // MARK: - Model Management Flags
 
-    @Option(name: .long, help: "Override the auto-selected TTS model (HuggingFace model ID).")
+    @Option(name: .long, help: "Override the auto-selected TTS model (0.6b, 1.7b, or a HuggingFace model ID).")
     var model: String?
 
     // MARK: - Output Flags (Sprint 5 + Sprint 6)
@@ -30,15 +35,15 @@ struct DigaCommand: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "Write audio to a file instead of playing through speakers.")
     var output: String?
 
-    @Option(name: .shortAndLong, help: "Read input text from a file.")
+    @Option(name: .shortAndLong, help: "Read input text from a file (use '-' for stdin).")
     var file: String?
 
     @Option(name: .long, help: "Override the output audio format (wav, aiff, m4a). Inferred from file extension if not set.")
     var fileFormat: String?
 
-    // MARK: - Voice Selection (Sprint 5)
+    // MARK: - Voice Selection (Sprint 5 + Sprint 7)
 
-    @Option(name: .shortAndLong, help: "Voice name to use for synthesis.")
+    @Option(name: .shortAndLong, help: "Voice name to use for synthesis. Use '-v ?' to list voices.")
     var voice: String?
 
     // MARK: - Positional Arguments
@@ -49,6 +54,12 @@ struct DigaCommand: AsyncParsableCommand {
     // MARK: - Run
 
     mutating func run() async throws {
+        // Sprint 7: -v ? lists voices and exits.
+        if voice == "?" {
+            try runListVoices()
+            return
+        }
+
         if voices {
             try runListVoices()
             return
@@ -64,16 +75,26 @@ struct DigaCommand: AsyncParsableCommand {
             return
         }
 
-        // Ensure model is available before proceeding with synthesis.
-        try await ensureModelAvailable()
+        // Sprint 7: Resolve --model shorthand (0.6b, 1.7b) to full HuggingFace IDs.
+        let resolvedModel = try resolveModelFlag()
 
-        // Determine input text from one of three sources:
-        // 1. -f flag: read from file
+        // Sprint 7: Validate voice name before doing anything expensive.
+        if let voiceName = voice {
+            try validateVoiceExists(name: voiceName)
+        }
+
+        // Sprint 7: Determine input text from one of three sources:
+        // 1. -f flag: read from file (or stdin if "-")
         // 2. Positional arguments: join as text
         // 3. Stdin (when piped, i.e., stdin is not a TTY)
         let text: String
         if let filePath = file {
-            text = try readInputFile(path: filePath)
+            if filePath == "-" {
+                // Sprint 7: -f - reads from stdin
+                text = try readStdin()
+            } else {
+                text = try readInputFile(path: filePath)
+            }
         } else if !positionalArgs.isEmpty {
             text = positionalArgs.joined(separator: " ")
         } else if !isatty(STDIN_FILENO).boolValue {
@@ -88,8 +109,15 @@ struct DigaCommand: AsyncParsableCommand {
             throw ValidationError("Input text is empty.")
         }
 
+        // Sprint 7: Check if we need to fall back to Apple TTS.
+        let shouldFallback = try await shouldUseFallback(resolvedModel: resolvedModel)
+        if shouldFallback {
+            try executeFallback(text: trimmedText)
+            return
+        }
+
         // Synthesize text to WAV audio.
-        let engine = DigaEngine(modelOverride: model)
+        let engine = DigaEngine(modelOverride: resolvedModel)
         let wavData = try await engine.synthesize(text: trimmedText, voiceName: voice)
 
         // Route output: file (-o) or speaker playback.
@@ -104,48 +132,138 @@ struct DigaCommand: AsyncParsableCommand {
         }
     }
 
-    // MARK: - Model Management
+    // MARK: - Model Flag Resolution (Sprint 7)
 
-    /// Ensures the appropriate TTS model is downloaded and available.
+    /// Resolves the `--model` flag to a full HuggingFace model ID.
     ///
-    /// If a `--model` flag is provided, that model is used. Otherwise,
-    /// the system RAM is queried and the recommended model is selected.
-    /// If the model is not already cached, it is downloaded with a progress bar.
-    private func ensureModelAvailable() async throws {
-        let manager = DigaModelManager()
+    /// Shorthand values:
+    /// - `"0.6b"` or `"0.6B"` → `TTSModelID.small`
+    /// - `"1.7b"` or `"1.7B"` → `TTSModelID.large`
+    /// - Any other string is treated as a custom HuggingFace model ID
+    /// - `nil` returns `nil` (use auto-selection)
+    ///
+    /// - Returns: The resolved model ID, or nil for auto-selection.
+    /// - Throws: `ValidationError` if the model value is invalid.
+    private func resolveModelFlag() throws -> String? {
+        guard let modelValue = model else { return nil }
 
-        // Determine which model to use
-        let modelId: String
-        if let override = model {
-            modelId = override
-        } else {
-            modelId = manager.recommendedModel()
+        switch modelValue.lowercased() {
+        case "0.6b":
+            return TTSModelID.small
+        case "1.7b":
+            return TTSModelID.large
+        default:
+            // Accept any string that looks like a HuggingFace model ID (contains /).
+            // Also accept full model IDs like "mlx-community/Qwen3-TTS-12Hz-1.7B".
+            if modelValue.contains("/") {
+                return modelValue
+            }
+            // Invalid shorthand — not "0.6b", "1.7b", or a HF model ID.
+            throw ValidationError(
+                "Invalid model: '\(modelValue)'. Use '0.6b', '1.7b', or a HuggingFace model ID (org/repo)."
+            )
         }
+    }
 
-        // Check if already downloaded
-        let available = await manager.isModelAvailable(modelId)
-        if available {
+    // MARK: - Voice Validation (Sprint 7)
+
+    /// Validates that a voice name exists in built-in voices or the VoiceStore.
+    ///
+    /// - Parameter name: The voice name to validate.
+    /// - Throws: `ExitCode.failure` if the voice is not found.
+    private func validateVoiceExists(name: String) throws {
+        // Check built-in voices.
+        if BuiltinVoices.get(name: name) != nil {
             return
         }
 
-        // Print download notice to stderr
-        let notice = "Model \(modelId) not found locally. Downloading...\n"
-        FileHandle.standardError.write(Data(notice.utf8))
-
-        // Download with progress reporting to stderr
-        try await manager.downloadModel(modelId) { bytesDownloaded, totalBytes, fileName in
-            DigaModelManager.printProgress(
-                bytesDownloaded: bytesDownloaded,
-                totalBytes: totalBytes,
-                fileName: fileName
-            )
+        // Check custom voices in VoiceStore.
+        let store = VoiceStore()
+        if let _ = try store.getVoice(name: name) {
+            return
         }
 
-        let done = "Model download complete.\n"
-        FileHandle.standardError.write(Data(done.utf8))
+        // Voice not found — print error to stderr and exit with code 1.
+        let message = "Error: Voice '\(name)' not found. Use --voices to list available voices.\n"
+        FileHandle.standardError.write(Data(message.utf8))
+        throw ExitCode.failure
     }
 
-    // MARK: - Input Reading (Sprint 5)
+    // MARK: - Apple TTS Fallback (Sprint 7)
+
+    /// Determines whether the CLI should fall back to Apple TTS.
+    ///
+    /// Fallback conditions:
+    /// 1. Machine has insufficient RAM for the smallest TTS model
+    /// 2. The required model is not available and download fails
+    ///
+    /// - Parameter resolvedModel: The resolved model ID, or nil for auto-selection.
+    /// - Returns: `true` if Apple TTS should be used instead.
+    private func shouldUseFallback(resolvedModel: String?) async throws -> Bool {
+        // Check RAM minimum — if the machine can't even run 0.6B, fall back.
+        let ram = ProcessInfo.processInfo.physicalMemory
+        if ram < minimumRAMForTTS {
+            return true
+        }
+
+        // Determine which model to check.
+        let manager = DigaModelManager()
+        let modelId = resolvedModel ?? manager.recommendedModel()
+
+        // Check if model is already available.
+        let available = await manager.isModelAvailable(modelId)
+        if available {
+            return false
+        }
+
+        // Model not available — attempt download.
+        do {
+            let notice = "Model \(modelId) not found locally. Downloading...\n"
+            FileHandle.standardError.write(Data(notice.utf8))
+
+            try await manager.downloadModel(modelId) { bytesDownloaded, totalBytes, fileName in
+                DigaModelManager.printProgress(
+                    bytesDownloaded: bytesDownloaded,
+                    totalBytes: totalBytes,
+                    fileName: fileName
+                )
+            }
+
+            let done = "Model download complete.\n"
+            FileHandle.standardError.write(Data(done.utf8))
+            return false
+        } catch {
+            // Download failed — fall back to Apple TTS.
+            return true
+        }
+    }
+
+    /// Execute the Apple TTS fallback with mapped flags.
+    ///
+    /// - Parameter text: The text to speak (already trimmed).
+    /// - Throws: `SayFallbackError` if say fails.
+    private func executeFallback(text: String) throws {
+        // Map -f flag: if -f was used, pass the original path to say.
+        // For -f -, we already read stdin into text, so pass text directly.
+        let sayFilePath: String?
+        if let filePath = file, filePath != "-" {
+            sayFilePath = filePath
+        } else {
+            sayFilePath = nil
+        }
+
+        // Only pass text if we don't have a file path.
+        let sayText = sayFilePath == nil ? text : nil
+
+        try SayFallback.execute(
+            voice: voice,
+            outputPath: output,
+            filePath: sayFilePath,
+            text: sayText
+        )
+    }
+
+    // MARK: - Input Reading (Sprint 5 + Sprint 7)
 
     /// Read text from a file path.
     ///
