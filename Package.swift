@@ -62,6 +62,7 @@ let package = Package(
         .testTarget(
             name: "DigaTests",
             dependencies: [
+                "diga",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
             swiftSettings: [
