@@ -1,4 +1,5 @@
 import Foundation
+import SwiftVoxAlta
 
 // MARK: - DigaEngineError
 
@@ -171,20 +172,19 @@ enum WAVConcatenator: Sendable {
 
 // MARK: - DigaEngine
 
-/// Actor that orchestrates model loading, voice resolution, and text-to-speech synthesis.
+/// Actor that orchestrates model loading, voice resolution, and text-to-speech synthesis
+/// using Qwen3-TTS via the SwiftVoxAlta library.
 ///
-/// `DigaEngine` coordinates `DigaModelManager` for TTS model availability,
+/// `DigaEngine` coordinates `VoxAltaModelManager` for TTS model loading,
 /// `VoiceStore` for custom voice persistence, and `BuiltinVoices` for shipped
 /// voice definitions. Text is chunked into sentence-bounded segments via
-/// `TextChunker`, synthesized sequentially, and concatenated into a single WAV output.
-///
-/// Standard pacing and emotion parameters are hardcoded internally -- this actor
-/// provides a simple `synthesize(text:voiceName:)` entry point.
+/// `TextChunker`, synthesized sequentially via `VoiceLockManager`, and
+/// concatenated into a single WAV output.
 actor DigaEngine {
 
     // MARK: - Properties
 
-    /// Manages TTS model downloads and availability checks.
+    /// Manages TTS model downloads and availability checks (used for pre-flight checks).
     private let modelManager: DigaModelManager
 
     /// Persists custom voice definitions to disk.
@@ -192,6 +192,15 @@ actor DigaEngine {
 
     /// Override model ID (from --model flag), or nil for auto-selection.
     private let modelOverride: String?
+
+    /// VoxAlta model manager for loading Qwen3-TTS models into memory.
+    private let voxAltaModelManager: VoxAltaModelManager
+
+    /// Cached clone prompt data for the current voice (avoids re-reading from disk).
+    private var cachedClonePromptData: Data?
+
+    /// Name of the voice whose clone prompt is cached.
+    private var cachedVoiceName: String?
 
     // MARK: - Initialization
 
@@ -201,26 +210,26 @@ actor DigaEngine {
     ///   - modelManager: Model manager for download/availability. Defaults to standard instance.
     ///   - voiceStore: Voice store for custom voices. Defaults to standard instance.
     ///   - modelOverride: Optional model ID override (from --model flag).
+    ///   - voxAltaModelManager: VoxAlta model manager for TTS inference. Defaults to a new instance.
     init(
         modelManager: DigaModelManager = DigaModelManager(),
         voiceStore: VoiceStore = VoiceStore(),
-        modelOverride: String? = nil
+        modelOverride: String? = nil,
+        voxAltaModelManager: VoxAltaModelManager = VoxAltaModelManager()
     ) {
         self.modelManager = modelManager
         self.voiceStore = voiceStore
         self.modelOverride = modelOverride
+        self.voxAltaModelManager = voxAltaModelManager
     }
 
     // MARK: - Voice Resolution
 
-    /// Resolve a voice name to a `StoredVoice` with clone prompt data.
+    /// Resolve a voice name to a `StoredVoice`.
     ///
     /// Resolution order:
-    /// 1. Check `VoiceStore` for a custom voice with a clone prompt on disk.
-    /// 2. Check `BuiltinVoices` -- if found and this is the first use, the clone prompt
-    ///    would be lazily generated via VoiceDesign and cached. (In the current implementation,
-    ///    the built-in voice entry is returned; actual VoiceDesign generation is deferred
-    ///    to synthesis time when model loading is fully wired.)
+    /// 1. Check `VoiceStore` for a custom voice.
+    /// 2. Check `BuiltinVoices`.
     /// 3. If no name is provided, use the first built-in voice as default.
     ///
     /// - Parameter name: The voice name to resolve, or `nil` for the default voice.
@@ -250,42 +259,18 @@ actor DigaEngine {
         throw DigaEngineError.voiceNotFound(voiceName)
     }
 
-    /// Load the clone prompt data for a resolved voice.
-    ///
-    /// For custom voices with a `clonePromptPath`, reads the file from disk.
-    /// For built-in voices on first use, this would run VoiceDesign to generate
-    /// the clone prompt and cache it. Currently returns nil for built-in voices
-    /// to signal that lazy generation is needed.
-    ///
-    /// - Parameter voice: The resolved `StoredVoice`.
-    /// - Returns: Clone prompt data, or nil if the voice needs lazy generation.
-    func loadClonePromptData(for voice: StoredVoice) throws -> Data? {
-        // If there's a clone prompt file on disk, load it.
-        if let promptPath = voice.clonePromptPath {
-            let promptURL: URL
-            if promptPath.hasPrefix("/") || promptPath.hasPrefix("~") {
-                promptURL = URL(fileURLWithPath: promptPath)
-            } else {
-                promptURL = voiceStore.voicesDirectory.appendingPathComponent(promptPath)
-            }
-
-            if FileManager.default.fileExists(atPath: promptURL.path) {
-                return try Data(contentsOf: promptURL)
-            }
-        }
-
-        // For built-in voices, a clone prompt is generated lazily on first use.
-        // Return nil to signal lazy generation is needed.
-        return nil
-    }
-
     // MARK: - Synthesis
 
     /// Synthesize speech from text using the specified voice.
     ///
-    /// The text is split into sentence-bounded chunks of ~200 words, each chunk
-    /// is synthesized sequentially, and the resulting WAV segments are concatenated
-    /// into a single WAV output (24kHz, 16-bit PCM, mono).
+    /// The text is split into sentence-bounded chunks, each chunk is synthesized
+    /// using Qwen3-TTS via the Base model with the voice's clone prompt, and
+    /// the resulting WAV segments are concatenated into a single WAV output
+    /// (24kHz, 16-bit PCM, mono).
+    ///
+    /// On first use of a built-in or designed voice, the VoiceDesign model generates
+    /// a reference audio clip, from which a clone prompt is extracted and cached to disk.
+    /// Subsequent uses load the cached clone prompt directly.
     ///
     /// - Parameters:
     ///   - text: The text to synthesize.
@@ -296,8 +281,15 @@ actor DigaEngine {
         // Resolve voice.
         let voice = try resolveVoice(name: voiceName)
 
-        // Ensure model is available.
-        try await ensureModelAvailable()
+        // Load or generate clone prompt for this voice.
+        let clonePromptData = try await loadOrCreateClonePrompt(for: voice)
+
+        // Build a VoiceLock for generation.
+        let voiceLock = VoiceLock(
+            characterName: voice.name,
+            clonePromptData: clonePromptData,
+            designInstruction: voice.designDescription ?? ""
+        )
 
         // Chunk the text.
         let chunks = TextChunker.chunk(text)
@@ -306,56 +298,179 @@ actor DigaEngine {
         }
 
         // Synthesize each chunk sequentially.
-        // NOTE: Actual TTS generation requires loading the Qwen3 model and using
-        // clone prompts. This is the orchestration skeleton — the actual model
-        // inference call will be wired when the mlx-audio-swift fork is complete.
+        if chunks.count > 1 {
+            FileHandle.standardError.write(Data("Synthesizing \(chunks.count) chunks...\n".utf8))
+        }
+
         var wavSegments: [Data] = []
-        for chunk in chunks {
-            let wavData = try await synthesizeChunk(chunk, voice: voice)
+        for (i, chunk) in chunks.enumerated() {
+            if chunks.count > 1 {
+                FileHandle.standardError.write(Data("\rChunk \(i + 1)/\(chunks.count)...".utf8))
+            }
+
+            let wavData: Data
+            do {
+                wavData = try await VoiceLockManager.generateAudio(
+                    text: chunk,
+                    voiceLock: voiceLock,
+                    language: "en",
+                    modelManager: voxAltaModelManager
+                )
+            } catch {
+                throw DigaEngineError.synthesisFailed(
+                    "Failed to synthesize chunk \(i + 1): \(error.localizedDescription)"
+                )
+            }
             wavSegments.append(wavData)
+        }
+
+        if chunks.count > 1 {
+            FileHandle.standardError.write(Data("\n".utf8))
         }
 
         // Concatenate all WAV segments into a single output.
         return try WAVConcatenator.concatenate(wavSegments)
     }
 
-    // MARK: - Private
+    // MARK: - Clone Prompt Management
 
-    /// Ensure the TTS model is downloaded and available.
-    private func ensureModelAvailable() async throws {
-        let modelId: String
-        if let override = modelOverride {
-            modelId = override
-        } else {
-            modelId = modelManager.recommendedModel()
+    /// Load or create a clone prompt for the given voice.
+    ///
+    /// Checks (in order):
+    /// 1. In-memory cache
+    /// 2. On-disk cache (`~/.diga/voices/<name>.cloneprompt`)
+    /// 3. Generate from scratch:
+    ///    - Cloned voices: create clone prompt from reference audio file
+    ///    - Built-in/designed voices: run VoiceDesign to generate reference clip,
+    ///      then extract clone prompt from it
+    ///
+    /// Generated clone prompts are saved to disk for future reuse.
+    ///
+    /// - Parameter voice: The resolved `StoredVoice`.
+    /// - Returns: Serialized clone prompt data.
+    /// - Throws: `DigaEngineError` if clone prompt creation fails.
+    private func loadOrCreateClonePrompt(for voice: StoredVoice) async throws -> Data {
+        // 1. Check in-memory cache.
+        if let cached = cachedClonePromptData, cachedVoiceName == voice.name {
+            return cached
         }
 
-        let available = await modelManager.isModelAvailable(modelId)
-        if !available {
-            throw DigaEngineError.modelNotAvailable(
-                "Model \(modelId) is not downloaded. Run `diga` first to trigger download."
+        // 2. Check on-disk cache.
+        let promptFile = voiceStore.voicesDirectory
+            .appendingPathComponent("\(voice.name).cloneprompt")
+        if FileManager.default.fileExists(atPath: promptFile.path) {
+            let data = try Data(contentsOf: promptFile)
+            cachedClonePromptData = data
+            cachedVoiceName = voice.name
+            return data
+        }
+
+        // 3. Generate clone prompt.
+        let clonePromptData: Data
+
+        if voice.type == .cloned, let refPath = voice.clonePromptPath {
+            // Cloned voice: create clone prompt from reference audio.
+            FileHandle.standardError.write(
+                Data("Creating voice clone from reference audio...\n".utf8)
+            )
+
+            let refURL: URL
+            if refPath.hasPrefix("/") || refPath.hasPrefix("~") {
+                refURL = URL(fileURLWithPath: refPath)
+            } else {
+                refURL = voiceStore.voicesDirectory.appendingPathComponent(refPath)
+            }
+
+            guard FileManager.default.fileExists(atPath: refURL.path) else {
+                throw DigaEngineError.voiceDesignFailed(
+                    "Reference audio file not found: \(refURL.path)"
+                )
+            }
+
+            let refData = try Data(contentsOf: refURL)
+            do {
+                let lock = try await VoiceLockManager.createLock(
+                    characterName: voice.name,
+                    candidateAudio: refData,
+                    designInstruction: "",
+                    modelManager: voxAltaModelManager
+                )
+                clonePromptData = lock.clonePromptData
+            } catch {
+                throw DigaEngineError.voiceDesignFailed(
+                    "Failed to create clone prompt from reference audio: \(error.localizedDescription)"
+                )
+            }
+
+        } else if let description = voice.designDescription {
+            // Built-in or designed voice: generate via VoiceDesign model.
+            FileHandle.standardError.write(
+                Data("Generating voice '\(voice.name)' (first use, this may take a moment)...\n".utf8)
+            )
+
+            let profile = CharacterProfile(
+                name: voice.name,
+                gender: .unknown,
+                ageRange: "",
+                description: description,
+                voiceTraits: [],
+                summary: description
+            )
+
+            // Generate a voice candidate using VoiceDesign model.
+            let candidateAudio: Data
+            do {
+                candidateAudio = try await VoiceDesigner.generateCandidate(
+                    profile: profile,
+                    modelManager: voxAltaModelManager
+                )
+            } catch {
+                throw DigaEngineError.voiceDesignFailed(
+                    "Failed to generate voice candidate for '\(voice.name)': \(error.localizedDescription)"
+                )
+            }
+
+            // Extract clone prompt from the candidate audio.
+            do {
+                let lock = try await VoiceLockManager.createLock(
+                    characterName: voice.name,
+                    candidateAudio: candidateAudio,
+                    designInstruction: description,
+                    modelManager: voxAltaModelManager
+                )
+                clonePromptData = lock.clonePromptData
+            } catch {
+                throw DigaEngineError.voiceDesignFailed(
+                    "Failed to extract clone prompt for '\(voice.name)': \(error.localizedDescription)"
+                )
+            }
+
+            FileHandle.standardError.write(Data("Voice generated and cached.\n".utf8))
+
+        } else {
+            throw DigaEngineError.voiceDesignFailed(
+                "Voice '\(voice.name)' has no design description or reference audio."
             )
         }
-    }
 
-    /// Synthesize a single text chunk to WAV data.
-    ///
-    /// This is the per-chunk synthesis call. In the full implementation, this would:
-    /// 1. Deserialize the clone prompt for the resolved voice
-    /// 2. Call `Qwen3TTSModel.generate()` with the text and clone prompt
-    /// 3. Convert the MLXArray output to WAV Data
-    ///
-    /// Currently produces a silent WAV placeholder of appropriate duration,
-    /// since actual model inference requires the mlx-audio-swift fork.
-    private func synthesizeChunk(_ text: String, voice: StoredVoice) async throws -> Data {
-        // Estimate duration: ~150 words per minute.
-        let wordCount = TextChunker.wordCount(text)
-        let durationSeconds = Double(wordCount) / 150.0 * 60.0
-        let sampleRate = 24000
-        let sampleCount = Int(durationSeconds * Double(sampleRate))
+        // Save clone prompt to disk for future reuse.
+        do {
+            try FileManager.default.createDirectory(
+                at: voiceStore.voicesDirectory,
+                withIntermediateDirectories: true
+            )
+            try clonePromptData.write(to: promptFile, options: .atomic)
+        } catch {
+            // Non-fatal: synthesis still works, just won't be cached.
+            FileHandle.standardError.write(
+                Data("Warning: could not cache clone prompt to disk: \(error.localizedDescription)\n".utf8)
+            )
+        }
 
-        // Generate silent PCM samples (placeholder until real model inference is wired).
-        let silentSamples = [Int16](repeating: 0, count: max(sampleCount, 1))
-        return WAVConcatenator.buildWAVData(pcmSamples: silentSamples, sampleRate: sampleRate)
+        // Cache in memory.
+        cachedClonePromptData = clonePromptData
+        cachedVoiceName = voice.name
+
+        return clonePromptData
     }
 }
