@@ -154,7 +154,7 @@ struct DigaCommand: AsyncParsableCommand {
             return TTSModelID.large
         default:
             // Accept any string that looks like a HuggingFace model ID (contains /).
-            // Also accept full model IDs like "mlx-community/Qwen3-TTS-12Hz-1.7B".
+            // Also accept full model IDs like "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16".
             if modelValue.contains("/") {
                 return modelValue
             }

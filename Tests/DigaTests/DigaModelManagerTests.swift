@@ -13,8 +13,9 @@ import Testing
 
 /// Mirror of TTSModelID from DigaModelManager.swift
 private enum TestTTSModelID {
-    static let large = "mlx-community/Qwen3-TTS-12Hz-1.7B"
-    static let small = "mlx-community/Qwen3-TTS-12Hz-0.6B"
+    static let large = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16"
+    static let small = "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16"
+    static let voiceDesign = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
     static let ramThresholdBytes: UInt64 = 16 * 1024 * 1024 * 1024  // 16 GB
 }
 
@@ -86,8 +87,8 @@ struct DigaModelManagerTests {
     @Test("modelDirectory slugifies HuggingFace IDs by replacing / with _")
     func modelDirectorySlugifies() {
         let base = URL(fileURLWithPath: "/tmp/test-models")
-        let dir = modelDirectory(base: base, modelId: "mlx-community/Qwen3-TTS-12Hz-1.7B")
-        let expected = "/tmp/test-models/mlx-community_Qwen3-TTS-12Hz-1.7B"
+        let dir = modelDirectory(base: base, modelId: "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16")
+        let expected = "/tmp/test-models/mlx-community_Qwen3-TTS-12Hz-1.7B-Base-bf16"
         #expect(dir.path == expected)
     }
 
@@ -103,7 +104,7 @@ struct DigaModelManagerTests {
     func modelDirectorySmallModel() {
         let base = URL(fileURLWithPath: "/cache")
         let dir = modelDirectory(base: base, modelId: TestTTSModelID.small)
-        #expect(dir.path == "/cache/mlx-community_Qwen3-TTS-12Hz-0.6B")
+        #expect(dir.path == "/cache/mlx-community_Qwen3-TTS-12Hz-0.6B-Base-bf16")
     }
 
     // MARK: - 2.2 RAM-Based Model Selection
@@ -207,12 +208,12 @@ struct DigaModelManagerTests {
     @Test("HuggingFace file URLs are constructed correctly")
     func huggingFaceURLConstruction() {
         let url = huggingFaceFileURL(
-            modelId: "mlx-community/Qwen3-TTS-12Hz-1.7B",
+            modelId: "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16",
             fileName: "config.json"
         )
         #expect(
             url.absoluteString
-                == "https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B/resolve/main/config.json"
+                == "https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16/resolve/main/config.json"
         )
     }
 
@@ -275,8 +276,8 @@ struct DigaModelManagerTests {
 
     @Test("Model constants match expected HuggingFace IDs")
     func modelConstants() {
-        #expect(TestTTSModelID.large == "mlx-community/Qwen3-TTS-12Hz-1.7B")
-        #expect(TestTTSModelID.small == "mlx-community/Qwen3-TTS-12Hz-0.6B")
+        #expect(TestTTSModelID.large == "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16")
+        #expect(TestTTSModelID.small == "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16")
     }
 
     @Test("Custom model ID slugifies correctly for arbitrary HuggingFace repos")

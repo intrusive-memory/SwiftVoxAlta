@@ -132,7 +132,7 @@ struct CLIModelFlagTests {
         let modelValue = "0.6b"
         switch modelValue.lowercased() {
         case "0.6b":
-            #expect(TTSModelID.small == "mlx-community/Qwen3-TTS-12Hz-0.6B")
+            #expect(TTSModelID.small == "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16")
         default:
             Issue.record("Expected 0.6b to match")
         }
@@ -148,7 +148,7 @@ struct CLIModelFlagTests {
         let modelValue = "1.7b"
         switch modelValue.lowercased() {
         case "1.7b":
-            #expect(TTSModelID.large == "mlx-community/Qwen3-TTS-12Hz-1.7B")
+            #expect(TTSModelID.large == "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16")
         default:
             Issue.record("Expected 1.7b to match")
         }
@@ -174,8 +174,8 @@ struct CLIModelFlagTests {
 
     @Test("--model with full HuggingFace model ID is accepted")
     func modelFlagHuggingFaceID() throws {
-        let command = try DigaCommand.parse(["--model", "mlx-community/Qwen3-TTS-12Hz-1.7B", "hello"])
-        #expect(command.model == "mlx-community/Qwen3-TTS-12Hz-1.7B")
+        let command = try DigaCommand.parse(["--model", "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16", "hello"])
+        #expect(command.model == "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16")
 
         // A value containing "/" is accepted as a HuggingFace model ID.
         #expect(command.model!.contains("/"))

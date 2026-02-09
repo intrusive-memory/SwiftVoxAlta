@@ -30,7 +30,7 @@ struct VoxAltaErrorTests {
 
     @Test("modelNotAvailable has non-empty errorDescription")
     func modelNotAvailable() {
-        let error = VoxAltaError.modelNotAvailable("mlx-community/Qwen3-TTS-12Hz-Base-1.7B-bf16")
+        let error = VoxAltaError.modelNotAvailable("mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16")
         #expect(error.errorDescription != nil)
         #expect(!error.errorDescription!.isEmpty)
         #expect(error.errorDescription!.contains("Qwen3-TTS"))

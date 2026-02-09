@@ -48,8 +48,8 @@ public struct VoxAltaConfig: Codable, Sendable {
 
     /// Default configuration using standard Qwen3-TTS models.
     public static let `default` = VoxAltaConfig(
-        designModel: "mlx-community/Qwen3-TTS-12Hz-VoiceDesign-1.7B-bf16",
-        renderModel: "mlx-community/Qwen3-TTS-12Hz-Base-1.7B-bf16",
+        designModel: "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16",
+        renderModel: "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16",
         analysisModel: "mlx-community/Qwen3-4B-4bit",
         candidateCount: 3,
         outputFormat: .wav

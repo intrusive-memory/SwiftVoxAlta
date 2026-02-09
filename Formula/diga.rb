@@ -34,6 +34,6 @@ class Diga < Formula
   end
 
   test do
-    system "#{bin}/diga", "--version"
+    assert_match "diga", shell_output("#{bin}/diga --version")
   end
 end

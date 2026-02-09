@@ -3,9 +3,11 @@ import Foundation
 /// Known TTS model identifiers from HuggingFace.
 enum TTSModelID {
     /// Large model (1.7B parameters) — better quality, requires 16GB+ RAM.
-    static let large = "mlx-community/Qwen3-TTS-12Hz-1.7B"
+    static let large = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16"
     /// Small model (0.6B parameters) — fits in less RAM.
-    static let small = "mlx-community/Qwen3-TTS-12Hz-0.6B"
+    static let small = "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16"
+    /// VoiceDesign model (1.7B only) — generates voices from text descriptions.
+    static let voiceDesign = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
 
     /// RAM threshold in bytes (16 GB) above which the large model is recommended.
     static let ramThresholdBytes: UInt64 = 16 * 1024 * 1024 * 1024
@@ -78,10 +80,10 @@ actor DigaModelManager {
     /// Returns the local directory for a given HuggingFace model ID.
     ///
     /// The model ID's `/` separator is replaced with `_` to create a valid directory name.
-    /// For example, `mlx-community/Qwen3-TTS-12Hz-1.7B` becomes
-    /// `mlx-community_Qwen3-TTS-12Hz-1.7B`.
+    /// For example, `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16` becomes
+    /// `mlx-community_Qwen3-TTS-12Hz-1.7B-Base-bf16`.
     ///
-    /// - Parameter modelId: The HuggingFace model identifier (e.g., `mlx-community/Qwen3-TTS-12Hz-1.7B`).
+    /// - Parameter modelId: The HuggingFace model identifier (e.g., `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16`).
     /// - Returns: A file URL to the model's local directory.
     func modelDirectory(for modelId: String) -> URL {
         let slug = Self.slugify(modelId)
@@ -188,7 +190,7 @@ actor DigaModelManager {
     /// Constructs the HuggingFace download URL for a specific file in a model repository.
     ///
     /// - Parameters:
-    ///   - modelId: The HuggingFace model identifier (e.g., `mlx-community/Qwen3-TTS-12Hz-1.7B`).
+    ///   - modelId: The HuggingFace model identifier (e.g., `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16`).
     ///   - fileName: The file name to download (e.g., `config.json`).
     /// - Returns: The full URL to the file on HuggingFace Hub.
     static func huggingFaceFileURL(modelId: String, fileName: String) -> URL {
