@@ -25,6 +25,22 @@ struct DigaCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Override the auto-selected TTS model (HuggingFace model ID).")
     var model: String?
 
+    // MARK: - Output Flags (Sprint 5 + Sprint 6)
+
+    @Option(name: .shortAndLong, help: "Write audio to a file instead of playing through speakers.")
+    var output: String?
+
+    @Option(name: .shortAndLong, help: "Read input text from a file.")
+    var file: String?
+
+    @Option(name: .long, help: "Override the output audio format (wav, aiff, m4a). Inferred from file extension if not set.")
+    var fileFormat: String?
+
+    // MARK: - Voice Selection (Sprint 5)
+
+    @Option(name: .shortAndLong, help: "Voice name to use for synthesis.")
+    var voice: String?
+
     // MARK: - Positional Arguments
 
     @Argument(help: "Voice name (used with --design or --clone), or text to speak.")
@@ -51,8 +67,41 @@ struct DigaCommand: AsyncParsableCommand {
         // Ensure model is available before proceeding with synthesis.
         try await ensureModelAvailable()
 
-        // No actionable flags — print help.
-        throw CleanExit.helpRequest(self)
+        // Determine input text from one of three sources:
+        // 1. -f flag: read from file
+        // 2. Positional arguments: join as text
+        // 3. Stdin (when piped, i.e., stdin is not a TTY)
+        let text: String
+        if let filePath = file {
+            text = try readInputFile(path: filePath)
+        } else if !positionalArgs.isEmpty {
+            text = positionalArgs.joined(separator: " ")
+        } else if !isatty(STDIN_FILENO).boolValue {
+            text = try readStdin()
+        } else {
+            // No input provided — print help.
+            throw CleanExit.helpRequest(self)
+        }
+
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else {
+            throw ValidationError("Input text is empty.")
+        }
+
+        // Synthesize text to WAV audio.
+        let engine = DigaEngine(modelOverride: model)
+        let wavData = try await engine.synthesize(text: trimmedText, voiceName: voice)
+
+        // Route output: file (-o) or speaker playback.
+        if let outputPath = output {
+            // Sprint 6: Infer format from extension or --file-format flag, then write.
+            let format = AudioFormat.infer(fromPath: outputPath, formatOverride: fileFormat)
+            try AudioFileWriter.write(wavData: wavData, to: outputPath, format: format)
+            // Silent on success — matches `say -o` behavior.
+        } else {
+            // Play through speakers (default behavior, Sprint 5).
+            try await AudioPlayback.play(wavData: wavData)
+        }
     }
 
     // MARK: - Model Management
@@ -94,6 +143,33 @@ struct DigaCommand: AsyncParsableCommand {
 
         let done = "Model download complete.\n"
         FileHandle.standardError.write(Data(done.utf8))
+    }
+
+    // MARK: - Input Reading (Sprint 5)
+
+    /// Read text from a file path.
+    ///
+    /// - Parameter path: Path to the input text file.
+    /// - Returns: The file contents as a string.
+    /// - Throws: `ValidationError` if the file cannot be read.
+    private func readInputFile(path: String) throws -> String {
+        let url = URL(fileURLWithPath: path)
+        guard FileManager.default.isReadableFile(atPath: url.path) else {
+            throw ValidationError("Input file not found or not readable: \(path)")
+        }
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    /// Read all text from standard input until EOF.
+    ///
+    /// - Returns: The stdin contents as a string.
+    /// - Throws: `ValidationError` if stdin cannot be read.
+    private func readStdin() throws -> String {
+        var lines: [String] = []
+        while let line = readLine(strippingNewline: false) {
+            lines.append(line)
+        }
+        return lines.joined()
     }
 
     // MARK: - --voices
@@ -140,9 +216,6 @@ struct DigaCommand: AsyncParsableCommand {
             throw ValidationError("A voice name is required: --design \"description\" <name>")
         }
 
-        // Stub: In a future sprint (Sprint 4), this will load the VoiceDesign model
-        // via DigaModelManager and generate a clone prompt. For now, we save the
-        // voice entry with the design description so the store is populated.
         let voice = StoredVoice(
             name: voiceName,
             type: .designed,
@@ -170,9 +243,6 @@ struct DigaCommand: AsyncParsableCommand {
             throw ValidationError("Reference audio file not found or not readable: \(referencePath)")
         }
 
-        // Stub: In a future sprint (Sprint 4), this will load the Base model via
-        // DigaModelManager and extract a clone prompt from the reference audio.
-        // For now, we save the voice entry with the reference path.
         let voice = StoredVoice(
             name: voiceName,
             type: .cloned,
@@ -187,4 +257,11 @@ struct DigaCommand: AsyncParsableCommand {
         let filename = fileURL.lastPathComponent
         print("Voice \"\(voiceName)\" cloned from \(filename)")
     }
+}
+
+// MARK: - Int32 Bool Extension (Sprint 5)
+
+private extension Int32 {
+    /// Converts a C-style boolean (0 = false, non-zero = true) to Swift Bool.
+    var boolValue: Bool { self != 0 }
 }
