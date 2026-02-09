@@ -18,7 +18,7 @@ let package = Package(
         .package(url: "https://github.com/intrusive-memory/SwiftHablare.git", branch: "development"),
         .package(url: "https://github.com/intrusive-memory/SwiftCompartido.git", branch: "development"),
         .package(url: "https://github.com/intrusive-memory/SwiftBruja.git", branch: "main"),
-        .package(url: "https://github.com/intrusive-memory/mlx-audio-swift.git", branch: "main"),
+        .package(url: "https://github.com/intrusive-memory/mlx-audio-swift.git", branch: "development"),
     ],
     targets: [
         .target(

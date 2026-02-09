@@ -85,19 +85,19 @@ struct MemoryValidationTests {
     @Test("validateMemory passes for realistic 0.6B model size")
     func validateRealistic0_6BPasses() async throws {
         let manager = VoxAltaModelManager()
-        let totalMemory = await manager.totalPhysicalMemory
+        let availableMemory = await manager.availableMemory
 
-        // Only run this test if the machine actually has enough RAM
+        // Only run this test if the machine currently has enough free RAM
         // (0.6B bf16 needs ~1.2GB * 1.5 = ~1.8GB)
         let requiredSize = Qwen3TTSModelSize.knownSizes[
             Qwen3TTSModelRepo.base0_6B.rawValue
         ]!
         let headroomNeeded = Int(Double(requiredSize) * Qwen3TTSModelSize.headroomMultiplier)
 
-        if totalMemory > UInt64(headroomNeeded) {
+        if availableMemory > UInt64(headroomNeeded) {
             try await manager.validateMemory(forModelSizeBytes: requiredSize)
         }
-        // If total physical memory is less than needed, skip gracefully
+        // If available memory is less than needed (system under load), skip gracefully
     }
 
     @Test("validateMemory throws insufficientMemory for unrealistically large requirement")
