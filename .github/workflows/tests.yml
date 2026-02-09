@@ -5,9 +5,32 @@ on:
     branches: [main, master, development]
 
 jobs:
+  code-quality:
+    name: Code Quality
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Validate Package.swift
+        run: xcodebuild -resolvePackageDependencies -scheme SwiftVoxAlta-Package -destination 'platform=macOS'
+
+      - name: Build all targets (warnings check)
+        run: xcodebuild build -scheme SwiftVoxAlta-Package -destination 'platform=macOS' 2>&1 | tee build.log
+
+      - name: Check for build warnings
+        run: |
+          WARNING_COUNT=$(grep -c "warning:" build.log || true)
+          echo "Build warnings: $WARNING_COUNT"
+
   test-macos:
     name: macOS Unit Tests
     runs-on: macos-26
+    needs: code-quality
 
     steps:
       - name: Checkout code

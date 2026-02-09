@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v0.1.0)'
+        required: true
+        type: string
+
+env:
+  BINARY_NAME: diga
+  SCHEME: diga
+
+jobs:
+  build-and-release:
+    name: Build Release Binary
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine version tag
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${{ github.event.release.tag_name }}"
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Release version: $VERSION (tag: $TAG)"
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Build release binary
+        run: make release
+
+      - name: Verify binary exists
+        run: |
+          test -f ./bin/diga
+          test -d ./bin/mlx-swift_Cmlx.bundle
+          echo "Binary and Metal bundle verified."
+
+      - name: Package tarball
+        id: package
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TARBALL="diga-${VERSION}-arm64-macos.tar.gz"
+          cd bin
+          tar czf "../${TARBALL}" diga mlx-swift_Cmlx.bundle
+          cd ..
+          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+          echo "Packaged: $TARBALL"
+          ls -lh "$TARBALL"
+
+      - name: Compute SHA256
+        id: sha256
+        run: |
+          TARBALL="${{ steps.package.outputs.tarball }}"
+          SHA=$(shasum -a 256 "$TARBALL" | awk '{ print $1 }')
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          echo "SHA256: $SHA"
+          echo "$SHA  $TARBALL" > "${TARBALL}.sha256"
+
+      - name: Upload release assets
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.package.outputs.tarball }}
+            ${{ steps.package.outputs.tarball }}.sha256
+
+      - name: Upload artifacts (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: diga-release
+          path: |
+            ${{ steps.package.outputs.tarball }}
+            ${{ steps.package.outputs.tarball }}.sha256
+
+      - name: Dispatch Homebrew tap update
+        if: github.event_name == 'release'
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          repository: intrusive-memory/homebrew-tap
+          event-type: update-formula
+          client-payload: |
+            {
+              "formula": "diga",
+              "version": "${{ steps.version.outputs.version }}",
+              "tag": "${{ steps.version.outputs.tag }}",
+              "sha256": "${{ steps.sha256.outputs.sha256 }}",
+              "tarball_url": "https://github.com/intrusive-memory/SwiftVoxAlta/releases/download/${{ steps.version.outputs.tag }}/${{ steps.package.outputs.tarball }}"
+            }
