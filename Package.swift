@@ -12,13 +12,18 @@ let package = Package(
         .library(
             name: "SwiftVoxAlta",
             targets: ["SwiftVoxAlta"]
-        )
+        ),
+        .executable(
+            name: "diga",
+            targets: ["diga"]
+        ),
     ],
     dependencies: [
         .package(url: "https://github.com/intrusive-memory/SwiftHablare.git", branch: "development"),
         .package(url: "https://github.com/intrusive-memory/SwiftCompartido.git", branch: "development"),
         .package(url: "https://github.com/intrusive-memory/SwiftBruja.git", branch: "main"),
         .package(url: "https://github.com/intrusive-memory/mlx-audio-swift.git", branch: "development"),
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
     ],
     targets: [
         .target(
@@ -33,11 +38,31 @@ let package = Package(
                 .enableUpcomingFeature("StrictConcurrency")
             ]
         ),
+        .executableTarget(
+            name: "diga",
+            dependencies: [
+                "SwiftVoxAlta",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ],
+            path: "Sources/diga",
+            swiftSettings: [
+                .enableUpcomingFeature("StrictConcurrency")
+            ]
+        ),
         .testTarget(
             name: "SwiftVoxAltaTests",
             dependencies: [
                 "SwiftVoxAlta",
                 .product(name: "SwiftCompartido", package: "SwiftCompartido"),
+            ],
+            swiftSettings: [
+                .enableUpcomingFeature("StrictConcurrency")
+            ]
+        ),
+        .testTarget(
+            name: "DigaTests",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency")

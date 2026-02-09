@@ -6,7 +6,7 @@ on:
 
 jobs:
   test-macos:
-    name: Test on macOS
+    name: macOS Unit Tests
     runs-on: macos-26
 
     steps:
@@ -17,10 +17,37 @@ jobs:
         run: swift --version
 
       - name: Resolve dependencies
-        run: xcodebuild -resolvePackageDependencies -scheme SwiftVoxAlta -destination 'platform=macOS'
+        run: xcodebuild -resolvePackageDependencies -scheme SwiftVoxAlta-Package -destination 'platform=macOS'
 
-      - name: Build
+      - name: Build library
         run: xcodebuild build -scheme SwiftVoxAlta -destination 'platform=macOS'
 
-      - name: Run unit tests
-        run: xcodebuild test -scheme SwiftVoxAlta -destination 'platform=macOS'
+      - name: Run all unit tests
+        run: xcodebuild test -scheme SwiftVoxAlta-Package -destination 'platform=macOS'
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: macos-26
+    needs: test-macos
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Build release binary
+        run: make release
+
+      - name: Verify diga binary exists
+        run: test -f ./bin/diga
+
+      - name: Verify Metal bundle exists
+        run: test -d ./bin/mlx-swift_Cmlx.bundle
+
+      - name: Verify diga --version output
+        run: |
+          VERSION_OUTPUT=$(./bin/diga --version)
+          echo "Version output: $VERSION_OUTPUT"
+          echo "$VERSION_OUTPUT" | grep -q "0.1.0"

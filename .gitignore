@@ -45,6 +45,9 @@ Pods/
 *.swo
 *~
 
+# Build output
+bin/
+
 # Environment
 .env
 .env.*
