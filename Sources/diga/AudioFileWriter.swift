@@ -87,7 +87,7 @@ enum AudioFileWriterError: Error, LocalizedError, Sendable {
 /// Writes WAV audio data to disk in various formats.
 ///
 /// Supports direct WAV passthrough (no conversion), AIFF conversion via `AVAudioFile`,
-/// and M4A (AAC) conversion via `AVAudioFile` with compressed settings.
+/// and M4A (AAC) conversion via `ExtendedAudioFile`.
 ///
 /// The input is always 16-bit PCM WAV data at 24kHz mono, as produced by `DigaEngine`.
 enum AudioFileWriter: Sendable {
@@ -146,31 +146,64 @@ enum AudioFileWriter: Sendable {
             withIntermediateDirectories: true
         )
 
-        do {
-            let outputFile = try AVAudioFile(
-                forWriting: outputURL,
-                settings: [
-                    AVFormatIDKey: kAudioFormatLinearPCM,
-                    AVSampleRateKey: pcmBuffer.format.sampleRate,
-                    AVNumberOfChannelsKey: pcmBuffer.format.channelCount,
-                    AVLinearPCMBitDepthKey: 16,
-                    AVLinearPCMIsBigEndianKey: true,
-                    AVLinearPCMIsFloatKey: false,
-                ],
-                commonFormat: .pcmFormatFloat32,
-                interleaved: false
-            )
-            try outputFile.write(from: pcmBuffer)
-        } catch let error as AudioFileWriterError {
-            throw error
-        } catch {
+        // Use AudioFileCreateWithURL for writing a proper AIFF (not AIFC).
+        var audioFileID: AudioFileID?
+        var asbd = AudioStreamBasicDescription(
+            mSampleRate: pcmBuffer.format.sampleRate,
+            mFormatID: kAudioFormatLinearPCM,
+            mFormatFlags: AudioFormatFlags(kAudioFormatFlagIsBigEndian | kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked),
+            mBytesPerPacket: UInt32(pcmBuffer.format.channelCount) * 2,
+            mFramesPerPacket: 1,
+            mBytesPerFrame: UInt32(pcmBuffer.format.channelCount) * 2,
+            mChannelsPerFrame: UInt32(pcmBuffer.format.channelCount),
+            mBitsPerChannel: 16,
+            mReserved: 0
+        )
+
+        var status = AudioFileCreateWithURL(
+            outputURL as CFURL,
+            kAudioFileAIFFType,
+            &asbd,
+            .eraseFile,
+            &audioFileID
+        )
+        guard status == noErr, let fileID = audioFileID else {
             throw AudioFileWriterError.conversionFailed(
-                "AIFF conversion failed: \(error.localizedDescription)"
+                "AIFF file creation failed with status \(status)."
+            )
+        }
+        defer { AudioFileClose(fileID) }
+
+        // Convert float32 samples to big-endian Int16 and write.
+        let frameCount = Int(pcmBuffer.frameLength)
+        let channelCount = Int(pcmBuffer.format.channelCount)
+        guard let floatData = pcmBuffer.floatChannelData else {
+            throw AudioFileWriterError.conversionFailed("Could not access float channel data.")
+        }
+
+        var int16Data = Data(capacity: frameCount * channelCount * 2)
+        for frame in 0..<frameCount {
+            for channel in 0..<channelCount {
+                let floatSample = floatData[channel][frame]
+                let clampedSample = max(-1.0, min(1.0, floatSample))
+                let intSample = Int16(clampedSample * 32767.0)
+                var bigEndian = intSample.bigEndian
+                int16Data.append(Data(bytes: &bigEndian, count: 2))
+            }
+        }
+
+        var bytesWritten: UInt32 = UInt32(int16Data.count)
+        status = int16Data.withUnsafeBytes { rawBuffer in
+            AudioFileWriteBytes(fileID, false, 0, &bytesWritten, rawBuffer.baseAddress!)
+        }
+        guard status == noErr else {
+            throw AudioFileWriterError.conversionFailed(
+                "AIFF data write failed with status \(status)."
             )
         }
     }
 
-    // MARK: - M4A (convert via AVAudioFile with AAC)
+    // MARK: - M4A (convert via AVAudioConverter)
 
     /// Convert WAV data to M4A (AAC) format and write to disk.
     private static func writeM4A(wavData: Data, to path: String) throws {
@@ -184,24 +217,75 @@ enum AudioFileWriter: Sendable {
             withIntermediateDirectories: true
         )
 
-        do {
-            let outputFile = try AVAudioFile(
-                forWriting: outputURL,
-                settings: [
-                    AVFormatIDKey: kAudioFormatMPEG4AAC,
-                    AVSampleRateKey: pcmBuffer.format.sampleRate,
-                    AVNumberOfChannelsKey: pcmBuffer.format.channelCount,
-                    AVEncoderBitRateKey: 128_000,
-                ],
-                commonFormat: .pcmFormatFloat32,
-                interleaved: false
-            )
-            try outputFile.write(from: pcmBuffer)
-        } catch let error as AudioFileWriterError {
-            throw error
-        } catch {
+        // Create output format for AAC encoding.
+        guard let outputFormat = AVAudioFormat(
+            standardFormatWithSampleRate: pcmBuffer.format.sampleRate,
+            channels: pcmBuffer.format.channelCount
+        ) else {
             throw AudioFileWriterError.conversionFailed(
-                "M4A conversion failed: \(error.localizedDescription)"
+                "Could not create intermediate audio format."
+            )
+        }
+
+        // Use ExtAudioFile API for M4A/AAC writing, which is more reliable than AVAudioFile.
+        var clientASBD = AudioStreamBasicDescription(
+            mSampleRate: pcmBuffer.format.sampleRate,
+            mFormatID: kAudioFormatLinearPCM,
+            mFormatFlags: AudioFormatFlags(kAudioFormatFlagIsFloat | kAudioFormatFlagIsNonInterleaved | kAudioFormatFlagIsPacked),
+            mBytesPerPacket: 4,
+            mFramesPerPacket: 1,
+            mBytesPerFrame: 4,
+            mChannelsPerFrame: UInt32(pcmBuffer.format.channelCount),
+            mBitsPerChannel: 32,
+            mReserved: 0
+        )
+
+        var outputASBD = AudioStreamBasicDescription(
+            mSampleRate: pcmBuffer.format.sampleRate,
+            mFormatID: kAudioFormatMPEG4AAC,
+            mFormatFlags: 0,
+            mBytesPerPacket: 0,
+            mFramesPerPacket: 1024,
+            mBytesPerFrame: 0,
+            mChannelsPerFrame: UInt32(pcmBuffer.format.channelCount),
+            mBitsPerChannel: 0,
+            mReserved: 0
+        )
+
+        var extAudioFile: ExtAudioFileRef?
+        var status = ExtAudioFileCreateWithURL(
+            outputURL as CFURL,
+            kAudioFileM4AType,
+            &outputASBD,
+            nil,
+            AudioFileFlags.eraseFile.rawValue,
+            &extAudioFile
+        )
+        guard status == noErr, let extFile = extAudioFile else {
+            throw AudioFileWriterError.conversionFailed(
+                "M4A file creation failed with status \(status)."
+            )
+        }
+        defer { ExtAudioFileDispose(extFile) }
+
+        // Set the client data format (what we'll provide: Float32 non-interleaved PCM).
+        status = ExtAudioFileSetProperty(
+            extFile,
+            kExtAudioFileProperty_ClientDataFormat,
+            UInt32(MemoryLayout<AudioStreamBasicDescription>.size),
+            &clientASBD
+        )
+        guard status == noErr else {
+            throw AudioFileWriterError.conversionFailed(
+                "Failed to set client format on M4A file (status \(status))."
+            )
+        }
+
+        // Write the PCM buffer to the ExtAudioFile (it handles AAC encoding internally).
+        status = ExtAudioFileWrite(extFile, pcmBuffer.frameLength, pcmBuffer.audioBufferList)
+        guard status == noErr else {
+            throw AudioFileWriterError.conversionFailed(
+                "M4A data write failed with status \(status)."
             )
         }
     }
