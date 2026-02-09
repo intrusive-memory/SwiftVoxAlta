@@ -86,18 +86,16 @@ jobs:
             ${{ steps.package.outputs.tarball }}
             ${{ steps.package.outputs.tarball }}.sha256
 
-      - name: Dispatch Homebrew tap update
+      - name: Trigger Homebrew Tap Update
         if: github.event_name == 'release'
         uses: peter-evans/repository-dispatch@v3
         with:
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          token: ${{ secrets.DEPLOY_TOKEN }}
           repository: intrusive-memory/homebrew-tap
-          event-type: update-formula
+          event-type: formula-update
           client-payload: |
             {
               "formula": "diga",
-              "version": "${{ steps.version.outputs.version }}",
-              "tag": "${{ steps.version.outputs.tag }}",
-              "sha256": "${{ steps.sha256.outputs.sha256 }}",
-              "tarball_url": "https://github.com/intrusive-memory/SwiftVoxAlta/releases/download/${{ steps.version.outputs.tag }}/${{ steps.package.outputs.tarball }}"
+              "version": "${{ steps.version.outputs.tag }}",
+              "repo": "${{ github.repository }}"
             }

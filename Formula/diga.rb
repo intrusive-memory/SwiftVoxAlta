@@ -1,29 +1,23 @@
-# typed: false
-# frozen_string_literal: true
-
-# Homebrew formula for diga — AI voice designer for screenwriters.
-# Pre-built binary distribution for Apple Silicon Macs.
 class Diga < Formula
-  desc "AI voice designer for screenwriters — design and clone character voices with Qwen3-TTS"
+  desc "Drop-in replacement for Apple's say command using Qwen3-TTS for AI-generated speech"
   homepage "https://github.com/intrusive-memory/SwiftVoxAlta"
-  version "0.1.0"
-  license "MIT"
-
-  url "https://github.com/intrusive-memory/SwiftVoxAlta/releases/download/v#{version}/diga-#{version}-arm64-macos.tar.gz"
+  url "https://github.com/intrusive-memory/SwiftVoxAlta/releases/download/v0.1.0/diga-0.1.0-arm64-macos.tar.gz"
   sha256 "PLACEHOLDER_SHA256"
+  license "MIT"
+  version "0.1.0"
 
   depends_on arch: :arm64
   depends_on macos: :tahoe
+  depends_on "mlx"
 
   def install
+    # Install binary and Metal bundle to libexec (keeps them colocated)
+    # MLX resolves the Metal shader bundle relative to the binary's actual location
+    # Using libexec ensures dladdr/Bundle.main resolve to where the bundle lives
     libexec.install "diga"
     libexec.install "mlx-swift_Cmlx.bundle"
-
-    # Wrapper script that sets bundle path for Metal shader discovery
-    (bin/"diga").write <<~SH
-      #!/bin/bash
-      exec "#{libexec}/diga" "$@"
-    SH
+    # Create wrapper script in bin that execs the real binary
+    (bin/"diga").write_env_script libexec/"diga", {}
   end
 
   def caveats
@@ -34,13 +28,12 @@ class Diga < Formula
       from Hugging Face to ~/.cache/huggingface/hub/. This is a one-time
       download and requires an internet connection.
 
-      For convenience, you may want to add an alias:
-        alias say-design='diga voice-design'
-        alias say-clone='diga voice-clone'
+      Use diga as a drop-in replacement for the 'say' command:
+        diga "Hello, world!"
     EOS
   end
 
   test do
-    assert_match "diga", shell_output("#{bin}/diga --version")
+    system "#{bin}/diga", "--version"
   end
 end
