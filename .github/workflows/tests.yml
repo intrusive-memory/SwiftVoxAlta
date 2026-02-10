@@ -21,13 +21,8 @@ jobs:
       - name: Validate Package.swift
         run: xcodebuild -resolvePackageDependencies -scheme SwiftVoxAlta-Package -destination 'platform=macOS'
 
-      - name: Build all targets (warnings check)
-        run: xcodebuild build -scheme SwiftVoxAlta-Package -destination 'platform=macOS' 2>&1 | tee build.log
-
-      - name: Check for build warnings
-        run: |
-          WARNING_COUNT=$(grep -c "warning:" build.log || true)
-          echo "Build warnings: $WARNING_COUNT"
+      - name: Build all targets
+        run: xcodebuild build -scheme SwiftVoxAlta-Package -destination 'platform=macOS'
 
   test-macos:
     name: macOS Unit Tests
