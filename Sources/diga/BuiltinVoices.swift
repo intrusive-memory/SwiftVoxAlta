@@ -15,10 +15,17 @@ enum BuiltinVoices {
         ("ryan", "ryan", "Dynamic male voice with strong rhythmic drive"),
         ("aiden", "aiden", "Sunny American male voice with clear midrange"),
 
-        // Multilingual speakers (can speak English too)
-        ("vivian", "vivian", "Bright, slightly edgy young female voice"),
-        ("serena", "serena", "Warm, gentle young female voice"),
+        // Chinese speakers
+        ("vivian", "vivian", "Bright, slightly edgy young Chinese female voice"),
+        ("serena", "serena", "Warm, gentle young Chinese female voice"),
+        ("uncle_fu", "uncle_fu", "Seasoned Chinese male voice with low, mellow timbre"),
+        ("dylan", "dylan", "Youthful Beijing male voice with clear timbre"),
+        ("eric", "eric", "Lively Chengdu male voice with husky brightness"),
+
+        // Japanese speaker
         ("anna", "ono_anna", "Playful Japanese female voice with light timbre"),
+
+        // Korean speaker
         ("sohee", "sohee", "Warm Korean female voice with rich emotion"),
     ]
 
