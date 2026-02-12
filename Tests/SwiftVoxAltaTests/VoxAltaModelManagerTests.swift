@@ -69,7 +69,28 @@ struct ModelManagerInitialStateTests {
     }
 }
 
-// MARK: - Memory Validation Tests
+// MARK: - Memory Check (Non-Throwing) Tests
+
+@Suite("VoxAltaModelManager - Memory Check (Non-Throwing)")
+struct MemoryCheckTests {
+
+    @Test("checkMemory returns true for small requirement")
+    func checkSmallReturnsTrue() async {
+        let manager = VoxAltaModelManager()
+        let ok = await manager.checkMemory(forModelSizeBytes: 100_000_000)
+        #expect(ok == true)
+    }
+
+    @Test("checkMemory returns false for absurdly large requirement without throwing")
+    func checkHugeReturnsFalse() async {
+        let manager = VoxAltaModelManager()
+        // 500 GB — should return false, not throw
+        let ok = await manager.checkMemory(forModelSizeBytes: 500_000_000_000)
+        #expect(ok == false)
+    }
+}
+
+// MARK: - Memory Validation Tests (Legacy Throwing)
 
 @Suite("VoxAltaModelManager - Memory Validation")
 struct MemoryValidationTests {

@@ -108,8 +108,7 @@ public actor VoxAltaModelManager {
     /// - Parameter repo: The HuggingFace model repository identifier
     ///   (e.g., `"mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"`).
     /// - Returns: The loaded `SpeechGenerationModel` instance.
-    /// - Throws: `VoxAltaError.modelNotAvailable` if loading fails,
-    ///           `VoxAltaError.insufficientMemory` if the system lacks sufficient RAM.
+    /// - Throws: `VoxAltaError.modelNotAvailable` if loading fails.
     public func loadModel(repo: String) async throws -> any SpeechGenerationModel {
         // Return cached model if same repo is requested
         if let cached = cachedModel, _currentModelRepo == repo {
@@ -121,9 +120,9 @@ public actor VoxAltaModelManager {
             unloadModel()
         }
 
-        // Validate memory before attempting to load
+        // Warn (but don't block) if memory looks tight — let macOS manage pressure
         if let estimatedSize = Qwen3TTSModelSize.knownSizes[repo] {
-            try validateMemory(forModelSizeBytes: estimatedSize)
+            checkMemory(forModelSizeBytes: estimatedSize)
         }
 
         // Load via mlx-audio-swift's TTSModelUtils
@@ -149,7 +148,7 @@ public actor VoxAltaModelManager {
     ///
     /// - Parameter modelRepo: The model variant to load.
     /// - Returns: The loaded `SpeechGenerationModel` instance.
-    /// - Throws: `VoxAltaError.modelNotAvailable` or `VoxAltaError.insufficientMemory`.
+    /// - Throws: `VoxAltaError.modelNotAvailable` if loading fails.
     public func loadModel(_ modelRepo: Qwen3TTSModelRepo) async throws -> any SpeechGenerationModel {
         try await loadModel(repo: modelRepo.rawValue)
     }
@@ -166,12 +165,30 @@ public actor VoxAltaModelManager {
 
     // MARK: - Memory Validation
 
-    /// Validates that the system has sufficient available memory to load a model
-    /// of the given size.
+    /// Checks whether the system has sufficient available memory to load a model
+    /// of the given size. Returns `false` (and logs a warning to stderr) if memory
+    /// looks tight, but does **not** throw — macOS is capable of reclaiming memory
+    /// from compressed, inactive, and cached pages on demand.
     ///
-    /// The check requires that available memory is at least `requiredBytes * 1.5`
-    /// to leave headroom for KV caches, intermediate activations, and the speech
-    /// tokenizer decoder.
+    /// - Parameter requiredBytes: The estimated memory footprint of the model in bytes.
+    /// - Returns: `true` if available memory comfortably fits the model, `false` if it may be tight.
+    @discardableResult
+    public func checkMemory(forModelSizeBytes requiredBytes: Int) -> Bool {
+        let available = Self.queryAvailableMemory()
+        let requiredWithHeadroom = Int(Double(requiredBytes) * Qwen3TTSModelSize.headroomMultiplier)
+
+        if available < requiredWithHeadroom {
+            let availMB = available / (1024 * 1024)
+            let reqMB = requiredWithHeadroom / (1024 * 1024)
+            FileHandle.standardError.write(Data(
+                "Warning: Low memory — \(availMB) MB reclaimable vs \(reqMB) MB needed. macOS will manage swap if necessary.\n".utf8
+            ))
+            return false
+        }
+        return true
+    }
+
+    /// Legacy throwing validation — kept for callers that require a hard gate.
     ///
     /// - Parameter requiredBytes: The estimated memory footprint of the model in bytes.
     /// - Throws: `VoxAltaError.insufficientMemory` if available memory is insufficient.
@@ -201,7 +218,12 @@ public actor VoxAltaModelManager {
         UInt64(Self.queryAvailableMemory())
     }
 
-    /// Query available memory using Mach VM statistics.
+    /// Query reclaimable memory using Mach VM statistics.
+    ///
+    /// Includes free, purgeable, inactive, and speculative pages — all of which
+    /// macOS can reclaim on demand without terminating processes. This gives a
+    /// realistic picture of what's actually available for large allocations,
+    /// rather than just the "free" count shown by Activity Monitor.
     private nonisolated static func queryAvailableMemory() -> Int {
         var stats = vm_statistics64()
         var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.size / MemoryLayout<integer_t>.size)
@@ -217,8 +239,10 @@ public actor VoxAltaModelManager {
         // Use sysctl to get page size (vm_kernel_page_size is unavailable on macOS 26)
         let pageSize = Self.systemPageSize
         let free = Int(stats.free_count) * pageSize
+        let inactive = Int(stats.inactive_count) * pageSize
         let purgeable = Int(stats.purgeable_count) * pageSize
-        return free + purgeable
+        let speculative = Int(stats.speculative_count) * pageSize
+        return free + inactive + purgeable + speculative
     }
 
     /// System page size obtained via sysctl, avoiding deprecated vm_kernel_page_size.

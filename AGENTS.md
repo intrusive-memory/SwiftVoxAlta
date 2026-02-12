@@ -2,7 +2,7 @@
 
 This file provides comprehensive documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: Development (February 2026)
+**Current Version**: 0.1.0
 
 ---
 
@@ -10,88 +10,149 @@ This file provides comprehensive documentation for AI agents working with the Sw
 
 SwiftVoxAlta is a VoiceProvider library for SwiftHablare that provides on-device voice design and cloning capabilities using Qwen3-TTS via mlx-audio-swift.
 
-**Purpose**: Analyze screenplay characters, design custom voices, lock voice identities through cloning, and render dialogue audio - all on-device using Apple Silicon.
+**Purpose**: Analyze screenplay characters, design custom voices, lock voice identities through cloning, and render dialogue audio -- all on-device using Apple Silicon.
 
 ## What VoxAlta Provides
 
-- **VoiceProvider implementation** - text + voiceId → audio Data (Qwen3-TTS base model cloning)
-- **Voice design API** - character evidence → CharacterProfile → voice candidates → locked voice
-- **VoiceProviderDescriptor** - auto-registration with SwiftHablare's provider registry
-- **CLI tool (`diga`)** - command-line interface for voice design and audio generation
+- **VoiceProvider implementation** -- text + voiceId -> audio Data (Qwen3-TTS base model cloning)
+- **Voice design API** -- character evidence -> CharacterProfile -> voice candidates -> locked voice
+- **VoiceProviderDescriptor** -- auto-registration with SwiftHablare's provider registry
+- **CLI tool (`diga`)** -- drop-in replacement for `/usr/bin/say` with neural TTS
 
 ## What VoxAlta Does NOT Provide
 
-❌ **Fountain parsing** - handled by SwiftCompartido
-❌ **Voice selection UI** - handled by app layer
-❌ **Audio storage/persistence** - handled by Produciesta / SwiftData
-❌ **Streaming playback** - handled by SwiftHablare / app layer
+- Fountain parsing (SwiftCompartido)
+- Voice selection UI (app layer)
+- Audio storage/persistence (Produciesta / SwiftData)
+- Streaming playback (SwiftHablare / app layer)
+
+## Installation
+
+### Homebrew (recommended for CLI)
+
+```bash
+brew tap intrusive-memory/tap
+brew install diga
+```
+
+### Swift Package Manager (for library integration)
+
+```swift
+.package(url: "https://github.com/intrusive-memory/SwiftVoxAlta.git", from: "0.1.0")
+```
 
 ## Project Structure
 
 ```
 SwiftVoxAlta/
 ├── Sources/
-│   ├── SwiftVoxAlta/          # Library target
-│   │   ├── VoiceProvider/     # VoiceProvider protocol implementation
-│   │   ├── VoiceDesign/       # Character analysis and voice design
-│   │   ├── CharacterProfile/  # Character evidence and profile types
-│   │   └── Types/             # Shared types and descriptors
-│   └── diga/                  # CLI executable target
-└── Tests/
-    └── SwiftVoxAltaTests/
+│   ├── SwiftVoxAlta/                  # Library target
+│   │   ├── AudioConversion.swift      # WAV format utilities
+│   │   ├── CharacterAnalyzer.swift    # LLM-based character analysis
+│   │   ├── CharacterEvidenceExtractor.swift  # Extract evidence from screenplay
+│   │   ├── CharacterProfile.swift     # CharacterProfile + CharacterEvidence types
+│   │   ├── ParentheticalMapper.swift  # Map parentheticals to voice traits
+│   │   ├── VoiceDesigner.swift        # Voice candidate generation
+│   │   ├── VoiceLock.swift            # Locked voice identity type
+│   │   ├── VoiceLockManager.swift     # Audio generation from locked voices
+│   │   ├── VoxAltaConfig.swift        # Configuration (model IDs, output format)
+│   │   ├── VoxAltaError.swift         # Error types
+│   │   ├── VoxAltaModelManager.swift  # Qwen3-TTS model lifecycle (actor)
+│   │   ├── VoxAltaProviderDescriptor.swift  # SwiftHablare registration
+│   │   ├── VoxAltaVoiceCache.swift    # Thread-safe voice cache (actor)
+│   │   └── VoxAltaVoiceProvider.swift # VoiceProvider protocol implementation
+│   └── diga/                          # CLI executable target
+│       ├── AudioFileWriter.swift      # WAV/AIFF/M4A file output
+│       ├── AudioPlayback.swift        # Speaker playback via AVAudioPlayer
+│       ├── BuiltinVoices.swift        # Built-in voice presets
+│       ├── DigaCommand.swift          # CLI entry point and argument parsing
+│       ├── DigaEngine.swift           # Synthesis engine (text -> WAV data)
+│       ├── DigaModelManager.swift     # Model download and cache management
+│       ├── TextChunker.swift          # Split long text for chunked synthesis
+│       ├── Version.swift              # Version constant (0.1.0)
+│       └── VoiceStore.swift           # Persistent custom voice storage
+├── Tests/
+│   ├── SwiftVoxAltaTests/             # Library tests
+│   └── DigaTests/                     # CLI tests
+├── Formula/
+│   └── diga.rb                        # Reference Homebrew formula
+├── Makefile                           # Build targets (xcodebuild wrapper)
+├── Package.swift
+├── AGENTS.md                          # This file
+├── CLAUDE.md                          # Claude Code pointer -> AGENTS.md
+├── GEMINI.md                          # Gemini pointer -> AGENTS.md
+└── README.md
 ```
 
 ## Key Components
 
 | Component | Purpose |
 |-----------|---------|
-| **VoiceProvider** | Implements SwiftHablare's VoiceProvider protocol for Qwen3-TTS |
-| **VoiceDesigner** | Analyzes character evidence and generates voice candidates |
-| **CharacterProfile** | Structured representation of character attributes |
-| **VoiceCandidate** | Generated voice design with prompt and parameters |
-| **VoiceProviderDescriptor** | Registration metadata for SwiftHablare |
-| **`diga` CLI** | Command-line tool for voice design and synthesis |
+| **VoxAltaVoiceProvider** | Implements SwiftHablare's `VoiceProvider` protocol |
+| **VoxAltaModelManager** | Actor managing Qwen3-TTS model lifecycle via mlx-audio-swift |
+| **VoxAltaVoiceCache** | Actor caching loaded voice clone prompts |
+| **VoiceDesigner** | Generates voice candidates from character profiles |
+| **VoiceLockManager** | Generates audio from locked voice identities |
+| **CharacterAnalyzer** | LLM-based character analysis via SwiftBruja |
+| **CharacterEvidenceExtractor** | Extracts evidence from screenplay elements |
+| **CharacterProfile** | Structured character attributes for voice design |
+| **VoxAltaConfig** | Configuration (model IDs, candidate count, output format) |
+| **VoxAltaProviderDescriptor** | Factory for SwiftHablare registry registration |
+| **`diga` CLI** | Drop-in `say` replacement with neural TTS |
 
 ## Dependencies
 
 | Package | Purpose |
 |---------|---------|
-| SwiftHablare | VoiceProvider protocol and registry |
-| SwiftCompartido | Input types (GuionElementModel, ElementType) |
-| SwiftBruja | LLM inference for character analysis |
-| mlx-audio-swift | Qwen3-TTS inference engine |
-| swift-argument-parser | CLI argument parsing |
+| [SwiftHablare](https://github.com/intrusive-memory/SwiftHablare) | VoiceProvider protocol and registry |
+| [SwiftCompartido](https://github.com/intrusive-memory/SwiftCompartido) | Input types (GuionElementModel, ElementType) |
+| [SwiftBruja](https://github.com/intrusive-memory/SwiftBruja) | LLM inference for character analysis |
+| [mlx-audio-swift](https://github.com/intrusive-memory/mlx-audio-swift) | Qwen3-TTS inference engine (MLXAudioTTS) |
+| [swift-argument-parser](https://github.com/apple/swift-argument-parser) | CLI argument parsing |
 
 ## Voice Design Pipeline
 
-1. **Character Evidence Collection** - Extract dialogue and action lines from screenplay elements
-2. **LLM Analysis** - Use SwiftBruja to analyze character traits, age, gender, personality
-3. **Profile Creation** - Structure character attributes into CharacterProfile
-4. **Voice Candidate Generation** - Generate clone prompts based on character profile
-5. **Voice Locking** - Select candidate and lock voice identity for consistent rendering
-6. **Audio Synthesis** - Render dialogue using Qwen3-TTS base model with clone prompt
+1. **Character Evidence Collection** -- Extract dialogue, parentheticals, actions, and scene headings from screenplay elements
+2. **LLM Analysis** -- Use SwiftBruja to analyze character traits, age, gender, personality
+3. **Profile Creation** -- Structure character attributes into `CharacterProfile`
+4. **Voice Candidate Generation** -- Generate VoiceDesign descriptions based on profile
+5. **Voice Locking** -- Select candidate and lock voice identity as a `VoiceLock` with clone prompt data
+6. **Audio Synthesis** -- Render dialogue using Qwen3-TTS Base model with the locked clone prompt
 
 ## Build and Test
 
-**CRITICAL**: Use `xcodebuild` for all builds and tests. Qwen3-TTS requires Metal shaders which don't compile with `swift build`.
+**CRITICAL**: Use `xcodebuild` or the Makefile for all builds and tests. Qwen3-TTS requires Metal shaders which don't compile with `swift build`.
+
+### Makefile Targets
+
+```bash
+make build      # Development build (xcodebuild debug)
+make install    # Debug build + copy binary and Metal bundle to ./bin
+make release    # Release build + copy to ./bin
+make test       # Run all tests (library + CLI)
+make resolve    # Resolve SPM dependencies
+make clean      # Clean build artifacts
+```
+
+### Direct xcodebuild
 
 ```bash
 # Build library
 xcodebuild build -scheme SwiftVoxAlta -destination 'platform=macOS'
 
 # Run tests
-xcodebuild test -scheme SwiftVoxAlta -destination 'platform=macOS'
+xcodebuild test -scheme SwiftVoxAlta-Package -destination 'platform=macOS'
 
 # Build CLI tool
-xcodebuild build -scheme diga -destination 'platform=macOS'
+xcodebuild build -scheme diga -destination 'platform=macOS,arch=arm64'
 ```
 
 ## Platform Requirements
 
-- **macOS 26.0+** (Apple Silicon only for Qwen3-TTS)
+- **macOS 26.0+** (Apple Silicon only -- Qwen3-TTS requires Metal/MLX)
 - **iOS 26.0+** (Apple Silicon only)
 - **Swift 6.2+**
-- **Xcode 17+**
+- **Xcode 26+**
 
 ## API Usage
 
@@ -101,14 +162,26 @@ xcodebuild build -scheme diga -destination 'platform=macOS'
 import SwiftVoxAlta
 import SwiftHablare
 
-// Get VoxAlta provider
+// Create provider
 let provider = VoxAltaVoiceProvider()
 
-// Generate audio
-let audioData = try await provider.speak(
+// Load a voice (clone prompt data from a VoiceLock)
+await provider.loadVoice(id: "ELENA", clonePromptData: lockData, gender: "female")
+
+// Generate audio (returns WAV data: 24kHz, 16-bit PCM, mono)
+let audioData = try await provider.generateAudio(
     text: "Hello from VoxAlta!",
-    voiceId: "character-voice-id"
+    voiceId: "ELENA",
+    languageCode: "en"
 )
+
+// Generate with duration measurement
+let processed = try await provider.generateProcessedAudio(
+    text: "Hello!",
+    voiceId: "ELENA",
+    languageCode: "en"
+)
+// processed.audioData, processed.durationSeconds, processed.mimeType
 ```
 
 ### Voice Design API
@@ -118,127 +191,165 @@ import SwiftVoxAlta
 
 // Collect character evidence from screenplay
 let evidence = CharacterEvidence(
-    dialogue: [...],
-    actions: [...],
-    sceneContexts: [...]
+    characterName: "ELENA",
+    dialogueLines: ["I won't let you down.", "Trust me on this."],
+    parentheticals: ["determined", "quietly"],
+    sceneHeadings: ["INT. OFFICE - DAY"],
+    actionMentions: ["Elena paces nervously."]
 )
 
-// Analyze and create profile
-let profile = try await VoiceDesigner.analyzeCharacter(evidence: evidence)
+// Analyze character via LLM
+let profile = try await CharacterAnalyzer.analyze(evidence: evidence)
 
 // Generate voice candidates
 let candidates = try await VoiceDesigner.generateCandidates(profile: profile)
 
 // Lock voice identity
-let lockedVoice = try await VoiceDesigner.lockVoice(candidate: candidates[0])
+let lock = VoiceLock(
+    characterName: profile.name,
+    clonePromptData: candidates[0].clonePromptData,
+    designInstruction: candidates[0].designDescription
+)
 ```
 
-### CLI Tool (`diga`)
+### SwiftHablare Registration
+
+```swift
+import SwiftHablare
+import SwiftVoxAlta
+
+// Register VoxAlta with the provider registry
+let registry = VoiceProviderRegistry.shared
+await registry.register(VoxAltaProviderDescriptor.descriptor())
+
+// VoxAlta provider is now available with id "voxalta"
+```
+
+## CLI Tool (`diga`)
+
+`diga` is a drop-in replacement for `/usr/bin/say` with neural text-to-speech via Qwen3-TTS.
+
+### Usage
 
 ```bash
-# Design voice from screenplay
-diga design --screenplay episode-01.fountain --character "JOHN DOE"
+# Speak text (plays through speakers)
+diga "Hello, world!"
 
-# Generate audio
-diga speak --text "Hello world" --voice character-voice-id
+# Read from file
+diga -f input.txt
 
-# List available voices
-diga list
+# Read from stdin
+echo "Hello" | diga
+
+# Write to file instead of playing
+diga -o output.wav "Hello, world!"
+diga -o output.m4a "Hello, world!"    # AAC encoding
+diga -o output.aiff "Hello, world!"   # AIFF encoding
+
+# Use a specific voice
+diga -v elena "Hello, world!"
+
+# List voices
+diga --voices
+diga -v ?
+
+# Design a new voice from description
+diga --design "warm female voice, 30s, confident" elena
+
+# Clone a voice from reference audio
+diga --clone reference.wav elena
+
+# Override model selection
+diga --model 0.6b "Hello"     # Use smaller model
+diga --model 1.7b "Hello"     # Use larger model
+```
+
+### CLI Flags
+
+| Flag | Short | Purpose |
+|------|-------|---------|
+| `--voices` | | List all available voices |
+| `--voice <name>` | `-v` | Select voice for synthesis |
+| `--design <desc>` | | Create voice from text description |
+| `--clone <file>` | | Clone voice from reference audio |
+| `--output <path>` | `-o` | Write to file (WAV/AIFF/M4A) |
+| `--file <path>` | `-f` | Read input from file (`-` for stdin) |
+| `--file-format <fmt>` | | Override output format (wav, aiff, m4a) |
+| `--model <id>` | | Override model (0.6b, 1.7b, or HF repo) |
+| `--version` | | Show version |
+| `--help` | `-h` | Show help |
+
+## Qwen3-TTS Models
+
+| Model | Repo ID | Size | Use Case |
+|-------|---------|------|----------|
+| VoiceDesign 1.7B | `mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16` | ~4.2 GB | Generate voices from text descriptions |
+| Base 1.7B | `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16` | ~4.3 GB | Voice cloning (recommended) |
+| Base 0.6B | `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16` | ~2.4 GB | Voice cloning (lighter, <16GB RAM) |
+
+- Models are auto-downloaded on first use from HuggingFace
+- Cached at `~/Library/Caches/intrusive-memory/Models/TTS/`
+- `diga` auto-selects 1.7B (>=16GB RAM) or 0.6B (<16GB RAM)
+
+## Error Types
+
+```swift
+public enum VoxAltaError: Error {
+    case voiceDesignFailed(String)           // Voice design generation failed
+    case cloningFailed(String)               // Voice cloning from reference audio failed
+    case modelNotAvailable(String)           // TTS model not available or download failed
+    case voiceNotLoaded(String)              // Voice not in cache (call loadVoice first)
+    case profileAnalysisFailed(String)       // LLM character analysis failed
+    case insufficientMemory(available:required:) // Not enough RAM for model
+    case audioExportFailed(String)           // Audio format conversion failed
+}
 ```
 
 ## Design Patterns
 
-- **VoiceProvider abstraction** - Implements SwiftHablare's protocol for plug-and-play integration
-- **Character-driven voice design** - Analyzes character evidence to generate appropriate voices
-- **Clone prompt locking** - Ensures voice consistency across all character dialogue
-- **On-device inference** - All LLM and TTS processing runs locally via Apple Silicon GPU
-- **Lazy voice loading** - Qwen3-TTS models loaded on-demand to conserve memory
-- **Strict concurrency** - Swift 6 language mode with actor isolation
-
-## Integration with SwiftHablare
-
-VoxAlta auto-registers with SwiftHablare's provider registry:
-
-```swift
-// In app initialization
-import SwiftHablare
-import SwiftVoxAlta
-
-// VoxAlta automatically registers via VoiceProviderDescriptor
-let service = GenerationService()
-
-// VoxAlta provider now available
-let provider = try service.provider(for: "voxalta://")
-```
-
-## CLI Commands
-
-| Command | Purpose | Key Flags |
-|---------|---------|-----------|
-| `design` | Analyze character and generate voice | `--screenplay`, `--character`, `--output` |
-| `speak` | Generate audio from text | `--text`, `--voice`, `--output` |
-| `list` | List available voices | (none) |
-| `analyze` | Show character profile without voice generation | `--screenplay`, `--character` |
-
-## Voice Identity Format
-
-VoxAlta uses a structured voiceId format:
-
-```
-voxalta://<character-name>/<clone-prompt-hash>
-```
-
-Example: `voxalta://john-doe/a1b2c3d4`
-
-This ensures:
-- Unique voice identity per character
-- Deterministic voice selection based on locked clone prompt
-- Compatibility with SwiftHablare's URI-based provider routing
+- **VoiceProvider abstraction** -- Implements SwiftHablare's protocol for plug-and-play integration
+- **Actor isolation** -- `VoxAltaModelManager` and `VoxAltaVoiceCache` are actors for thread safety
+- **Lazy model loading** -- Qwen3-TTS models loaded on-demand, cached for reuse, auto-unloaded on switch
+- **Memory-aware loading** -- Warns on low memory but lets macOS manage swap (non-blocking)
+- **Clone prompt locking** -- `VoiceLock` ensures voice consistency across all character dialogue
+- **On-device inference** -- All LLM and TTS processing runs locally via Apple Silicon GPU
+- **Strict concurrency** -- Swift 6 language mode with `StrictConcurrency` enabled
 
 ## Memory Management
 
-- **Model caching** - Qwen3-TTS models cached in `~/Library/Caches/intrusive-memory/Models/Audio/`
-- **Lazy loading** - Models loaded only when needed for synthesis
-- **Memory validation** - Pre-load checks ensure sufficient memory (similar to SwiftBruja)
-- **Automatic cleanup** - Models released when memory pressure detected
+- **Model caching** -- TTS models cached at `~/Library/Caches/intrusive-memory/Models/TTS/`
+- **Lazy loading** -- Models loaded only when needed for synthesis
+- **Memory checks** -- `VoxAltaModelManager.checkMemory()` warns on low memory via stderr
+- **Single-model cache** -- Only one TTS model loaded at a time; switching unloads the previous
+- **Voice cache** -- `VoxAltaVoiceCache` actor stores loaded clone prompts in memory
 
 ## Development Workflow
 
-- **Branch**: `development` → PR → `main`
+- **Branch**: `development` -> PR -> `master`
 - **CI Required**: Tests must pass before merge
-- **Never commit directly to `main`**
+- **Never commit directly to `master`**
 - **Platforms**: macOS 26+, iOS 26+ only (Apple Silicon required)
 - **NEVER add `@available` attributes** for older platforms
+- **CI runner**: `macos-26`
 
-## Testing Strategy
+## Release Process
 
-- **Unit tests** - VoiceProvider implementation, profile creation
-- **Integration tests** - End-to-end voice design pipeline
-- **Voice quality tests** - Character-appropriate voice generation
-- **Performance tests** - Audio synthesis latency and throughput
+1. Tag on `master` (e.g., `v0.1.0`)
+2. GitHub Release triggers `.github/workflows/release.yml`
+3. Release workflow: `make release` -> tarball -> upload assets -> dispatch to `intrusive-memory/homebrew-tap`
+4. Homebrew tap auto-updates formula with new URL and SHA256
 
-## Error Handling
+## Testing
 
-| Error | When |
-|-------|------|
-| `VoxAltaError.characterNotFound` | Character name not found in screenplay |
-| `VoxAltaError.insufficientEvidence` | Not enough dialogue/action lines for analysis |
-| `VoxAltaError.voiceGenerationFailed` | Qwen3-TTS synthesis failed |
-| `VoxAltaError.profileCreationFailed` | LLM character analysis failed |
-| `VoxAltaError.invalidVoiceId` | VoiceId format incorrect or not found |
-
-## Future Enhancements
-
-- **Voice fine-tuning** - Train Qwen3-TTS LoRA adapters for locked voices
-- **Emotion control** - Vary prosody based on scene context
-- **Multi-language support** - Extend voice design to non-English characters
-- **Voice mixing** - Blend multiple clone prompts for unique voices
-- **Streaming synthesis** - Real-time audio generation for long dialogue
+- **Library tests** (`SwiftVoxAltaTests/`): VoiceProvider, model manager, voice cache, character analysis, error paths, audio conversion, voice design, voice lock
+- **CLI tests** (`DigaTests/`): CLI integration, audio file writer, audio playback, engine, model manager, voice store, version, release checks
+- **362 total tests** (222 library + 140 CLI)
 
 ## Important Notes
 
-- **Apple Silicon required** - Qwen3-TTS via MLX requires M1/M2/M3/M4 GPU
-- **Model downloads** - First use auto-downloads Qwen3-TTS (~2-4 GB)
-- **Character consistency** - Locked voices ensure same character sounds identical across scenes
-- **Privacy** - All processing on-device, no cloud APIs
-- **Experimental status** - VoxAlta is in active development, APIs may change
+- **Apple Silicon required** -- Qwen3-TTS via MLX requires M1/M2/M3/M4 GPU
+- **Metal shaders required** -- Must build with `xcodebuild` (not `swift build`)
+- **Model downloads** -- First use auto-downloads Qwen3-TTS (~2-4 GB per model)
+- **Character consistency** -- Locked voices ensure same character sounds identical across scenes
+- **Privacy** -- All processing on-device, no cloud APIs
+- **Experimental status** -- VoxAlta is in active development, APIs may change
