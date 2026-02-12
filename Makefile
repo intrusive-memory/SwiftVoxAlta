@@ -81,11 +81,11 @@ test-integration: install
 test: test-unit test-integration
 	@echo "All tests complete!"
 
-# One-time setup for local development (generates voices)
+# One-time setup for local development (downloads CustomVoice model)
 setup-voices: install
-	@echo "Generating built-in voices for local testing..."
-	@./bin/diga -v alex -o /tmp/warmup.wav "test" && rm -f /tmp/warmup.wav
-	@echo "✓ Voices cached at ~/Library/Caches/intrusive-memory/Voices/"
+	@echo "Downloading CustomVoice model (~3.4GB, first run only)..."
+	@./bin/diga -v ryan -o /tmp/warmup.wav "test" && rm -f /tmp/warmup.wav
+	@echo "✓ CustomVoice model cached at ~/Library/Caches/intrusive-memory/Models/"
 	@echo "  You can now run 'make test' or 'make test-integration'."
 
 # Clean build artifacts

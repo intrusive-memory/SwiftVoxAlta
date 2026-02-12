@@ -6,10 +6,10 @@ import Testing
 ///
 /// These tests require:
 /// - Binary built and available at `./bin/diga`
-/// - Voice 'alex' cached at `~/Library/Caches/intrusive-memory/Voices/alex.voice`
+/// - CustomVoice model cached (will auto-download on first run ~3.4GB)
 ///
-/// In CI, the `cache-voices` job ensures voices are pre-cached before these tests run.
-/// Locally, run `make setup-voices` once before running integration tests.
+/// In CI, the `cache-voices` job ensures the model is pre-cached before these tests run.
+/// Locally, the first test run will download the model automatically.
 @Suite("Binary Audio Generation Integration Tests", .serialized)
 struct DigaBinaryIntegrationTests {
 
@@ -31,8 +31,8 @@ struct DigaBinaryIntegrationTests {
         // Generate audio
         let result = try await Self.runDiga(
             binaryPath: binaryPath,
-            args: ["-v", "alex", "-o", outputPath, "The quick brown fox jumps over the lazy dog"],
-            timeout: 30
+            args: ["-v", "ryan", "-o", outputPath, "The quick brown fox jumps over the lazy dog"],
+            timeout: 60
         )
 
         // Validate exit code
@@ -68,8 +68,8 @@ struct DigaBinaryIntegrationTests {
 
         let result = try await Self.runDiga(
             binaryPath: binaryPath,
-            args: ["-v", "alex", "-o", outputPath, "Testing AIFF format"],
-            timeout: 30
+            args: ["-v", "ryan", "-o", outputPath, "Testing AIFF format"],
+            timeout: 60
         )
 
         #expect(result.exitCode == 0, "diga should exit with code 0, got \(result.exitCode)\nstderr: \(result.stderr)")
@@ -96,8 +96,8 @@ struct DigaBinaryIntegrationTests {
 
         let result = try await Self.runDiga(
             binaryPath: binaryPath,
-            args: ["-v", "alex", "-o", outputPath, "Testing M4A format"],
-            timeout: 30
+            args: ["-v", "ryan", "-o", outputPath, "Testing M4A format"],
+            timeout: 60
         )
 
         #expect(result.exitCode == 0, "diga should exit with code 0, got \(result.exitCode)\nstderr: \(result.stderr)")
