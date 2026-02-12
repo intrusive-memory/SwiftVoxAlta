@@ -329,6 +329,7 @@ public enum VoxAltaError: Error {
 
 - **Branch**: `development` -> PR -> `main`
 - **CI Required**: Build + Integration Tests + Audio Integration Test must pass before merge
+- **CI Architecture**: See [CI Dependency Chain](docs/CI_DEPENDENCY_CHAIN.md) for parallel voice caching + sequential test execution
 - **Never commit directly to `main`**
 - **Platforms**: macOS 26+, iOS 26+ only (Apple Silicon required)
 - **NEVER add `@available` attributes** for older platforms
@@ -345,7 +346,9 @@ public enum VoxAltaError: Error {
 
 - **Library tests** (`SwiftVoxAltaTests/`): VoiceProvider, model manager, voice cache, character analysis, error paths, audio conversion, voice design, voice lock, Acervo integration
 - **CLI tests** (`DigaTests/`): CLI integration, audio file writer, audio playback, engine, model manager (Acervo-backed), voice store, version, release checks
+- **Binary integration tests** (`DigaBinaryIntegrationTests`): End-to-end audio generation validation (WAV/AIFF/M4A formats, silence detection, error handling)
 - **359 total tests** (229 library + 130 CLI)
+- **CI Test Execution**: See [CI Dependency Chain](docs/CI_DEPENDENCY_CHAIN.md) for parallel voice caching strategy and test dependencies
 
 ## Important Notes
 

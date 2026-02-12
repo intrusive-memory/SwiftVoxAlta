@@ -5,10 +5,11 @@ on:
     branches: [main, development]
 
 jobs:
-  build:
-    name: Build
+  # Job 1: Cache voices (runs in parallel with unit tests)
+  cache-voices:
+    name: Cache Voices
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 10
     env:
       GIT_LFS_SKIP_SMUDGE: "1"
 
@@ -16,115 +17,85 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Show Swift version
-        run: swift --version
-
-      - name: Resolve dependencies
-        run: xcodebuild -resolvePackageDependencies -scheme SwiftVoxAlta-Package -destination 'platform=macOS'
-
-      - name: Build all targets (library + tests + CLI)
-        run: xcodebuild build-for-testing -scheme SwiftVoxAlta-Package -destination 'platform=macOS' COMPILER_INDEX_STORE_ENABLE=NO
-
-  integration-tests:
-    name: Integration Tests
-    runs-on: macos-26
-    timeout-minutes: 30
-    needs: build
-    env:
-      GIT_LFS_SKIP_SMUDGE: "1"
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Show Swift version
-        run: swift --version
-
-      - name: Build release binary
-        run: make release
-
-      - name: Verify diga binary exists
-        run: test -f ./bin/diga
-
-      - name: Verify Metal bundle exists
-        run: test -d ./bin/mlx-swift_Cmlx.bundle
-
-      - name: Verify diga --version output
-        run: |
-          VERSION_OUTPUT=$(./bin/diga --version)
-          echo "Version output: $VERSION_OUTPUT"
-          echo "$VERSION_OUTPUT" | grep -q "0.2.0"
-
-  audio-integration:
-    name: Audio Integration Test
-    runs-on: macos-26
-    timeout-minutes: 45
-    needs: build
-    env:
-      GIT_LFS_SKIP_SMUDGE: "1"
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Restore voice cache
+        id: voice-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/intrusive-memory/Voices
+          key: diga-voices-v1
 
       - name: Cache TTS models
         uses: actions/cache@v4
         with:
-          path: |
-            ~/Library/SharedModels
-            ~/Library/Caches/intrusive-memory/Models
+          path: ~/Library/SharedModels
           key: tts-models-v1
-          restore-keys: |
-            tts-models-v1
 
-      - name: Build release binary
-        run: make release
-
-      - name: Synthesize test audio
-        run: ./bin/diga --model 0.6b -o /tmp/test.wav "Hello from CI"
-
-      - name: Validate WAV file size
+      - name: Generate voices if not cached
+        if: steps.voice-cache.outputs.cache-hit != 'true'
         run: |
-          FILE_SIZE=$(stat -f%z /tmp/test.wav)
-          echo "WAV file size: $FILE_SIZE bytes"
-          if [ "$FILE_SIZE" -le 44 ]; then
-            echo "ERROR: WAV file is too small ($FILE_SIZE bytes, expected > 44)"
-            exit 1
-          fi
+          echo "🎤 Generating voices while unit tests run..."
+          make install
+          ./bin/diga -v alex -o /tmp/warmup.wav "test"
+          rm -f /tmp/warmup.wav
+          echo "✓ Voice 'alex' cached at ~/Library/Caches/intrusive-memory/Voices/alex.voice"
 
-      - name: Validate RIFF/WAVE header
-        run: |
-          # Check RIFF magic at offset 0 (52494646 = "RIFF")
-          RIFF=$(xxd -p -l 4 /tmp/test.wav)
-          echo "RIFF header: $RIFF"
-          if [ "$RIFF" != "52494646" ]; then
-            echo "ERROR: Missing RIFF header"
-            exit 1
-          fi
-          # Check WAVE format at offset 8 (57415645 = "WAVE")
-          WAVE=$(xxd -p -s 8 -l 4 /tmp/test.wav)
-          echo "WAVE format: $WAVE"
-          if [ "$WAVE" != "57415645" ]; then
-            echo "ERROR: Missing WAVE format marker"
-            exit 1
-          fi
+      - name: Skip generation (cache hit)
+        if: steps.voice-cache.outputs.cache-hit == 'true'
+        run: echo "✓ Using cached voices"
 
-      - name: Validate PCM data is not silence
-        run: |
-          # Extract first 1000 bytes of PCM data (after 44-byte header)
-          PCM_HEX=$(xxd -p -s 44 -l 1000 /tmp/test.wav | tr -d '\n')
-          # Check it's not all zeros
-          ZEROS=$(echo "$PCM_HEX" | tr -d '0')
-          if [ -z "$ZEROS" ]; then
-            echo "ERROR: PCM data is all zeros (silence)"
-            exit 1
-          fi
-          echo "PCM data contains non-zero samples (audio is not silence)"
+  # Job 2: Unit tests (runs in parallel with cache-voices)
+  unit-tests:
+    name: Unit Tests
+    runs-on: macos-26
+    timeout-minutes: 15
+    env:
+      GIT_LFS_SKIP_SMUDGE: "1"
 
-      - name: Upload test audio artifact
-        if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Run unit tests
+        run: make test-unit
+
+  # Job 3: Integration tests (depends on BOTH unit tests + cached voices)
+  integration-tests:
+    name: Integration Tests
+    runs-on: macos-26
+    needs: [unit-tests, cache-voices]
+    timeout-minutes: 20
+    env:
+      GIT_LFS_SKIP_SMUDGE: "1"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Restore voice cache
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/intrusive-memory/Voices
+          key: diga-voices-v1
+
+      - name: Restore model cache
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/SharedModels
+          key: tts-models-v1
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Run integration tests
+        run: make test-integration
+
+      - name: Upload test audio artifacts on failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: test-audio
-          path: /tmp/test.wav
+          name: test-audio-failures
+          path: /tmp/diga-test-*/
           retention-days: 7

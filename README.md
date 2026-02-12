@@ -84,9 +84,29 @@ On first run, `diga` auto-downloads the appropriate Qwen3-TTS model (~2-4 GB) fr
 ```bash
 make build      # Development build
 make release    # Release build + copy to ./bin
-make test       # Run all tests
 make install    # Debug build + copy to ./bin
 ```
+
+## Running Tests
+
+```bash
+# Fast unit tests (library only, ~5s)
+make test-unit
+
+# Integration tests (requires binary + cached voices)
+make test-integration
+
+# All tests (unit + integration)
+make test
+```
+
+**First time running integration tests?** Generate voices once:
+
+```bash
+make setup-voices
+```
+
+This creates a cached voice at `~/Library/Caches/intrusive-memory/Voices/` for fast test execution. Only needed once per machine.
 
 ## Dependencies
 
