@@ -2,17 +2,20 @@ import Foundation
 
 /// Built-in voice definitions shipped with diga.
 ///
-/// Each built-in voice is a text description intended for Qwen3-TTS VoiceDesign.
-/// On first use, the description is fed to VoiceDesign to generate a clone prompt
-/// which is then cached locally.
+/// Each built-in voice uses macOS `say` to generate reference audio on first use,
+/// then clones that voice using Qwen3-TTS Base model. This is much faster than
+/// VoiceDesign (seconds vs minutes) while still producing good quality.
 enum BuiltinVoices {
 
     /// All built-in voice definitions.
-    private static let definitions: [(name: String, description: String)] = [
-        ("alex", "Male, American, warm baritone, conversational"),
-        ("samantha", "Female, American, clear soprano, professional"),
-        ("daniel", "Male, British, deep tenor, authoritative"),
-        ("karen", "Female, Australian, alto, friendly"),
+    ///
+    /// Maps diga voice names to macOS `say` voices and descriptions.
+    /// Reference audio is auto-generated on first use.
+    private static let definitions: [(name: String, description: String, sayVoice: String)] = [
+        ("alex", "Male, American, warm baritone, conversational", "Alex"),
+        ("samantha", "Female, American, clear soprano, professional", "Samantha"),
+        ("daniel", "Male, British, deep tenor, authoritative", "Daniel"),
+        ("karen", "Female, Australian, alto, friendly", "Karen"),
     ]
 
     /// Returns all built-in voices as `StoredVoice` instances.
@@ -20,9 +23,9 @@ enum BuiltinVoices {
         definitions.map { entry in
             StoredVoice(
                 name: entry.name,
-                type: .builtin,
+                type: .cloned,  // Changed from .builtin to .cloned
                 designDescription: entry.description,
-                clonePromptPath: nil,
+                clonePromptPath: "\(entry.name)-reference.wav",  // Reference audio filename
                 createdAt: Date(timeIntervalSinceReferenceDate: 0) // Fixed date for built-ins.
             )
         }

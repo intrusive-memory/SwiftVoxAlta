@@ -226,9 +226,9 @@ actor DigaEngine {
     /// Resolves the model override string to a `Qwen3TTSModelRepo` for the Base model.
     ///
     /// If `modelOverride` is set and matches a known Base model ID, returns that variant.
-    /// Otherwise defaults to `.base1_7B`.
+    /// Otherwise defaults to `.base0_6B` (faster, less memory usage than 1.7B).
     private var resolvedBaseModelRepo: Qwen3TTSModelRepo {
-        guard let override = modelOverride else { return .base1_7B }
+        guard let override = modelOverride else { return .base0_6B }
         if let match = Qwen3TTSModelRepo(rawValue: override) {
             return match
         }
@@ -237,8 +237,8 @@ actor DigaEngine {
         if override == TTSModelID.small {
             return .base0_6B
         }
-        // Default to 1.7B for unknown overrides (custom HF repos use raw string loading)
-        return .base1_7B
+        // Default to 0.6B for unknown overrides (better performance)
+        return .base0_6B
     }
 
     // MARK: - Voice Resolution
@@ -389,10 +389,6 @@ actor DigaEngine {
 
         if voice.type == .cloned, let refPath = voice.clonePromptPath {
             // Cloned voice: create clone prompt from reference audio.
-            FileHandle.standardError.write(
-                Data("Creating voice clone from reference audio...\n".utf8)
-            )
-
             let refURL: URL
             if refPath.hasPrefix("/") || refPath.hasPrefix("~") {
                 refURL = URL(fileURLWithPath: refPath)
@@ -400,11 +396,26 @@ actor DigaEngine {
                 refURL = voiceStore.voicesDirectory.appendingPathComponent(refPath)
             }
 
-            guard FileManager.default.fileExists(atPath: refURL.path) else {
-                throw DigaEngineError.voiceDesignFailed(
-                    "Reference audio file not found: \(refURL.path)"
+            // Auto-generate reference audio if it doesn't exist
+            if !FileManager.default.fileExists(atPath: refURL.path) {
+                FileHandle.standardError.write(
+                    Data("Generating reference audio for '\(voice.name)' (first use)...\n".utf8)
                 )
+                do {
+                    try ReferenceAudioGenerator.generate(
+                        voiceName: voice.name,
+                        outputPath: refURL
+                    )
+                } catch {
+                    throw DigaEngineError.voiceDesignFailed(
+                        "Failed to generate reference audio for '\(voice.name)': \(error.localizedDescription)"
+                    )
+                }
             }
+
+            FileHandle.standardError.write(
+                Data("Creating voice clone from reference audio...\n".utf8)
+            )
 
             let refData = try Data(contentsOf: refURL)
             do {

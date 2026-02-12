@@ -59,25 +59,35 @@ Generating voice 'alex' (first use, this may take a moment)...
 - **Fix**: Manually removed duplicates from `~/Library/Caches/intrusive-memory/Models/Audio/`
 - Models now correctly located only in `~/Library/SharedModels/`
 
-**Issue #3: Voice Generation Hangs (ONGOING)**
-- VoiceDesign model loads successfully from SharedModels
-- Speech tokenizer loads correctly
-- Process hangs during `VoiceDesigner.generateCandidate()` → `qwenModel.generate()`
-- CPU usage: 14-90% (varies), suggesting compute-intensive operation, not deadlock
-- Runs for 10+ minutes without completion or error
-- **Root Cause**: Unknown - possibly model inference issue in mlx-audio-swift Qwen3-TTS implementation
+**Issue #3: VoiceDesign Performance (CONFIRMED)**
+- VoiceDesign 1.7B takes 10+ minutes for 10-word sample
+- Makes interactive voice generation impossible
+- **Root Cause**: Autoregressive generation loop is extremely slow with 1.7B model
+
+**Issue #4: Base Model Clone Prompt Extraction Fatal Error (NEW)**
+- Implemented Option 1 (reference audio + Base 0.6B model)
+- Reference audio generation works ✅ (using macOS `say`)
+- Clone prompt extraction crashes with fatal error:
+  ```
+  [conv] Expect input channels to match
+  input: (1,247,128) weight: (512,128,5)
+  ```
+- **Root Cause**: Tensor shape mismatch in `Qwen3TTSModel.createVoiceClonePrompt()`
+- Bug in mlx-audio-swift's voice cloning implementation
 
 ### Root Cause
-Models are present and loading correctly. The hang occurs during actual TTS generation:
-- Call stack: `DigaEngine.loadOrCreateClonePrompt()` → `VoiceDesigner.generateCandidate()` → `qwenModel.generate()`
-- mlx-audio-swift's Qwen3-TTS VoiceDesign inference appears to hang during audio generation
-- No error message, just indefinite computation
+**Both Qwen3-TTS approaches are blocked by upstream mlx-audio-swift bugs:**
 
-Possible causes:
-- Infinite loop in Qwen3-TTS generation code
-- Memory thrashing / excessive swap usage
-- MLX kernel hang or inefficient implementation
-- Missing or corrupt model weights (though files appear complete)
+1. **VoiceDesign** (1.7B model):
+   - Extremely slow autoregressive generation (10+ min for 10 words)
+   - Not a bug, just performance limitation of large model
+
+2. **Base Model Cloning** (0.6B model):
+   - Fatal error during clone prompt extraction
+   - Tensor shape mismatch: `input:(1,247,128)` vs `weight:(512,128,5)`
+   - Crash at `mlx/c/mlx/c/ops.cpp:727` in convolution operation
+   - Reference audio is correct format (24kHz, mono, 16-bit PCM)
+   - Bug in `Qwen3TTSModel.createVoiceClonePrompt()` implementation
 
 ### Impact
 - ❌ `make setup-voices` fails
@@ -116,32 +126,52 @@ Once voice generation is fixed, tests will validate:
 
 ## Recommended Solutions
 
-### Option 1: Use Base Model with Reference Audio (RECOMMENDED)
+**STATUS**: Both Qwen3-TTS approaches (VoiceDesign + Base cloning) are blocked by mlx-audio-swift bugs.
 
-Skip VoiceDesign entirely and use Base model cloning with reference audio:
-- ✅ Faster inference (Base 0.6B model is 2.5× smaller)
-- ✅ Proven to work in mlx-audio-swift
-- ⚠️ Requires reference audio file per voice (can use pre-recorded samples or Apple TTS)
+### Option 1: Use macOS `say` Directly (FASTEST ✅)
 
-**Implementation**:
-1. Modify `BuiltinVoices` to use `.cloned` type instead of `.builtin`
-2. Generate reference audio files using macOS `say` command
-3. Use `VoiceLockManager.createLock()` with reference audio path
+Skip Qwen3-TTS entirely and use Apple's built-in TTS:
+- ✅ Works immediately (no model downloads)
+- ✅ Good quality, native voices
+- ✅ Fast (real-time generation)
+- ❌ Less customizable than neural TTS
+- ❌ Limited to macOS built-in voices
 
-### Option 2: Investigate VoiceDesign Performance
+**Implementation**: Already done! `ReferenceAudioGenerator` uses `say` successfully.
+Just bypass clone prompt creation and use `say` directly for final audio.
 
-Add instrumentation to understand why VoiceDesign is so slow:
-1. Add progress logging to `Qwen3TTS.generateFromEmbeddings()` loop
-2. Profile memory usage and GPU utilization during generation
-3. Try shorter sample text (e.g., "Hello") to isolate issue
-4. Test with mlx-audio-swift's VoicesApp to compare performance
+### Option 2: Debug mlx-audio-swift Clone Prompt Bug (HARD)
 
-### Option 3: File Upstream Performance Issue
+Fix the tensor shape mismatch in voice cloning:
+- Error: `input:(1,247,128)` vs `weight:(512,128,5)` at convolution
+- Requires deep understanding of Qwen3-TTS model architecture
+- May need to fix audio preprocessing or model loading
+- Could take days/weeks to debug
 
-Report to mlx-audio-swift maintainers at https://github.com/Blaizzy/mlx-audio-swift:
-- VoiceDesign 1.7B takes 10+ minutes for 10-word sample on Apple Silicon
-- Include system specs and model path
-- Ask if this is expected or if there's a known optimization issue
+**File to investigate**: `mlx-audio-swift/Sources/MLXAudioTTS/Models/Qwen3TTS/Qwen3TTS.swift`
+Function: `createVoiceClonePrompt()`
+
+### Option 3: File Upstream Issues and Wait
+
+Report both bugs to https://github.com/Blaizzy/mlx-audio-swift:
+
+**Issue 1: VoiceDesign Performance**
+- 1.7B model takes 10+ minutes for simple sentences
+- Makes interactive use impossible
+- Ask if optimization is planned
+
+**Issue 2: Base Cloning Fatal Error**
+- Clone prompt extraction crashes with tensor shape mismatch
+- Provide error log and reference audio format details
+- Request fix or workaround
+
+### Option 4: Alternative TTS Solutions
+
+Consider using different TTS engines:
+- **Coqui TTS** (if Swift bindings exist)
+- **piper-tts** (lightweight, fast)
+- **StyleTTS2** (high quality)
+- **Apple's AVSpeechSynthesizer** (native, simple API)
 
 ### To Test CI Without Voice Generation
 
