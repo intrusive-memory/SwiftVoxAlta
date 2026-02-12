@@ -241,13 +241,12 @@ struct WAVConcatenatorTests {
 @Suite("DigaEngine Voice Resolution Tests")
 struct DigaEngineVoiceResolutionTests {
 
-    /// Creates a DigaEngine with a temp-backed VoiceStore and a temp model directory.
+    /// Creates a DigaEngine with a temp-backed VoiceStore.
     private func makeTestEngine() throws -> (DigaEngine, URL) {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("diga-engine-test-\(UUID().uuidString)", isDirectory: true)
         let voiceStore = VoiceStore(directory: tempDir.appendingPathComponent("voices"))
-        let modelManager = DigaModelManager(modelsDirectory: tempDir.appendingPathComponent("models"))
-        let engine = DigaEngine(modelManager: modelManager, voiceStore: voiceStore)
+        let engine = DigaEngine(voiceStore: voiceStore)
         return (engine, tempDir)
     }
 
@@ -316,8 +315,7 @@ struct DigaEngineVoiceResolutionTests {
         )
         try voiceStore.saveVoice(customVoice)
 
-        let modelManager = DigaModelManager(modelsDirectory: tempDir.appendingPathComponent("models"))
-        let engine = DigaEngine(modelManager: modelManager, voiceStore: voiceStore)
+        let engine = DigaEngine(voiceStore: voiceStore)
 
         let resolved = try await engine.resolveVoice(name: "mycustom")
         #expect(resolved.name == "mycustom")
@@ -341,8 +339,7 @@ struct DigaEngineVoiceResolutionTests {
         )
         try voiceStore.saveVoice(customAlex)
 
-        let modelManager = DigaModelManager(modelsDirectory: tempDir.appendingPathComponent("models"))
-        let engine = DigaEngine(modelManager: modelManager, voiceStore: voiceStore)
+        let engine = DigaEngine(voiceStore: voiceStore)
 
         let resolved = try await engine.resolveVoice(name: "alex")
         // Should get the custom one, not the built-in.
@@ -368,16 +365,14 @@ struct DigaEngineInstantiationTests {
 
     // --- Test 21: Engine instantiates with custom parameters ---
 
-    @Test("DigaEngine instantiates with custom model manager and voice store")
+    @Test("DigaEngine instantiates with custom voice store and model override")
     func instantiatesWithCustomParams() {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("diga-engine-test-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
         let voiceStore = VoiceStore(directory: tempDir.appendingPathComponent("voices"))
-        let modelManager = DigaModelManager(modelsDirectory: tempDir.appendingPathComponent("models"))
         let engine = DigaEngine(
-            modelManager: modelManager,
             voiceStore: voiceStore,
             modelOverride: "custom/model-id"
         )

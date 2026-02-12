@@ -207,20 +207,38 @@ actor DigaEngine {
     /// Creates a new DigaEngine.
     ///
     /// - Parameters:
-    ///   - modelManager: Model manager for download/availability. Defaults to standard instance.
     ///   - voiceStore: Voice store for custom voices. Defaults to standard instance.
     ///   - modelOverride: Optional model ID override (from --model flag).
     ///   - voxAltaModelManager: VoxAlta model manager for TTS inference. Defaults to a new instance.
     init(
-        modelManager: DigaModelManager = DigaModelManager(),
         voiceStore: VoiceStore = VoiceStore(),
         modelOverride: String? = nil,
         voxAltaModelManager: VoxAltaModelManager = VoxAltaModelManager()
     ) {
-        self.modelManager = modelManager
+        self.modelManager = DigaModelManager()
         self.voiceStore = voiceStore
         self.modelOverride = modelOverride
         self.voxAltaModelManager = voxAltaModelManager
+    }
+
+    // MARK: - Model Resolution
+
+    /// Resolves the model override string to a `Qwen3TTSModelRepo` for the Base model.
+    ///
+    /// If `modelOverride` is set and matches a known Base model ID, returns that variant.
+    /// Otherwise defaults to `.base1_7B`.
+    private var resolvedBaseModelRepo: Qwen3TTSModelRepo {
+        guard let override = modelOverride else { return .base1_7B }
+        if let match = Qwen3TTSModelRepo(rawValue: override) {
+            return match
+        }
+        // Map shorthands: the DigaCommand already resolves 0.6b/1.7b to full IDs,
+        // so we check the full ID against known repos.
+        if override == TTSModelID.small {
+            return .base0_6B
+        }
+        // Default to 1.7B for unknown overrides (custom HF repos use raw string loading)
+        return .base1_7B
     }
 
     // MARK: - Voice Resolution
@@ -314,7 +332,8 @@ actor DigaEngine {
                     text: chunk,
                     voiceLock: voiceLock,
                     language: "en",
-                    modelManager: voxAltaModelManager
+                    modelManager: voxAltaModelManager,
+                    modelRepo: resolvedBaseModelRepo
                 )
             } catch {
                 throw DigaEngineError.synthesisFailed(
@@ -393,7 +412,8 @@ actor DigaEngine {
                     characterName: voice.name,
                     candidateAudio: refData,
                     designInstruction: "",
-                    modelManager: voxAltaModelManager
+                    modelManager: voxAltaModelManager,
+                    modelRepo: resolvedBaseModelRepo
                 )
                 clonePromptData = lock.clonePromptData
             } catch {
@@ -436,7 +456,8 @@ actor DigaEngine {
                     characterName: voice.name,
                     candidateAudio: candidateAudio,
                     designInstruction: description,
-                    modelManager: voxAltaModelManager
+                    modelManager: voxAltaModelManager,
+                    modelRepo: resolvedBaseModelRepo
                 )
                 clonePromptData = lock.clonePromptData
             } catch {

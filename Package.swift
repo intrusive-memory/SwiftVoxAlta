@@ -23,6 +23,7 @@ let package = Package(
         .package(url: "https://github.com/intrusive-memory/SwiftCompartido.git", branch: "development"),
         .package(url: "https://github.com/intrusive-memory/SwiftBruja.git", branch: "main"),
         .package(url: "https://github.com/intrusive-memory/mlx-audio-swift.git", branch: "development"),
+        .package(url: "https://github.com/intrusive-memory/SwiftAcervo.git", branch: "main"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
     ],
     targets: [
@@ -33,6 +34,7 @@ let package = Package(
                 .product(name: "SwiftCompartido", package: "SwiftCompartido"),
                 .product(name: "SwiftBruja", package: "SwiftBruja"),
                 .product(name: "MLXAudioTTS", package: "mlx-audio-swift"),
+                .product(name: "SwiftAcervo", package: "SwiftAcervo"),
             ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency")
@@ -43,6 +45,7 @@ let package = Package(
             dependencies: [
                 "SwiftVoxAlta",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "SwiftAcervo", package: "SwiftAcervo"),
             ],
             path: "Sources/diga",
             swiftSettings: [
@@ -54,6 +57,7 @@ let package = Package(
             dependencies: [
                 "SwiftVoxAlta",
                 .product(name: "SwiftCompartido", package: "SwiftCompartido"),
+                .product(name: "SwiftAcervo", package: "SwiftAcervo"),
             ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency")
@@ -64,6 +68,7 @@ let package = Package(
             dependencies: [
                 "diga",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "SwiftAcervo", package: "SwiftAcervo"),
             ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency")

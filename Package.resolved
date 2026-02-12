@@ -1,5 +1,5 @@
 {
-  "originHash" : "c75c622140c73f0f7fa967c36df1d53e3cbe6c7361d772fd4231fb5d54dfb87a",
+  "originHash" : "96a4312829e4a76ab84bbc776df76152f5a6afe3cb35f4776197ac5b5e78a0b0",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -287,6 +287,15 @@
       "state" : {
         "revision" : "299ed22a2c8df8e91b3d0c6d929d96e37ee88911",
         "version" : "0.2.2"
+      }
+    },
+    {
+      "identity" : "swiftacervo",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/intrusive-memory/SwiftAcervo.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "8d0ad15fd750a52f71633adc82ede7e45a274827"
       }
     },
     {

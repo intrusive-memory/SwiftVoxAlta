@@ -1,4 +1,5 @@
 import Foundation
+import SwiftAcervo
 
 /// Known TTS model identifiers from HuggingFace.
 enum TTSModelID {
@@ -32,84 +33,43 @@ typealias DownloadProgress = @Sendable (Int64, Int64?, String) -> Void
 
 /// Actor that manages TTS model downloads and availability checks for the diga CLI.
 ///
-/// Models are stored under `~/Library/Caches/intrusive-memory/Models/TTS/`,
-/// matching the SwiftBruja LLM convention for cache directories.
+/// Models are stored in `~/Library/SharedModels/` via SwiftAcervo,
+/// enabling model sharing across the intrusive-memory ecosystem.
 actor DigaModelManager {
 
     // MARK: - Properties
 
-    /// Base directory for all TTS model caches.
-    let modelsDirectory: URL
-
-    /// File manager used for disk operations (injectable for testing).
-    private let fileManager: FileManager
-
-    /// URL session used for downloads (injectable for testing).
-    private let urlSession: URLSession
+    /// Base directory for all shared models (via Acervo).
+    var modelsDirectory: URL {
+        Acervo.sharedModelsDirectory
+    }
 
     // MARK: - Initialization
 
     /// Creates a new model manager.
-    ///
-    /// - Parameters:
-    ///   - modelsDirectory: Override the default models directory. Pass `nil` for the standard
-    ///     `~/Library/Caches/intrusive-memory/Models/TTS/` location.
-    ///   - fileManager: File manager for disk operations. Defaults to `.default`.
-    ///   - urlSession: URL session for downloads. Defaults to `.shared`.
-    init(
-        modelsDirectory: URL? = nil,
-        fileManager: FileManager = .default,
-        urlSession: URLSession = .shared
-    ) {
-        if let modelsDirectory {
-            self.modelsDirectory = modelsDirectory
-        } else {
-            // ~/Library/Caches/intrusive-memory/Models/TTS/
-            let caches = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first!
-            self.modelsDirectory = caches
-                .appendingPathComponent("intrusive-memory", isDirectory: true)
-                .appendingPathComponent("Models", isDirectory: true)
-                .appendingPathComponent("TTS", isDirectory: true)
-        }
-        self.fileManager = fileManager
-        self.urlSession = urlSession
-    }
+    init() {}
 
     // MARK: - Directory Paths
 
     /// Returns the local directory for a given HuggingFace model ID.
     ///
-    /// The model ID's `/` separator is replaced with `_` to create a valid directory name.
-    /// For example, `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16` becomes
-    /// `mlx-community_Qwen3-TTS-12Hz-1.7B-Base-bf16`.
+    /// The model ID is slugified via Acervo's convention (replacing `/` with `_`).
     ///
     /// - Parameter modelId: The HuggingFace model identifier (e.g., `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16`).
     /// - Returns: A file URL to the model's local directory.
-    func modelDirectory(for modelId: String) -> URL {
-        let slug = Self.slugify(modelId)
-        return modelsDirectory.appendingPathComponent(slug, isDirectory: true)
-    }
-
-    /// Converts a HuggingFace model ID to a filesystem-safe directory name.
-    ///
-    /// - Parameter modelId: The HuggingFace model identifier.
-    /// - Returns: The slugified model identifier with `/` replaced by `_`.
-    static func slugify(_ modelId: String) -> String {
-        modelId.replacingOccurrences(of: "/", with: "_")
+    func modelDirectory(for modelId: String) throws -> URL {
+        try Acervo.modelDirectory(for: modelId)
     }
 
     // MARK: - Availability
 
     /// Checks whether a model is available locally by looking for `config.json`
-    /// in the model's directory.
+    /// in the model's Acervo directory.
     ///
     /// - Parameter modelId: The HuggingFace model identifier.
     /// - Returns: `true` if the model directory contains `config.json`.
     func isModelAvailable(_ modelId: String) -> Bool {
-        let configPath = modelDirectory(for: modelId)
-            .appendingPathComponent("config.json")
-            .path
-        return fileManager.fileExists(atPath: configPath)
+        Acervo.isModelAvailable(modelId)
     }
 
     // MARK: - Model Selection
@@ -139,10 +99,7 @@ actor DigaModelManager {
 
     // MARK: - Download
 
-    /// Downloads a model from HuggingFace Hub if not already present.
-    ///
-    /// Downloads each required file (`config.json`, `tokenizer.json`, `tokenizer_config.json`,
-    /// `model.safetensors`) into the model's local directory.
+    /// Downloads a model from HuggingFace Hub if not already present, via SwiftAcervo.
     ///
     /// - Parameters:
     ///   - modelId: The HuggingFace model identifier.
@@ -152,95 +109,16 @@ actor DigaModelManager {
         _ modelId: String,
         progress: DownloadProgress? = nil
     ) async throws {
-        // Skip if model already exists
-        if isModelAvailable(modelId) {
-            return
-        }
-
-        let modelDir = modelDirectory(for: modelId)
-
-        // Create directory structure
-        try fileManager.createDirectory(
-            at: modelDir,
-            withIntermediateDirectories: true,
-            attributes: nil
-        )
-
-        // Download each required file
-        for fileName in TTSModelFiles.required {
-            let fileURL = Self.huggingFaceFileURL(modelId: modelId, fileName: fileName)
-            let destinationURL = modelDir.appendingPathComponent(fileName)
-
-            // Skip individual files that already exist
-            if fileManager.fileExists(atPath: destinationURL.path) {
-                continue
-            }
-
-            try await downloadFile(
-                from: fileURL,
-                to: destinationURL,
-                fileName: fileName,
-                progress: progress
+        try await Acervo.ensureAvailable(
+            modelId,
+            files: TTSModelFiles.required
+        ) { acervoProgress in
+            progress?(
+                acervoProgress.bytesDownloaded,
+                acervoProgress.totalBytes,
+                acervoProgress.fileName
             )
         }
-    }
-
-    // MARK: - Private Helpers
-
-    /// Constructs the HuggingFace download URL for a specific file in a model repository.
-    ///
-    /// - Parameters:
-    ///   - modelId: The HuggingFace model identifier (e.g., `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16`).
-    ///   - fileName: The file name to download (e.g., `config.json`).
-    /// - Returns: The full URL to the file on HuggingFace Hub.
-    static func huggingFaceFileURL(modelId: String, fileName: String) -> URL {
-        URL(string: "https://huggingface.co/\(modelId)/resolve/main/\(fileName)")!
-    }
-
-    /// Downloads a single file from a URL to a local destination.
-    ///
-    /// - Parameters:
-    ///   - url: The remote file URL.
-    ///   - destination: The local file URL to write to.
-    ///   - fileName: Display name for progress reporting.
-    ///   - progress: Optional progress callback.
-    private func downloadFile(
-        from url: URL,
-        to destination: URL,
-        fileName: String,
-        progress: DownloadProgress?
-    ) async throws {
-        let (asyncBytes, response) = try await urlSession.bytes(from: url)
-
-        let totalBytes: Int64?
-        if let httpResponse = response as? HTTPURLResponse {
-            let contentLength = httpResponse.value(forHTTPHeaderField: "Content-Length")
-            totalBytes = contentLength.flatMap(Int64.init)
-        } else {
-            totalBytes = nil
-        }
-
-        var data = Data()
-        if let total = totalBytes {
-            data.reserveCapacity(Int(total))
-        }
-
-        var bytesReceived: Int64 = 0
-        for try await byte in asyncBytes {
-            data.append(byte)
-            bytesReceived += 1
-
-            // Report progress every 64KB to avoid excessive callback overhead
-            if bytesReceived % (64 * 1024) == 0 {
-                progress?(bytesReceived, totalBytes, fileName)
-            }
-        }
-
-        // Final progress report
-        progress?(bytesReceived, totalBytes, fileName)
-
-        // Write to disk
-        try data.write(to: destination, options: .atomic)
     }
 }
 

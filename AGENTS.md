@@ -2,7 +2,7 @@
 
 This file provides comprehensive documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.1.1
+**Current Version**: 0.2.0
 
 ---
 
@@ -69,7 +69,7 @@ SwiftVoxAlta/
 │       ├── DigaEngine.swift           # Synthesis engine (text -> WAV data)
 │       ├── DigaModelManager.swift     # Model download and cache management
 │       ├── TextChunker.swift          # Split long text for chunked synthesis
-│       ├── Version.swift              # Version constant (0.1.1)
+│       ├── Version.swift              # Version constant (0.2.0)
 │       └── VoiceStore.swift           # Persistent custom voice storage
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # Library tests
@@ -108,6 +108,7 @@ SwiftVoxAlta/
 | [SwiftCompartido](https://github.com/intrusive-memory/SwiftCompartido) | Input types (GuionElementModel, ElementType) |
 | [SwiftBruja](https://github.com/intrusive-memory/SwiftBruja) | LLM inference for character analysis |
 | [mlx-audio-swift](https://github.com/intrusive-memory/mlx-audio-swift) | Qwen3-TTS inference engine (MLXAudioTTS) |
+| [SwiftAcervo](https://github.com/intrusive-memory/SwiftAcervo) | Shared model management and caching |
 | [swift-argument-parser](https://github.com/apple/swift-argument-parser) | CLI argument parsing |
 
 ## Voice Design Pipeline
@@ -288,7 +289,8 @@ diga --model 1.7b "Hello"     # Use larger model
 | Base 0.6B | `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16` | ~2.4 GB | Voice cloning (lighter, <16GB RAM) |
 
 - Models are auto-downloaded on first use from HuggingFace
-- Cached at `~/Library/Caches/intrusive-memory/Models/TTS/`
+- Cached at `~/Library/SharedModels/` (via SwiftAcervo), shared across the intrusive-memory ecosystem
+- Legacy models at `~/Library/Caches/intrusive-memory/Models/TTS/` are auto-migrated on first use
 - `diga` auto-selects 1.7B (>=16GB RAM) or 0.6B (<16GB RAM)
 
 ## Error Types
@@ -317,7 +319,7 @@ public enum VoxAltaError: Error {
 
 ## Memory Management
 
-- **Model caching** -- TTS models cached at `~/Library/Caches/intrusive-memory/Models/TTS/`
+- **Model caching** -- TTS models cached at `~/Library/SharedModels/` via SwiftAcervo
 - **Lazy loading** -- Models loaded only when needed for synthesis
 - **Memory checks** -- `VoxAltaModelManager.checkMemory()` warns on low memory via stderr
 - **Single-model cache** -- Only one TTS model loaded at a time; switching unloads the previous
@@ -326,7 +328,7 @@ public enum VoxAltaError: Error {
 ## Development Workflow
 
 - **Branch**: `development` -> PR -> `main`
-- **CI Required**: Build + Integration Tests must pass before merge
+- **CI Required**: Build + Integration Tests + Audio Integration Test must pass before merge
 - **Never commit directly to `main`**
 - **Platforms**: macOS 26+, iOS 26+ only (Apple Silicon required)
 - **NEVER add `@available` attributes** for older platforms
@@ -341,9 +343,9 @@ public enum VoxAltaError: Error {
 
 ## Testing
 
-- **Library tests** (`SwiftVoxAltaTests/`): VoiceProvider, model manager, voice cache, character analysis, error paths, audio conversion, voice design, voice lock
-- **CLI tests** (`DigaTests/`): CLI integration, audio file writer, audio playback, engine, model manager, voice store, version, release checks
-- **362 total tests** (222 library + 140 CLI)
+- **Library tests** (`SwiftVoxAltaTests/`): VoiceProvider, model manager, voice cache, character analysis, error paths, audio conversion, voice design, voice lock, Acervo integration
+- **CLI tests** (`DigaTests/`): CLI integration, audio file writer, audio playback, engine, model manager (Acervo-backed), voice store, version, release checks
+- **359 total tests** (229 library + 130 CLI)
 
 ## Important Notes
 

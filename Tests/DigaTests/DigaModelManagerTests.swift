@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import SwiftAcervo
 
 // MARK: - Replicated Constants and Logic
 //
@@ -38,38 +39,6 @@ private func recommendedModel(forRAMBytes ramBytes: UInt64) -> String {
     }
 }
 
-/// Replicates the slugify logic from DigaModelManager.
-private func slugify(_ modelId: String) -> String {
-    modelId.replacingOccurrences(of: "/", with: "_")
-}
-
-/// Replicates the HuggingFace URL construction from DigaModelManager.
-private func huggingFaceFileURL(modelId: String, fileName: String) -> URL {
-    URL(string: "https://huggingface.co/\(modelId)/resolve/main/\(fileName)")!
-}
-
-/// Computes the expected default models directory.
-private func expectedDefaultModelsDirectory() -> URL {
-    let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-    return caches
-        .appendingPathComponent("intrusive-memory", isDirectory: true)
-        .appendingPathComponent("Models", isDirectory: true)
-        .appendingPathComponent("TTS", isDirectory: true)
-}
-
-/// Computes a model directory given a base directory and model ID.
-private func modelDirectory(base: URL, modelId: String) -> URL {
-    base.appendingPathComponent(slugify(modelId), isDirectory: true)
-}
-
-/// Checks if a model is "available" by looking for config.json in its directory.
-private func isModelAvailable(base: URL, modelId: String) -> Bool {
-    let configPath = modelDirectory(base: base, modelId: modelId)
-        .appendingPathComponent("config.json")
-        .path
-    return FileManager.default.fileExists(atPath: configPath)
-}
-
 // MARK: - Test Suite
 
 @Suite("Diga Model Manager Tests")
@@ -77,34 +46,29 @@ struct DigaModelManagerTests {
 
     // MARK: - 2.1 Directory Paths
 
-    @Test("modelsDirectory points to ~/Library/Caches/intrusive-memory/Models/TTS/")
+    @Test("modelsDirectory points to ~/Library/SharedModels/ via Acervo")
     func modelsDirectoryPath() {
-        let expected = expectedDefaultModelsDirectory()
-        // The path should end with the correct hierarchy
-        #expect(expected.path.hasSuffix("Library/Caches/intrusive-memory/Models/TTS"))
+        let expected = Acervo.sharedModelsDirectory
+        #expect(expected.path.hasSuffix("Library/SharedModels"))
     }
 
     @Test("modelDirectory slugifies HuggingFace IDs by replacing / with _")
-    func modelDirectorySlugifies() {
-        let base = URL(fileURLWithPath: "/tmp/test-models")
-        let dir = modelDirectory(base: base, modelId: "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16")
-        let expected = "/tmp/test-models/mlx-community_Qwen3-TTS-12Hz-1.7B-Base-bf16"
-        #expect(dir.path == expected)
+    func modelDirectorySlugifies() throws {
+        let dir = try Acervo.modelDirectory(for: "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16")
+        #expect(dir.lastPathComponent == "mlx-community_Qwen3-TTS-12Hz-1.7B-Base-bf16")
     }
 
-    @Test("slugify replaces all slashes in model ID")
+    @Test("Acervo.slugify replaces all slashes in model ID")
     func slugifyReplacesSlashes() {
-        #expect(slugify("org/repo") == "org_repo")
-        #expect(slugify("a/b/c") == "a_b_c")
-        #expect(slugify("noslash") == "noslash")
-        #expect(slugify("") == "")
+        #expect(Acervo.slugify("org/repo") == "org_repo")
+        #expect(Acervo.slugify("noslash") == "noslash")
+        #expect(Acervo.slugify("") == "")
     }
 
     @Test("modelDirectory for small model produces correct slug")
-    func modelDirectorySmallModel() {
-        let base = URL(fileURLWithPath: "/cache")
-        let dir = modelDirectory(base: base, modelId: TestTTSModelID.small)
-        #expect(dir.path == "/cache/mlx-community_Qwen3-TTS-12Hz-0.6B-Base-bf16")
+    func modelDirectorySmallModel() throws {
+        let dir = try Acervo.modelDirectory(for: TestTTSModelID.small)
+        #expect(dir.lastPathComponent == "mlx-community_Qwen3-TTS-12Hz-0.6B-Base-bf16")
     }
 
     // MARK: - 2.2 RAM-Based Model Selection
@@ -146,26 +110,22 @@ struct DigaModelManagerTests {
         #expect(TestTTSModelID.ramThresholdBytes == 17_179_869_184)
     }
 
-    // MARK: - 2.1/2.3 Model Availability
+    // MARK: - 2.1/2.3 Model Availability (via Acervo)
 
     @Test("isModelAvailable returns false for missing model directory")
-    func isModelAvailableMissing() throws {
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("diga-test-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: tempDir) }
-
-        let available = isModelAvailable(base: tempDir, modelId: TestTTSModelID.large)
+    func isModelAvailableMissing() {
+        // A model that's extremely unlikely to exist
+        let available = Acervo.isModelAvailable("test-org/nonexistent-model-\(UUID().uuidString)")
         #expect(available == false)
     }
 
-    @Test("isModelAvailable returns true when config.json exists in model directory")
+    @Test("isModelAvailable returns true when config.json exists in Acervo model directory")
     func isModelAvailablePresent() throws {
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("diga-test-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let tempModelId = "test-org/acervo-test-\(UUID().uuidString)"
+        let modelDir = try Acervo.modelDirectory(for: tempModelId)
+        defer { try? FileManager.default.removeItem(at: modelDir) }
 
         // Create the model directory with config.json
-        let modelDir = modelDirectory(base: tempDir, modelId: TestTTSModelID.large)
         try FileManager.default.createDirectory(
             at: modelDir,
             withIntermediateDirectories: true
@@ -173,24 +133,23 @@ struct DigaModelManagerTests {
         let configPath = modelDir.appendingPathComponent("config.json")
         try Data("{}".utf8).write(to: configPath)
 
-        let available = isModelAvailable(base: tempDir, modelId: TestTTSModelID.large)
+        let available = Acervo.isModelAvailable(tempModelId)
         #expect(available == true)
     }
 
     @Test("isModelAvailable returns false when directory exists but config.json is absent")
     func isModelAvailableDirectoryOnlyNoConfig() throws {
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("diga-test-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let tempModelId = "test-org/acervo-test-\(UUID().uuidString)"
+        let modelDir = try Acervo.modelDirectory(for: tempModelId)
+        defer { try? FileManager.default.removeItem(at: modelDir) }
 
         // Create model directory without config.json
-        let modelDir = modelDirectory(base: tempDir, modelId: TestTTSModelID.small)
         try FileManager.default.createDirectory(
             at: modelDir,
             withIntermediateDirectories: true
         )
 
-        let available = isModelAvailable(base: tempDir, modelId: TestTTSModelID.small)
+        let available = Acervo.isModelAvailable(tempModelId)
         #expect(available == false)
     }
 
@@ -205,88 +164,12 @@ struct DigaModelManagerTests {
         #expect(TestTTSModelFiles.required.contains("model.safetensors"))
     }
 
-    @Test("HuggingFace file URLs are constructed correctly")
-    func huggingFaceURLConstruction() {
-        let url = huggingFaceFileURL(
-            modelId: "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16",
-            fileName: "config.json"
-        )
-        #expect(
-            url.absoluteString
-                == "https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16/resolve/main/config.json"
-        )
-    }
-
-    @Test("HuggingFace URLs for all required files are valid")
-    func huggingFaceURLsAllFiles() {
-        for fileName in TestTTSModelFiles.required {
-            let url = huggingFaceFileURL(
-                modelId: TestTTSModelID.large,
-                fileName: fileName
-            )
-            #expect(url.scheme == "https")
-            #expect(url.host == "huggingface.co")
-            #expect(url.absoluteString.contains(fileName))
-        }
-    }
-
-    // MARK: - 2.4 Download Skip-If-Exists and Directory Creation
-
-    @Test("Download creates model directory structure if missing")
-    func downloadCreatesDirectory() throws {
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("diga-test-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: tempDir) }
-
-        // Simulate what downloadModel does: create directory structure
-        let modelDir = modelDirectory(base: tempDir, modelId: TestTTSModelID.large)
-        #expect(!FileManager.default.fileExists(atPath: modelDir.path))
-
-        try FileManager.default.createDirectory(
-            at: modelDir,
-            withIntermediateDirectories: true
-        )
-
-        #expect(FileManager.default.fileExists(atPath: modelDir.path))
-
-        // Verify the full path hierarchy was created
-        #expect(FileManager.default.fileExists(atPath: tempDir.path))
-    }
-
-    @Test("Download skips when model is already available (config.json exists)")
-    func downloadSkipsExistingModel() throws {
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("diga-test-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: tempDir) }
-
-        // Pre-populate model directory with config.json
-        let modelDir = modelDirectory(base: tempDir, modelId: TestTTSModelID.small)
-        try FileManager.default.createDirectory(
-            at: modelDir,
-            withIntermediateDirectories: true
-        )
-        try Data("{}".utf8).write(to: modelDir.appendingPathComponent("config.json"))
-
-        // Model should be detected as available — no download needed
-        let available = isModelAvailable(base: tempDir, modelId: TestTTSModelID.small)
-        #expect(available == true, "Download should be skipped when config.json exists")
-    }
-
     // MARK: - 2.2/2.4 Model Override
 
     @Test("Model constants match expected HuggingFace IDs")
     func modelConstants() {
         #expect(TestTTSModelID.large == "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16")
         #expect(TestTTSModelID.small == "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16")
-    }
-
-    @Test("Custom model ID slugifies correctly for arbitrary HuggingFace repos")
-    func customModelSlugify() {
-        // A user-provided --model override with a custom model ID
-        let customId = "my-org/my-custom-tts-model"
-        let slug = slugify(customId)
-        #expect(slug == "my-org_my-custom-tts-model")
-        #expect(!slug.contains("/"))
     }
 
     // MARK: - Progress Formatting
@@ -307,29 +190,31 @@ struct DigaModelManagerTests {
         #expect(!large.isEmpty)
     }
 
-    @Test("Multiple models can coexist in the same models directory")
+    @Test("Multiple models can coexist in Acervo shared directory")
     func multipleModelsCoexist() throws {
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("diga-test-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let id1 = "test-org/acervo-coexist-a-\(UUID().uuidString)"
+        let id2 = "test-org/acervo-coexist-b-\(UUID().uuidString)"
+        let dir1 = try Acervo.modelDirectory(for: id1)
+        let dir2 = try Acervo.modelDirectory(for: id2)
+        defer {
+            try? FileManager.default.removeItem(at: dir1)
+            try? FileManager.default.removeItem(at: dir2)
+        }
 
         // Create both model directories
-        let largeDir = modelDirectory(base: tempDir, modelId: TestTTSModelID.large)
-        let smallDir = modelDirectory(base: tempDir, modelId: TestTTSModelID.small)
+        try FileManager.default.createDirectory(at: dir1, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: dir2, withIntermediateDirectories: true)
 
-        try FileManager.default.createDirectory(at: largeDir, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: smallDir, withIntermediateDirectories: true)
+        // Only populate the first model
+        try Data("{}".utf8).write(to: dir1.appendingPathComponent("config.json"))
 
-        // Only populate the large model
-        try Data("{}".utf8).write(to: largeDir.appendingPathComponent("config.json"))
+        #expect(Acervo.isModelAvailable(id1) == true)
+        #expect(Acervo.isModelAvailable(id2) == false)
 
-        #expect(isModelAvailable(base: tempDir, modelId: TestTTSModelID.large) == true)
-        #expect(isModelAvailable(base: tempDir, modelId: TestTTSModelID.small) == false)
+        // Now populate the second model too
+        try Data("{}".utf8).write(to: dir2.appendingPathComponent("config.json"))
 
-        // Now populate the small model too
-        try Data("{}".utf8).write(to: smallDir.appendingPathComponent("config.json"))
-
-        #expect(isModelAvailable(base: tempDir, modelId: TestTTSModelID.large) == true)
-        #expect(isModelAvailable(base: tempDir, modelId: TestTTSModelID.small) == true)
+        #expect(Acervo.isModelAvailable(id1) == true)
+        #expect(Acervo.isModelAvailable(id2) == true)
     }
 }

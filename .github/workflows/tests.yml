@@ -53,4 +53,78 @@ jobs:
         run: |
           VERSION_OUTPUT=$(./bin/diga --version)
           echo "Version output: $VERSION_OUTPUT"
-          echo "$VERSION_OUTPUT" | grep -q "0.1.1"
+          echo "$VERSION_OUTPUT" | grep -q "0.2.0"
+
+  audio-integration:
+    name: Audio Integration Test
+    runs-on: macos-26
+    timeout-minutes: 45
+    needs: build
+    env:
+      GIT_LFS_SKIP_SMUDGE: "1"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache TTS models
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/SharedModels
+            ~/Library/Caches/intrusive-memory/Models
+          key: tts-models-v1
+          restore-keys: |
+            tts-models-v1
+
+      - name: Build release binary
+        run: make release
+
+      - name: Synthesize test audio
+        run: ./bin/diga --model 0.6b -o /tmp/test.wav "Hello from CI"
+
+      - name: Validate WAV file size
+        run: |
+          FILE_SIZE=$(stat -f%z /tmp/test.wav)
+          echo "WAV file size: $FILE_SIZE bytes"
+          if [ "$FILE_SIZE" -le 44 ]; then
+            echo "ERROR: WAV file is too small ($FILE_SIZE bytes, expected > 44)"
+            exit 1
+          fi
+
+      - name: Validate RIFF/WAVE header
+        run: |
+          # Check RIFF magic at offset 0 (52494646 = "RIFF")
+          RIFF=$(xxd -p -l 4 /tmp/test.wav)
+          echo "RIFF header: $RIFF"
+          if [ "$RIFF" != "52494646" ]; then
+            echo "ERROR: Missing RIFF header"
+            exit 1
+          fi
+          # Check WAVE format at offset 8 (57415645 = "WAVE")
+          WAVE=$(xxd -p -s 8 -l 4 /tmp/test.wav)
+          echo "WAVE format: $WAVE"
+          if [ "$WAVE" != "57415645" ]; then
+            echo "ERROR: Missing WAVE format marker"
+            exit 1
+          fi
+
+      - name: Validate PCM data is not silence
+        run: |
+          # Extract first 1000 bytes of PCM data (after 44-byte header)
+          PCM_HEX=$(xxd -p -s 44 -l 1000 /tmp/test.wav | tr -d '\n')
+          # Check it's not all zeros
+          ZEROS=$(echo "$PCM_HEX" | tr -d '0')
+          if [ -z "$ZEROS" ]; then
+            echo "ERROR: PCM data is all zeros (silence)"
+            exit 1
+          fi
+          echo "PCM data contains non-zero samples (audio is not silence)"
+
+      - name: Upload test audio artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-audio
+          path: /tmp/test.wav
+          retention-days: 7

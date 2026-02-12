@@ -8,6 +8,7 @@
 
 import Foundation
 import MLXAudioTTS
+import SwiftAcervo
 
 // MARK: - Supported Model Repos
 
@@ -95,8 +96,40 @@ public actor VoxAltaModelManager {
         _currentModelRepo
     }
 
+    /// Whether legacy model migration has already been attempted this session.
+    private var migrationAttempted = false
+
     /// Initializes an empty model manager with no model loaded.
     public init() {}
+
+    // MARK: - Acervo Integration
+
+    /// Migrates models from the legacy cache path (`~/Library/Caches/intrusive-memory/Models/`)
+    /// to Acervo's shared directory (`~/Library/SharedModels/`). Called once per session.
+    public func migrateIfNeeded() {
+        guard !migrationAttempted else { return }
+        migrationAttempted = true
+        do {
+            let migrated = try Acervo.migrateFromLegacyPaths()
+            if !migrated.isEmpty {
+                FileHandle.standardError.write(Data(
+                    "Migrated \(migrated.count) model(s) to ~/Library/SharedModels/\n".utf8
+                ))
+            }
+        } catch {
+            FileHandle.standardError.write(Data(
+                "Warning: model migration failed: \(error.localizedDescription)\n".utf8
+            ))
+        }
+    }
+
+    /// Checks whether a model is available in Acervo's shared directory.
+    ///
+    /// - Parameter modelId: The HuggingFace model identifier.
+    /// - Returns: `true` if the model directory contains `config.json`.
+    public nonisolated func isModelInAcervo(_ modelId: String) -> Bool {
+        Acervo.isModelAvailable(modelId)
+    }
 
     /// Loads a Qwen3-TTS model from the given HuggingFace repository.
     ///
@@ -110,6 +143,9 @@ public actor VoxAltaModelManager {
     /// - Returns: The loaded `SpeechGenerationModel` instance.
     /// - Throws: `VoxAltaError.modelNotAvailable` if loading fails.
     public func loadModel(repo: String) async throws -> any SpeechGenerationModel {
+        // One-time migration from legacy cache to Acervo shared directory
+        migrateIfNeeded()
+
         // Return cached model if same repo is requested
         if let cached = cachedModel, _currentModelRepo == repo {
             return cached

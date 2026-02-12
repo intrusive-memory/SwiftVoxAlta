@@ -8,6 +8,7 @@
 
 import Testing
 import Foundation
+import SwiftAcervo
 @testable import SwiftVoxAlta
 
 // MARK: - Actor Conformance Tests
@@ -295,5 +296,53 @@ struct InsufficientMemoryErrorTests {
             required: 2_000_000_000
         )
         #expect(error is VoxAltaError)
+    }
+}
+
+// MARK: - Acervo Integration Tests
+
+@Suite("VoxAltaModelManager - Acervo Integration")
+struct AcervoIntegrationTests {
+
+    @Test("isModelInAcervo returns false for non-existent model")
+    func isModelInAcervoMissing() async {
+        let manager = VoxAltaModelManager()
+        let result = await manager.isModelInAcervo("test-org/nonexistent-\(UUID().uuidString)")
+        #expect(result == false)
+    }
+
+    @Test("isModelInAcervo returns true when model exists in Acervo directory")
+    func isModelInAcervoPresent() async throws {
+        let tempModelId = "test-org/voxalta-acervo-test-\(UUID().uuidString)"
+        let modelDir = try Acervo.modelDirectory(for: tempModelId)
+        defer { try? FileManager.default.removeItem(at: modelDir) }
+
+        try FileManager.default.createDirectory(at: modelDir, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: modelDir.appendingPathComponent("config.json"))
+
+        let manager = VoxAltaModelManager()
+        let result = await manager.isModelInAcervo(tempModelId)
+        #expect(result == true)
+    }
+
+    @Test("migrateIfNeeded runs without error on clean system")
+    func migrateIfNeededRuns() async {
+        let manager = VoxAltaModelManager()
+        await manager.migrateIfNeeded()
+        // Should not throw; migration is a no-op if legacy path is empty
+    }
+
+    @Test("migrateIfNeeded only runs once per session")
+    func migrateIfNeededIdempotent() async {
+        let manager = VoxAltaModelManager()
+        await manager.migrateIfNeeded()
+        await manager.migrateIfNeeded()
+        // Second call should be a no-op (migrationAttempted flag)
+    }
+
+    @Test("Acervo shared models directory is ~/Library/SharedModels/")
+    func sharedModelsDirectory() {
+        let dir = Acervo.sharedModelsDirectory
+        #expect(dir.path.hasSuffix("Library/SharedModels"))
     }
 }

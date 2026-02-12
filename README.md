@@ -94,6 +94,7 @@ make install    # Debug build + copy to ./bin
 - [SwiftCompartido](https://github.com/intrusive-memory/SwiftCompartido) -- Input types (GuionElementModel, ElementType)
 - [SwiftBruja](https://github.com/intrusive-memory/SwiftBruja) -- LLM inference for character analysis
 - [mlx-audio-swift](https://github.com/intrusive-memory/mlx-audio-swift) -- Qwen3-TTS inference
+- [SwiftAcervo](https://github.com/intrusive-memory/SwiftAcervo) -- Shared model management and caching
 
 ## License
 
