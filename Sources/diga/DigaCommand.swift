@@ -1,0 +1,290 @@
+import ArgumentParser
+import Foundation
+
+@main
+struct DigaCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "diga",
+        abstract: "On-device neural text-to-speech — a drop-in replacement for /usr/bin/say.",
+        version: "diga \(DigaVersion.current)"
+    )
+
+    // MARK: - Voice Management Flags
+
+    @Flag(name: .long, help: "List all available voices and exit.")
+    var voices: Bool = false
+
+    @Option(name: .long, help: "Create a new voice from a text description: --design \"description\" <name>")
+    var design: String?
+
+    @Option(name: .long, help: "Clone a voice from a reference audio file: --clone reference.wav <name>")
+    var clone: String?
+
+    // MARK: - Model Management Flags
+
+    @Option(name: .long, help: "Override the auto-selected TTS model (0.6b, 1.7b, or a HuggingFace model ID).")
+    var model: String?
+
+    // MARK: - Output Flags
+
+    @Option(name: .shortAndLong, help: "Write audio to a file instead of playing through speakers.")
+    var output: String?
+
+    @Option(name: .shortAndLong, help: "Read input text from a file (use '-' for stdin).")
+    var file: String?
+
+    @Option(name: .long, help: "Override the output audio format (wav, aiff, m4a). Inferred from file extension if not set.")
+    var fileFormat: String?
+
+    // MARK: - Voice Selection
+
+    @Option(name: .shortAndLong, help: "Voice name to use for synthesis. Use '-v ?' to list voices.")
+    var voice: String?
+
+    // MARK: - Positional Arguments
+
+    @Argument(help: "Voice name (used with --design or --clone), or text to speak.")
+    var positionalArgs: [String] = []
+
+    // MARK: - Run
+
+    mutating func run() async throws {
+        // -v ? lists voices and exits.
+        if voice == "?" {
+            try runListVoices()
+            return
+        }
+
+        if voices {
+            try runListVoices()
+            return
+        }
+
+        if let description = design {
+            try runDesignVoice(description: description)
+            return
+        }
+
+        if let referencePath = clone {
+            try runCloneVoice(referencePath: referencePath)
+            return
+        }
+
+        // Resolve --model shorthand (0.6b, 1.7b) to full HuggingFace IDs.
+        let resolvedModel = try resolveModelFlag()
+
+        // Validate voice name before doing anything expensive.
+        if let voiceName = voice {
+            try validateVoiceExists(name: voiceName)
+        }
+
+        // Determine input text from one of three sources:
+        // 1. -f flag: read from file (or stdin if "-")
+        // 2. Positional arguments: join as text
+        // 3. Stdin (when piped, i.e., stdin is not a TTY)
+        let text: String
+        if let filePath = file {
+            if filePath == "-" {
+                text = try readStdin()
+            } else {
+                text = try readInputFile(path: filePath)
+            }
+        } else if !positionalArgs.isEmpty {
+            text = positionalArgs.joined(separator: " ")
+        } else if !isatty(STDIN_FILENO).boolValue {
+            text = try readStdin()
+        } else {
+            // No input provided — print help.
+            throw CleanExit.helpRequest(self)
+        }
+
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else {
+            throw ValidationError("Input text is empty.")
+        }
+
+        // Synthesize text to WAV audio via Qwen3-TTS.
+        let engine = DigaEngine(modelOverride: resolvedModel)
+        let wavData = try await engine.synthesize(text: trimmedText, voiceName: voice)
+
+        // Route output: file (-o) or speaker playback.
+        if let outputPath = output {
+            // Infer format from extension or --file-format flag, then write.
+            let format = AudioFormat.infer(fromPath: outputPath, formatOverride: fileFormat)
+            try AudioFileWriter.write(wavData: wavData, to: outputPath, format: format)
+            // Silent on success — matches `say -o` behavior.
+        } else {
+            // Play through speakers (default behavior).
+            try await AudioPlayback.play(wavData: wavData)
+        }
+    }
+
+    // MARK: - Model Flag Resolution
+
+    /// Resolves the `--model` flag to a full HuggingFace model ID.
+    ///
+    /// Shorthand values:
+    /// - `"0.6b"` or `"0.6B"` → `TTSModelID.small`
+    /// - `"1.7b"` or `"1.7B"` → `TTSModelID.large`
+    /// - Any other string containing `/` is treated as a HuggingFace model ID
+    /// - `nil` returns `nil` (use auto-selection)
+    ///
+    /// - Returns: The resolved model ID, or nil for auto-selection.
+    /// - Throws: `ValidationError` if the model value is invalid.
+    private func resolveModelFlag() throws -> String? {
+        guard let modelValue = model else { return nil }
+
+        switch modelValue.lowercased() {
+        case "0.6b":
+            return TTSModelID.small
+        case "1.7b":
+            return TTSModelID.large
+        default:
+            // Accept any string that looks like a HuggingFace model ID (contains /).
+            if modelValue.contains("/") {
+                return modelValue
+            }
+            // Invalid shorthand — not "0.6b", "1.7b", or a HF model ID.
+            throw ValidationError(
+                "Invalid model: '\(modelValue)'. Use '0.6b', '1.7b', or a HuggingFace model ID (org/repo)."
+            )
+        }
+    }
+
+    // MARK: - Voice Validation
+
+    /// Validates that a voice name exists in built-in voices or the VoiceStore.
+    ///
+    /// - Parameter name: The voice name to validate.
+    /// - Throws: `ExitCode.failure` if the voice is not found.
+    private func validateVoiceExists(name: String) throws {
+        // Check built-in voices.
+        if BuiltinVoices.get(name: name) != nil {
+            return
+        }
+
+        // Check custom voices in VoiceStore.
+        let store = VoiceStore()
+        if let _ = try store.getVoice(name: name) {
+            return
+        }
+
+        // Voice not found — print error to stderr and exit with code 1.
+        let message = "Error: Voice '\(name)' not found. Use --voices to list available voices.\n"
+        FileHandle.standardError.write(Data(message.utf8))
+        throw ExitCode.failure
+    }
+
+    // MARK: - Input Reading
+
+    /// Read text from a file path.
+    private func readInputFile(path: String) throws -> String {
+        let url = URL(fileURLWithPath: path)
+        guard FileManager.default.isReadableFile(atPath: url.path) else {
+            throw ValidationError("Input file not found or not readable: \(path)")
+        }
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    /// Read all text from standard input until EOF.
+    private func readStdin() throws -> String {
+        var lines: [String] = []
+        while let line = readLine(strippingNewline: false) {
+            lines.append(line)
+        }
+        return lines.joined()
+    }
+
+    // MARK: - --voices
+
+    /// Prints a formatted list of built-in and custom voices.
+    private func runListVoices() throws {
+        let builtinVoices = BuiltinVoices.all()
+
+        print("Built-in:")
+        for voice in builtinVoices {
+            let description = voice.designDescription ?? ""
+            print("  \(voice.name)\t\(description)")
+        }
+
+        print("")
+        print("Custom:")
+
+        let store = VoiceStore()
+        let customVoices = try store.listVoices().filter { $0.type != .builtin }
+
+        if customVoices.isEmpty {
+            print("  (none \u{2014} use --design or --clone to create)")
+        } else {
+            for voice in customVoices {
+                let description: String
+                switch voice.type {
+                case .designed:
+                    description = voice.designDescription ?? "(designed)"
+                case .cloned:
+                    description = "cloned from \(voice.clonePromptPath ?? "reference audio")"
+                case .builtin:
+                    description = voice.designDescription ?? ""
+                }
+                print("  \(voice.name)\t\(description)")
+            }
+        }
+    }
+
+    // MARK: - --design
+
+    /// Creates a new voice from a text description and saves it to the VoiceStore.
+    private func runDesignVoice(description: String) throws {
+        guard let voiceName = positionalArgs.first else {
+            throw ValidationError("A voice name is required: --design \"description\" <name>")
+        }
+
+        let voice = StoredVoice(
+            name: voiceName,
+            type: .designed,
+            designDescription: description,
+            clonePromptPath: nil,
+            createdAt: Date()
+        )
+
+        let store = VoiceStore()
+        try store.saveVoice(voice)
+        print("Voice \"\(voiceName)\" created.")
+    }
+
+    // MARK: - --clone
+
+    /// Clones a voice from a reference audio file and saves it to the VoiceStore.
+    private func runCloneVoice(referencePath: String) throws {
+        guard let voiceName = positionalArgs.first else {
+            throw ValidationError("A voice name is required: --clone reference.wav <name>")
+        }
+
+        // Validate the reference audio file exists and is readable.
+        let fileURL = URL(fileURLWithPath: referencePath)
+        guard FileManager.default.isReadableFile(atPath: fileURL.path) else {
+            throw ValidationError("Reference audio file not found or not readable: \(referencePath)")
+        }
+
+        let voice = StoredVoice(
+            name: voiceName,
+            type: .cloned,
+            designDescription: nil,
+            clonePromptPath: referencePath,
+            createdAt: Date()
+        )
+
+        let store = VoiceStore()
+        try store.saveVoice(voice)
+
+        let filename = fileURL.lastPathComponent
+        print("Voice \"\(voiceName)\" cloned from \(filename)")
+    }
+}
+
+// MARK: - Int32 Bool Extension
+
+private extension Int32 {
+    /// Converts a C-style boolean (0 = false, non-zero = true) to Swift Bool.
+    var boolValue: Bool { self != 0 }
+}
