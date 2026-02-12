@@ -34,28 +34,50 @@
 
 ---
 
-## ⚠️ Known Issue: Voice Generation Fails
+## ⚠️ Known Issue: Voice Generation Hangs
 
 ### Symptom
-When attempting to generate the built-in `alex` voice, diga fails with:
+When attempting to generate the built-in `alex` voice, diga hangs indefinitely:
 
 ```
-Error: Voice design failed: Failed to generate voice candidate for 'alex':
-Model not available: Failed to load model from 'mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16':
-The file "mlx-community_Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16" couldn't be saved in the folder "Audio".
-Ensure the model has been downloaded.
+Generating voice 'alex' (first use, this may take a moment)...
+(process runs for 10+ minutes using ~15-90% CPU, never completes)
 ```
+
+### Investigation Summary (2026-02-12)
+
+**Issue #1: SwiftAcervo Migration Bug (FIXED)**
+- Acervo migration tried to move symlinks from `~/Library/Caches/intrusive-memory/Models/Audio/`
+- Symlinks pointed to models in `TTS/` directory
+- Moving symlinks failed with: "couldn't be saved in the folder 'Audio'"
+- **Fix**: Updated `SwiftAcervo/Sources/SwiftAcervo/Acervo.swift` to skip symlinks during migration
+- **Commit**: `7a607b8` in SwiftAcervo repo
+
+**Issue #2: Duplicate Models in Legacy Paths (CLEANED)**
+- After migration bug, models ended up duplicated in Audio directory
+- mlx-audio-swift's ModelResolver was finding models in legacy path instead of SharedModels
+- **Fix**: Manually removed duplicates from `~/Library/Caches/intrusive-memory/Models/Audio/`
+- Models now correctly located only in `~/Library/SharedModels/`
+
+**Issue #3: Voice Generation Hangs (ONGOING)**
+- VoiceDesign model loads successfully from SharedModels
+- Speech tokenizer loads correctly
+- Process hangs during `VoiceDesigner.generateCandidate()` → `qwenModel.generate()`
+- CPU usage: 14-90% (varies), suggesting compute-intensive operation, not deadlock
+- Runs for 10+ minutes without completion or error
+- **Root Cause**: Unknown - possibly model inference issue in mlx-audio-swift Qwen3-TTS implementation
 
 ### Root Cause
-The VoiceDesign model **IS** downloaded and present at:
-```
-~/Library/SharedModels/mlx-community_Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16/
-```
+Models are present and loading correctly. The hang occurs during actual TTS generation:
+- Call stack: `DigaEngine.loadOrCreateClonePrompt()` → `VoiceDesigner.generateCandidate()` → `qwenModel.generate()`
+- mlx-audio-swift's Qwen3-TTS VoiceDesign inference appears to hang during audio generation
+- No error message, just indefinite computation
 
-The error suggests a bug in one of:
-- `Sources/diga/DigaModelManager.swift` — Model loading logic
-- `Sources/diga/VoiceStore.swift` — Voice persistence logic
-- `SwiftAcervo` model management integration
+Possible causes:
+- Infinite loop in Qwen3-TTS generation code
+- Memory thrashing / excessive swap usage
+- MLX kernel hang or inefficient implementation
+- Missing or corrupt model weights (though files appear complete)
 
 ### Impact
 - ❌ `make setup-voices` fails
@@ -92,28 +114,34 @@ Once voice generation is fixed, tests will validate:
 
 ---
 
-## Next Steps
+## Recommended Solutions
 
-### To Fix Voice Generation Issue
+### Option 1: Use Base Model with Reference Audio (RECOMMENDED)
 
-1. **Debug diga binary**:
-   ```bash
-   # Try direct voice generation
-   ./bin/diga -v alex -o /tmp/test.wav "test"
-   ```
+Skip VoiceDesign entirely and use Base model cloning with reference audio:
+- ✅ Faster inference (Base 0.6B model is 2.5× smaller)
+- ✅ Proven to work in mlx-audio-swift
+- ⚠️ Requires reference audio file per voice (can use pre-recorded samples or Apple TTS)
 
-2. **Check DigaModelManager**:
-   - Look at model loading in `Sources/diga/DigaModelManager.swift`
-   - Verify SwiftAcervo integration
-   - Check file permissions and path construction
+**Implementation**:
+1. Modify `BuiltinVoices` to use `.cloned` type instead of `.builtin`
+2. Generate reference audio files using macOS `say` command
+3. Use `VoiceLockManager.createLock()` with reference audio path
 
-3. **Check VoiceStore**:
-   - Verify `Sources/diga/VoiceStore.swift` creates cache directory
-   - Check `~/Library/Caches/intrusive-memory/Voices/` creation
+### Option 2: Investigate VoiceDesign Performance
 
-4. **Alternative**: Use 0.6B Base model instead of VoiceDesign
-   - Skip voice design, use direct Base model synthesis
-   - Generate voice using reference audio instead of text description
+Add instrumentation to understand why VoiceDesign is so slow:
+1. Add progress logging to `Qwen3TTS.generateFromEmbeddings()` loop
+2. Profile memory usage and GPU utilization during generation
+3. Try shorter sample text (e.g., "Hello") to isolate issue
+4. Test with mlx-audio-swift's VoicesApp to compare performance
+
+### Option 3: File Upstream Performance Issue
+
+Report to mlx-audio-swift maintainers at https://github.com/Blaizzy/mlx-audio-swift:
+- VoiceDesign 1.7B takes 10+ minutes for 10-word sample on Apple Silicon
+- Include system specs and model path
+- Ask if this is expected or if there's a known optimization issue
 
 ### To Test CI Without Voice Generation
 
