@@ -24,13 +24,13 @@ struct DigaReleaseTests {
     @Test("DigaVersion.current is non-empty")
     func versionIsNonEmpty() {
         // Mirror the value from Sources/diga/Version.swift
-        let version = "0.1.0"
+        let version = "0.1.1"
         #expect(!version.isEmpty, "Version string must not be empty")
     }
 
     @Test("DigaVersion.current matches semver pattern")
     func versionMatchesSemver() {
-        let version = "0.1.0"
+        let version = "0.1.1"
         // Semver: major.minor.patch with optional pre-release
         let semverPattern = #"^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$"#
         let regex = try? NSRegularExpression(pattern: semverPattern)

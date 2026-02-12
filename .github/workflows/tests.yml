@@ -53,4 +53,4 @@ jobs:
         run: |
           VERSION_OUTPUT=$(./bin/diga --version)
           echo "Version output: $VERSION_OUTPUT"
-          echo "$VERSION_OUTPUT" | grep -q "0.1.0"
+          echo "$VERSION_OUTPUT" | grep -q "0.1.1"

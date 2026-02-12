@@ -2,7 +2,7 @@
 
 This file provides comprehensive documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.1.0
+**Current Version**: 0.1.1
 
 ---
 
@@ -69,7 +69,7 @@ SwiftVoxAlta/
 │       ├── DigaEngine.swift           # Synthesis engine (text -> WAV data)
 │       ├── DigaModelManager.swift     # Model download and cache management
 │       ├── TextChunker.swift          # Split long text for chunked synthesis
-│       ├── Version.swift              # Version constant (0.1.0)
+│       ├── Version.swift              # Version constant (0.1.1)
 │       └── VoiceStore.swift           # Persistent custom voice storage
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # Library tests
@@ -325,16 +325,16 @@ public enum VoxAltaError: Error {
 
 ## Development Workflow
 
-- **Branch**: `development` -> PR -> `master`
-- **CI Required**: Tests must pass before merge
-- **Never commit directly to `master`**
+- **Branch**: `development` -> PR -> `main`
+- **CI Required**: Build + Integration Tests must pass before merge
+- **Never commit directly to `main`**
 - **Platforms**: macOS 26+, iOS 26+ only (Apple Silicon required)
 - **NEVER add `@available` attributes** for older platforms
 - **CI runner**: `macos-26`
 
 ## Release Process
 
-1. Tag on `master` (e.g., `v0.1.0`)
+1. Tag on `main` (e.g., `v0.1.1`)
 2. GitHub Release triggers `.github/workflows/release.yml`
 3. Release workflow: `make release` -> tarball -> upload assets -> dispatch to `intrusive-memory/homebrew-tap`
 4. Homebrew tap auto-updates formula with new URL and SHA256

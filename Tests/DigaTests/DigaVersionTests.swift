@@ -14,7 +14,7 @@ struct DigaVersionTests {
     func versionStringFormat() {
         // The expected version must match what is defined in Sources/diga/Version.swift.
         // If someone changes the version there, this test reminds them to update here too.
-        let expectedVersion = "0.1.0"
+        let expectedVersion = "0.1.1"
         #expect(!expectedVersion.isEmpty)
 
         // Verify semver format: major.minor.patch
@@ -28,7 +28,7 @@ struct DigaVersionTests {
 
     @Test("Version string is non-empty")
     func versionStringNonEmpty() {
-        let version = "0.1.0"
+        let version = "0.1.1"
         #expect(!version.isEmpty)
         #expect(version.count > 0)
     }
@@ -46,7 +46,7 @@ struct DigaVersionTests {
         let config = CommandConfiguration(
             commandName: "diga",
             abstract: "Test abstract",
-            version: "diga 0.1.0"
+            version: "diga 0.1.1"
         )
         #expect(config.commandName == "diga")
     }
