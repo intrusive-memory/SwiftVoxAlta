@@ -13,6 +13,42 @@ import Testing
 @Suite("Binary Audio Generation Integration Tests", .serialized)
 struct DigaBinaryIntegrationTests {
 
+    /// Initialize voice cache if needed (runs once per test suite)
+    init() async throws {
+        guard !Self.areVoicesCached() else {
+            return  // Voices already cached, skip warmup
+        }
+
+        print("⏳ First run: Generating voice 'ryan' (~60 seconds)...")
+        print("   Subsequent runs will use cached voice and be fast.")
+
+        let binary = try Self.findBinaryPath()
+        let result = try await Self.runDiga(
+            binaryPath: binary,
+            args: ["-v", "ryan", "-o", "/tmp/diga-warmup.wav", "test"],
+            timeout: 120  // 2 minute timeout for voice generation
+        )
+
+        defer { try? FileManager.default.removeItem(atPath: "/tmp/diga-warmup.wav") }
+
+        guard result.exitCode == 0 else {
+            throw TestError.voiceGenerationFailed(
+                "Failed to generate voice 'ryan': \(result.stderr)"
+            )
+        }
+
+        print("✓ Voice 'ryan' cached. Tests will now run fast.")
+    }
+
+    /// Check if voices are cached in ~/Library/Caches/intrusive-memory/Voices/
+    private static func areVoicesCached() -> Bool {
+        let voicesDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Caches/intrusive-memory/Voices")
+
+        let ryanVoice = voicesDir.appendingPathComponent("ryan.voice")
+        return FileManager.default.fileExists(atPath: ryanVoice.path)
+    }
+
     // MARK: - Test Cases
 
     @Test("Generate valid WAV file with audio data")
@@ -32,11 +68,11 @@ struct DigaBinaryIntegrationTests {
         let result = try await Self.runDiga(
             binaryPath: binaryPath,
             args: ["-v", "ryan", "-o", outputPath, "The quick brown fox jumps over the lazy dog"],
-            timeout: 60
+            timeout: 30
         )
 
         // Validate exit code
-        #expect(result.exitCode == 0, "diga should exit with code 0, got \(result.exitCode)\nstderr: \(result.stderr)")
+        #expect(result.exitCode == 0, "diga should exit with code 0")
 
         // Validate file exists and size
         try validateFileExists(path: outputPath, minSize: 44)
@@ -69,10 +105,10 @@ struct DigaBinaryIntegrationTests {
         let result = try await Self.runDiga(
             binaryPath: binaryPath,
             args: ["-v", "ryan", "-o", outputPath, "Testing AIFF format"],
-            timeout: 60
+            timeout: 30
         )
 
-        #expect(result.exitCode == 0, "diga should exit with code 0, got \(result.exitCode)\nstderr: \(result.stderr)")
+        #expect(result.exitCode == 0)
         try validateFileExists(path: outputPath, minSize: 54)
         try validateAudioHeaders(path: outputPath, expectedFormat: .aiff)
         let audioFile = try validateAudioFormat(path: outputPath)
@@ -97,10 +133,10 @@ struct DigaBinaryIntegrationTests {
         let result = try await Self.runDiga(
             binaryPath: binaryPath,
             args: ["-v", "ryan", "-o", outputPath, "Testing M4A format"],
-            timeout: 60
+            timeout: 30
         )
 
-        #expect(result.exitCode == 0, "diga should exit with code 0, got \(result.exitCode)\nstderr: \(result.stderr)")
+        #expect(result.exitCode == 0)
         try validateFileExists(path: outputPath, minSize: 100)
         try validateAudioHeaders(path: outputPath, expectedFormat: .m4a)
         let audioFile = try validateAudioFormat(path: outputPath)
@@ -122,8 +158,8 @@ struct DigaBinaryIntegrationTests {
             )
             Issue.record("Expected process to fail with binary not found")
         } catch {
-            // Expected to throw - either TestError or CocoaError
-            #expect(error is TestError || error is CocoaError, "Should throw TestError or CocoaError, got \(type(of: error))")
+            // Expected to throw
+            #expect(error is TestError || error is CocoaError)
             print("✓ Binary not found correctly handled")
         }
     }
@@ -382,6 +418,7 @@ enum TestError: Error, LocalizedError {
     case invalidFormat(String)
     case silenceDetected(String)
     case timeout(String)
+    case voiceGenerationFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -391,6 +428,7 @@ enum TestError: Error, LocalizedError {
         case .invalidFormat(let detail): return "Invalid format: \(detail)"
         case .silenceDetected(let detail): return "Silence detected: \(detail)"
         case .timeout(let detail): return "Timeout: \(detail)"
+        case .voiceGenerationFailed(let detail): return "Voice generation failed: \(detail)"
         }
     }
 }
