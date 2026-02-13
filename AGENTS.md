@@ -230,6 +230,8 @@ await registry.register(VoxAltaProviderDescriptor.descriptor())
 
 `diga` is a drop-in replacement for `/usr/bin/say` with neural text-to-speech via Qwen3-TTS.
 
+**See [Available Voices Documentation](docs/AVAILABLE_VOICES.md)** for a complete list of built-in voices, canonical URIs for voice casting, and voice management details.
+
 ### Usage
 
 ```bash
@@ -358,3 +360,14 @@ public enum VoxAltaError: Error {
 - **Character consistency** -- Locked voices ensure same character sounds identical across scenes
 - **Privacy** -- All processing on-device, no cloud APIs
 - **Experimental status** -- VoxAlta is in active development, APIs may change
+
+## Documentation Index
+
+| Document | Purpose |
+|----------|---------|
+| [AGENTS.md](AGENTS.md) | This file - complete project documentation and development guidelines |
+| [CLAUDE.md](CLAUDE.md) | Claude Code quick reference pointer to AGENTS.md |
+| [Available Voices](docs/AVAILABLE_VOICES.md) | **Complete list of built-in voices with canonical URIs for voice casting** |
+| [CI Dependency Chain](docs/CI_DEPENDENCY_CHAIN.md) | Parallel voice caching and test execution strategy |
+| [CustomVoice Execution Plan](docs/CUSTOMVOICE_EXECUTION_PLAN.md) | CustomVoice implementation plan |
+| [CustomVoice Migration](docs/CUSTOMVOICE_MIGRATION.md) | Migration guide from Base/VoiceDesign to CustomVoice |
