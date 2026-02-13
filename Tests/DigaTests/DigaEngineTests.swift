@@ -274,17 +274,17 @@ struct DigaEngineVoiceResolutionTests {
         }
     }
 
-    // --- Test 16: Resolve built-in voice returns non-nil ---
+    // --- Test 16: Resolve preset voice returns non-nil ---
 
-    @Test("Resolving a built-in voice name returns the correct voice")
-    func resolveBuiltinVoice() async throws {
+    @Test("Resolving a preset voice name returns the correct voice")
+    func resolvePresetVoice() async throws {
         let (engine, tempDir) = try makeTestEngine()
         defer { cleanup(tempDir) }
 
-        let voice = try await engine.resolveVoice(name: "alex")
-        #expect(voice.name == "alex")
-        #expect(voice.type == .builtin)
-        #expect(voice.designDescription?.contains("baritone") == true)
+        let voice = try await engine.resolveVoice(name: "ryan")
+        #expect(voice.name == "ryan")
+        #expect(voice.type == .preset)
+        #expect(voice.designDescription?.contains("Dynamic male") == true)
     }
 
     // --- Test 17: Resolve nil name returns default (first built-in) ---
