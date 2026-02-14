@@ -27,6 +27,8 @@ jobs:
         run: swift --version
 
       - name: Run unit tests
+        env:
+          GIT_LFS_SKIP_SMUDGE: "1"
         run: make test-unit
 
   # Integration tests with LFS models
@@ -51,6 +53,8 @@ jobs:
         run: swift --version
 
       - name: Run integration tests
+        env:
+          GIT_LFS_SKIP_SMUDGE: "1"
         run: make test-integration
 
       - name: Upload test audio artifacts on failure
