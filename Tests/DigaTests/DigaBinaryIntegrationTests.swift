@@ -7,10 +7,15 @@ import Testing
 /// These tests require:
 /// - Binary built and available at `./bin/diga`
 /// - CustomVoice model cached (will auto-download on first run ~3.4GB)
+/// - Metal GPU compiler support (not available on GitHub Actions runners)
 ///
-/// In CI, the `cache-voices` job ensures the model is pre-cached before these tests run.
-/// Locally, the first test run will download the model automatically.
-@Suite("Binary Audio Generation Integration Tests", .serialized)
+/// Note: These tests are disabled on CI due to Metal compiler compatibility issues.
+/// Run locally to verify audio generation functionality.
+@Suite(
+    "Binary Audio Generation Integration Tests",
+    .serialized,
+    .disabled(if: ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil, "Metal compiler not supported on GitHub Actions")
+)
 struct DigaBinaryIntegrationTests {
 
     /// Initialize voice cache if needed (runs once per test suite)
