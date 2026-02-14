@@ -7,6 +7,9 @@
 
 import Foundation
 import SwiftHablare
+@preconcurrency import MLXAudioTTS
+@preconcurrency import MLX
+@preconcurrency import MLXLMCommon
 #if canImport(SwiftUI)
 import SwiftUI
 #endif
@@ -29,6 +32,21 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     public let requiresAPIKey = false
     public let mimeType = "audio/wav"
     public var defaultVoiceId: String? { nil }
+
+    // MARK: - Preset Speakers
+
+    /// CustomVoice preset speakers available without clone prompts.
+    private static let presetSpeakers: [(id: String, name: String, description: String, gender: String, mlxSpeaker: String)] = [
+        ("ryan", "Ryan", "Dynamic male voice with strong rhythmic drive", "male", "ryan"),
+        ("aiden", "Aiden", "Sunny American male voice with clear midrange", "male", "aiden"),
+        ("vivian", "Vivian", "Bright, slightly edgy young Chinese female voice", "female", "vivian"),
+        ("serena", "Serena", "Warm, gentle young Chinese female voice", "female", "serena"),
+        ("uncle_fu", "Uncle Fu", "Seasoned Chinese male voice with low, mellow timbre", "male", "uncle_fu"),
+        ("dylan", "Dylan", "Youthful Beijing male voice with clear timbre", "male", "dylan"),
+        ("eric", "Eric", "Lively Chengdu male voice with husky brightness", "male", "eric"),
+        ("anna", "Anna", "Playful Japanese female voice with light timbre", "female", "ono_anna"),
+        ("sohee", "Sohee", "Warm Korean female voice with rich emotion", "female", "sohee"),
+    ]
 
     // MARK: - Internal State
 
@@ -61,14 +79,27 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
 
     /// Fetch currently loaded voices.
     ///
-    /// Returns the voices that have been loaded via `loadVoice(id:clonePromptData:)`.
+    /// Returns preset speakers and voices that have been loaded via `loadVoice(id:clonePromptData:)`.
     /// Unlike cloud-based providers, VoxAlta does not fetch from a remote catalog.
     ///
     /// - Parameter languageCode: The language code to associate with returned voices.
-    /// - Returns: An array of `Voice` objects representing loaded voices.
+    /// - Returns: An array of `Voice` objects representing preset speakers and loaded voices.
     public func fetchVoices(languageCode: String) async throws -> [Voice] {
+        // Start with preset speakers
+        var voices = Self.presetSpeakers.map { speaker in
+            Voice(
+                id: speaker.id,
+                name: speaker.name,
+                description: speaker.description,
+                providerId: providerId,
+                language: languageCode,
+                gender: speaker.gender
+            )
+        }
+
+        // Append cached custom voices
         let cached = await voiceCache.allVoices()
-        return cached.map { entry in
+        voices.append(contentsOf: cached.map { entry in
             Voice(
                 id: entry.id,
                 name: entry.id,
@@ -77,7 +108,9 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
                 language: languageCode,
                 gender: entry.voice.gender
             )
-        }
+        })
+
+        return voices
     }
 
     /// Generate speech audio from text using a loaded voice.
@@ -94,6 +127,16 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     /// - Throws: `VoxAltaError.voiceNotLoaded` if the voice is not in the cache,
     ///           or other errors from model loading and audio generation.
     public func generateAudio(text: String, voiceId: String, languageCode: String) async throws -> Data {
+        // Route 1: CustomVoice preset speaker (fast path)
+        if let speaker = presetSpeaker(for: voiceId) {
+            return try await generateWithPresetSpeaker(
+                text: text,
+                speakerName: speaker.mlxSpeaker,
+                language: languageCode
+            )
+        }
+
+        // Route 2: Clone prompt (custom voice)
         guard let cached = await voiceCache.get(id: voiceId) else {
             throw VoxAltaError.voiceNotLoaded(voiceId)
         }
@@ -158,8 +201,14 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     /// Check if a specific voice is available (loaded) in the cache.
     ///
     /// - Parameter voiceId: The voice identifier to check.
-    /// - Returns: `true` if the voice has been loaded, `false` otherwise.
+    /// - Returns: `true` if the voice is a preset speaker or has been loaded, `false` otherwise.
     public func isVoiceAvailable(voiceId: String) async -> Bool {
+        // Preset speakers are always available
+        if isPresetSpeaker(voiceId) {
+            return true
+        }
+
+        // Check cache for custom voices
         let cached = await voiceCache.get(id: voiceId)
         return cached != nil
     }
@@ -214,6 +263,53 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     /// Unload all voices from the cache.
     public func unloadAllVoices() async {
         await voiceCache.removeAll()
+    }
+
+    // MARK: - Private Helpers (Preset Speakers)
+
+    /// Check if a voice ID corresponds to a preset speaker.
+    ///
+    /// - Parameter voiceId: The voice identifier to check.
+    /// - Returns: `true` if the voice ID matches a preset speaker, `false` otherwise.
+    private func isPresetSpeaker(_ voiceId: String) -> Bool {
+        Self.presetSpeakers.contains { $0.id == voiceId }
+    }
+
+    /// Get preset speaker details by ID.
+    private func presetSpeaker(for voiceId: String) -> (id: String, name: String, description: String, gender: String, mlxSpeaker: String)? {
+        Self.presetSpeakers.first { $0.id == voiceId }
+    }
+
+    /// Generate audio using a CustomVoice preset speaker.
+    ///
+    /// - Parameters:
+    ///   - text: The text to synthesize.
+    ///   - speakerName: The preset speaker ID (e.g., "ryan").
+    ///   - language: The language code for generation.
+    /// - Returns: WAV format audio data (24kHz, 16-bit PCM, mono).
+    private func generateWithPresetSpeaker(
+        text: String,
+        speakerName: String,
+        language: String
+    ) async throws -> Data {
+        let model = try await modelManager.loadModel(.customVoice1_7B)
+
+        guard let qwenModel = model as? Qwen3TTSModel else {
+            throw VoxAltaError.modelNotAvailable(
+                "Loaded model is not a Qwen3TTSModel. Got \(type(of: model))."
+            )
+        }
+
+        let audioArray = try await qwenModel.generate(
+            text: text,
+            voice: speakerName,
+            refAudio: nil,
+            refText: nil,
+            language: language,
+            generationParameters: GenerateParameters()
+        )
+
+        return try AudioConversion.mlxArrayToWAVData(audioArray, sampleRate: qwenModel.sampleRate)
     }
 
     // MARK: - Private Helpers

@@ -5,45 +5,7 @@ on:
     branches: [main, development]
 
 jobs:
-  # Job 1: Cache voices (runs in parallel with unit tests)
-  cache-voices:
-    name: Cache Voices
-    runs-on: macos-26
-    timeout-minutes: 10
-    env:
-      GIT_LFS_SKIP_SMUDGE: "1"
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Restore voice cache
-        id: voice-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/Library/Caches/intrusive-memory/Voices
-          key: diga-voices-v1
-
-      - name: Cache TTS models
-        uses: actions/cache@v4
-        with:
-          path: ~/Library/SharedModels
-          key: tts-models-v1
-
-      - name: Generate voices if not cached
-        if: steps.voice-cache.outputs.cache-hit != 'true'
-        run: |
-          echo "🎤 Generating voices while unit tests run..."
-          make install
-          ./bin/diga -v alex -o /tmp/warmup.wav "test"
-          rm -f /tmp/warmup.wav
-          echo "✓ Voice 'alex' cached at ~/Library/Caches/intrusive-memory/Voices/alex.voice"
-
-      - name: Skip generation (cache hit)
-        if: steps.voice-cache.outputs.cache-hit == 'true'
-        run: echo "✓ Using cached voices"
-
-  # Job 2: Unit tests (runs in parallel with cache-voices)
+  # Job 1: Fast unit tests (no binary)
   unit-tests:
     name: Unit Tests
     runs-on: macos-26
@@ -61,12 +23,11 @@ jobs:
       - name: Run unit tests
         run: make test-unit
 
-  # Job 3: Integration tests (depends on BOTH unit tests + cached voices)
+  # Job 2: Integration tests (builds binary, uses cache)
   integration-tests:
     name: Integration Tests
     runs-on: macos-26
-    needs: [unit-tests, cache-voices]
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       GIT_LFS_SKIP_SMUDGE: "1"
 
@@ -74,17 +35,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Restore voice cache
+      - name: Cache models and voices
         uses: actions/cache@v4
         with:
-          path: ~/Library/Caches/intrusive-memory/Voices
-          key: diga-voices-v1
-
-      - name: Restore model cache
-        uses: actions/cache@v4
-        with:
-          path: ~/Library/SharedModels
-          key: tts-models-v1
+          path: |
+            ~/Library/SharedModels
+            ~/Library/Caches/intrusive-memory/Voices
+          key: tts-cache-v1
+          restore-keys: |
+            tts-cache-v1
 
       - name: Show Swift version
         run: swift --version

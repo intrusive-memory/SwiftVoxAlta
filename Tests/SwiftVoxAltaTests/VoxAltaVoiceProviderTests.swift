@@ -63,14 +63,20 @@ struct VoxAltaVoiceProviderConfigTests {
 @Suite("VoxAltaVoiceProvider - Voice Management")
 struct VoxAltaVoiceProviderVoiceTests {
 
-    @Test("fetchVoices returns empty when no voices loaded")
-    func fetchVoicesEmpty() async throws {
+    @Test("Fetch voices returns all 9 preset speakers")
+    func testFetchVoicesReturnsPresetSpeakers() async throws {
         let provider = VoxAltaVoiceProvider()
         let voices = try await provider.fetchVoices(languageCode: "en")
-        #expect(voices.isEmpty)
+
+        #expect(voices.count >= 9, "Should return at least 9 preset speakers")
+
+        let presetIds = ["ryan", "aiden", "vivian", "serena", "uncle_fu", "dylan", "eric", "anna", "sohee"]
+        for id in presetIds {
+            #expect(voices.contains { $0.id == id }, "Missing preset speaker: \(id)")
+        }
     }
 
-    @Test("loadVoice + fetchVoices returns correct Voice objects")
+    @Test("loadVoice + fetchVoices returns preset speakers plus custom voices")
     func loadAndFetch() async throws {
         let provider = VoxAltaVoiceProvider()
         let cloneData = Data([0x01, 0x02, 0x03])
@@ -78,15 +84,16 @@ struct VoxAltaVoiceProviderVoiceTests {
         await provider.loadVoice(id: "ELENA", clonePromptData: cloneData, gender: "female")
 
         let voices = try await provider.fetchVoices(languageCode: "en")
-        #expect(voices.count == 1)
+        #expect(voices.count == 10, "Should return 9 preset speakers + 1 custom voice")
 
-        let voice = voices[0]
-        #expect(voice.id == "ELENA")
-        #expect(voice.name == "ELENA")
-        #expect(voice.providerId == "voxalta")
-        #expect(voice.language == "en")
-        #expect(voice.gender == "female")
-        #expect(voice.description == "VoxAlta on-device voice")
+        // Find the custom voice
+        let customVoice = voices.first { $0.id == "ELENA" }
+        #expect(customVoice != nil, "Custom voice ELENA should be in the list")
+        #expect(customVoice?.name == "ELENA")
+        #expect(customVoice?.providerId == "voxalta")
+        #expect(customVoice?.language == "en")
+        #expect(customVoice?.gender == "female")
+        #expect(customVoice?.description == "VoxAlta on-device voice")
     }
 
     @Test("loadVoice with multiple voices")
@@ -97,7 +104,7 @@ struct VoxAltaVoiceProviderVoiceTests {
         await provider.loadVoice(id: "MARCUS", clonePromptData: Data([0x02]), gender: "male")
 
         let voices = try await provider.fetchVoices(languageCode: "es")
-        #expect(voices.count == 2)
+        #expect(voices.count == 11, "Should return 9 preset speakers + 2 custom voices")
 
         let ids = Set(voices.map { $0.id })
         #expect(ids.contains("ELENA"))
@@ -107,6 +114,17 @@ struct VoxAltaVoiceProviderVoiceTests {
         for voice in voices {
             #expect(voice.language == "es")
         }
+    }
+
+    @Test("Preset speakers are always available")
+    func testIsVoiceAvailableForPresets() async {
+        let provider = VoxAltaVoiceProvider()
+
+        let available = await provider.isVoiceAvailable(voiceId: "ryan")
+        #expect(available == true, "Preset speaker 'ryan' should always be available")
+
+        let unavailable = await provider.isVoiceAvailable(voiceId: "nonexistent_voice")
+        #expect(unavailable == false, "Non-preset voice should not be available")
     }
 
     @Test("isVoiceAvailable returns true for loaded voice")
@@ -119,7 +137,7 @@ struct VoxAltaVoiceProviderVoiceTests {
         #expect(available == true)
     }
 
-    @Test("isVoiceAvailable returns false for unloaded voice")
+    @Test("isVoiceAvailable returns false for unloaded custom voice")
     func voiceNotAvailableWhenNotLoaded() async {
         let provider = VoxAltaVoiceProvider()
 
@@ -141,7 +159,7 @@ struct VoxAltaVoiceProviderVoiceTests {
         #expect(voices?.isEmpty == true)
     }
 
-    @Test("unloadAllVoices clears all voices")
+    @Test("unloadAllVoices clears custom voices but presets remain")
     func unloadAllVoices() async {
         let provider = VoxAltaVoiceProvider()
 
@@ -155,7 +173,71 @@ struct VoxAltaVoiceProviderVoiceTests {
         #expect(available2 == false)
 
         let voices = try? await provider.fetchVoices(languageCode: "en")
-        #expect(voices?.isEmpty == true)
+        #expect(voices?.count == 9, "Should still have 9 preset speakers")
+    }
+
+    @Test("Dual-mode routing: preset vs clone prompt")
+    func testDualModeRouting() async throws {
+        let provider = VoxAltaVoiceProvider()
+
+        // Test clone prompt route (should throw since no voice loaded)
+        await #expect(throws: VoxAltaError.self) {
+            try await provider.generateAudio(
+                text: "Clone test",
+                voiceId: "custom_voice_123",
+                languageCode: "en"
+            )
+        }
+    }
+
+    @Test("Generate audio with preset speaker 'ryan'")
+    func testGenerateAudioWithPresetSpeaker() async throws {
+        let provider = VoxAltaVoiceProvider()
+        let audio = try await provider.generateAudio(
+            text: "Hello from Ryan",
+            voiceId: "ryan",
+            languageCode: "en"
+        )
+
+        #expect(audio.count > 44, "WAV should be larger than 44-byte header")
+
+        // Validate WAV format
+        let riff = String(data: audio[0..<4], encoding: .ascii)
+        #expect(riff == "RIFF", "Should be WAV format (RIFF header)")
+    }
+
+    @Test("Generate audio with all 9 preset speakers")
+    func testGenerateAudioWithAllPresetSpeakers() async throws {
+        let provider = VoxAltaVoiceProvider()
+        let presetIds = ["ryan", "aiden", "vivian", "serena", "uncle_fu", "dylan", "eric", "anna", "sohee"]
+
+        for id in presetIds {
+            let audio = try await provider.generateAudio(
+                text: "Testing voice \(id)",
+                voiceId: id,
+                languageCode: "en"
+            )
+            #expect(audio.count > 44, "Speaker \(id) should generate valid audio")
+        }
+    }
+
+    @Test("Generated audio has expected duration")
+    func testGenerateProcessedAudioDuration() async throws {
+        let provider = VoxAltaVoiceProvider()
+        let text = "This is a test sentence."
+
+        let audio = try await provider.generateAudio(
+            text: text,
+            voiceId: "ryan",
+            languageCode: "en"
+        )
+
+        // Parse WAV header to get duration
+        let duration = try parseWAVDuration(audio)
+
+        // Expect ~1-3 seconds for a short sentence
+        #expect(duration > 0.5, "Audio should be at least 0.5 seconds")
+        #expect(duration < 10.0, "Audio should be less than 10 seconds for short text")
     }
 }
 
@@ -378,4 +460,25 @@ struct VoxAltaVoiceProviderSendableTests {
     func descriptorEnumIsSendable() {
         let _: any Sendable.Type = VoxAltaProviderDescriptor.self
     }
+}
+
+// MARK: - Test Helpers
+
+/// Parse WAV duration from audio data.
+/// - Location: Private helper in this test file only
+private func parseWAVDuration(_ wavData: Data) throws -> Double {
+    // Parse WAV header (44 bytes)
+    guard wavData.count > 44 else {
+        throw VoxAltaError.audioExportFailed("WAV data too small, expected at least 44 bytes header")
+    }
+
+    // Sample rate at bytes 24-27 (little-endian)
+    let sampleRate = wavData[24..<28].withUnsafeBytes { $0.load(as: UInt32.self) }
+
+    // Data chunk size at bytes 40-43 (little-endian)
+    let dataSize = wavData[40..<44].withUnsafeBytes { $0.load(as: UInt32.self) }
+
+    // Duration = dataSize / (sampleRate * channels * bytesPerSample)
+    // For 16-bit mono: dataSize / (sampleRate * 1 * 2)
+    return Double(dataSize) / Double(sampleRate * 2)
 }

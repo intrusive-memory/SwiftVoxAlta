@@ -174,6 +174,37 @@ GitHub Actions runs unit and integration tests in parallel jobs:
 
 Cache key: `tts-cache-v1` (shared across CI runs)
 
+## Produciesta Integration
+
+VoxAlta provides 9 high-quality CustomVoice preset speakers for character voice assignment in Produciesta without any setup required. These voices are production-ready and work seamlessly across iOS and macOS apps.
+
+### Available Voices
+
+- **Ryan** -- Dynamic male voice with strong rhythmic drive
+- **Aiden** -- Sunny American male voice with clear midrange
+- **Vivian** -- Bright, slightly edgy young Chinese female voice
+- **Serena** -- Warm, gentle young Chinese female voice
+- **Uncle Fu** -- Seasoned Chinese male voice with low, mellow timbre
+- **Dylan** -- Youthful Beijing male voice with clear timbre
+- **Eric** -- Lively Chengdu male voice with husky brightness
+- **Anna** -- Playful Japanese female voice with light timbre
+- **Sohee** -- Warm Korean female voice with rich emotion
+
+### Quick Start
+
+```swift
+import SwiftVoxAlta
+
+let provider = VoxAltaVoiceProvider()
+let audio = try await provider.generateAudio(
+    text: "Hello from VoxAlta",
+    voiceId: "ryan",
+    languageCode: "en"
+)
+```
+
+For detailed integration instructions, see **[Produciesta Integration Guide](docs/PRODUCIESTA_INTEGRATION.md)**.
+
 ## Dependencies
 
 - [SwiftHablare](https://github.com/intrusive-memory/SwiftHablare) -- VoiceProvider protocol

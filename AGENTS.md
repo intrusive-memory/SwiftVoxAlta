@@ -155,9 +155,59 @@ xcodebuild build -scheme diga -destination 'platform=macOS,arch=arm64'
 - **Swift 6.2+**
 - **Xcode 26+**
 
-## API Usage
+## VoiceProvider Implementation
 
-### VoiceProvider Implementation
+VoxAltaVoiceProvider implements SwiftHablare's VoiceProvider protocol with dual-mode routing for both preset speakers and custom voices:
+
+### Protocol Conformance
+
+```swift
+public protocol VoiceProvider {
+    var providerId: String { get }
+
+    func fetchVoices(languageCode: String) async throws -> [Voice]
+    func isVoiceAvailable(voiceId: String) async -> Bool
+    func generateAudio(text: String, voiceId: String, languageCode: String) async throws -> Data
+    func generateProcessedAudio(text: String, voiceId: String, languageCode: String) async throws -> ProcessedAudio
+}
+```
+
+### Dual-Mode Routing
+
+VoxAltaVoiceProvider automatically routes voice generation requests based on voice type:
+
+1. **Route 1 (Preset speakers)** -- Direct CustomVoice model generation - fast, no setup required:
+   ```swift
+   let audio = try await provider.generateAudio(
+       text: "Hello",
+       voiceId: "ryan",  // Routes through Route 1
+       languageCode: "en"
+   )
+   ```
+   Supports: `ryan`, `aiden`, `vivian`, `serena`, `uncle_fu`, `dylan`, `eric`, `anna`, `sohee`
+
+2. **Route 2 (Clone prompts)** -- For custom voices loaded via `loadVoice()` - requires voice lock:
+   ```swift
+   await provider.loadVoice(id: "ELENA", clonePromptData: lockData, gender: "female")
+   let audio = try await provider.generateAudio(
+       text: "Hello",
+       voiceId: "ELENA",  // Routes through Route 2
+       languageCode: "en"
+   )
+   ```
+
+### Integration with Produciesta
+
+VoxAlta integrates transparently with Produciesta:
+
+- **Auto-registration** -- VoxAlta registers automatically with VoiceProviderRegistry on app startup
+- **Preset voices** -- All 9 CustomVoice speakers appear in voice selection dropdowns immediately
+- **No configuration** -- Works out-of-the-box with no additional setup
+- **On-device inference** -- All audio generation runs locally on Apple Silicon
+
+See **[Produciesta Integration Guide](../docs/PRODUCIESTA_INTEGRATION.md)** for complete integration instructions.
+
+### API Usage
 
 ```swift
 import SwiftVoxAlta
@@ -166,20 +216,32 @@ import SwiftHablare
 // Create provider
 let provider = VoxAltaVoiceProvider()
 
-// Load a voice (clone prompt data from a VoiceLock)
-await provider.loadVoice(id: "ELENA", clonePromptData: lockData, gender: "female")
+// Fetch available voices (includes 9 presets + any loaded custom voices)
+let voices = try await provider.fetchVoices(languageCode: "en")
 
-// Generate audio (returns WAV data: 24kHz, 16-bit PCM, mono)
+// Check voice availability
+let available = await provider.isVoiceAvailable(voiceId: "ryan")
+
+// Generate audio with preset speaker (Route 1)
 let audioData = try await provider.generateAudio(
     text: "Hello from VoxAlta!",
+    voiceId: "ryan",
+    languageCode: "en"
+)
+
+// Load a custom voice for cloning (Route 2)
+await provider.loadVoice(id: "ELENA", clonePromptData: lockData, gender: "female")
+
+let customAudio = try await provider.generateAudio(
+    text: "Hello from custom Elena!",
     voiceId: "ELENA",
     languageCode: "en"
 )
 
-// Generate with duration measurement
+// Generate with duration measurement (returns ProcessedAudio)
 let processed = try await provider.generateProcessedAudio(
     text: "Hello!",
-    voiceId: "ELENA",
+    voiceId: "ryan",
     languageCode: "en"
 )
 // processed.audioData, processed.durationSeconds, processed.mimeType

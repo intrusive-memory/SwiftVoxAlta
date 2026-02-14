@@ -1,26 +1,27 @@
-# VoxAlta → Produciesta Integration Execution Plan (V4 - Atomic)
+# VoxAlta → Produciesta Integration Execution Plan (V4.1 - Validated)
 
 **Date**: 2026-02-13
 **Status**: READY FOR EXECUTION
 **Goal**: Integrate VoxAlta CustomVoice preset speakers as a voice provider in Produciesta
 
-**Version**: V4 - Atomic sprints with machine-verifiable criteria
-**Improvements from V3**:
-- Split 9 sprints → 15 atomic sprints
-- Discovery separated from implementation
-- All exit criteria machine-verifiable with exact commands
-- Bounded debugging sprints (max turns enforced)
-- Smaller rollback units (1-2 tasks per sprint)
+**Version**: V4.1 - Validated against actual codebase state
+**Changes from V4**:
+- ✅ Verified VoxAltaVoiceProvider exists (update not create)
+- ✅ Verified VoxAltaVoiceCache exists (line 39)
+- ✅ Verified VoiceLockManager exists (VoiceLockManager.swift)
+- ✅ All vague/unbounded tasks clarified
+- ✅ All conditional logic has explicit decision trees
+- ✅ All file searches bounded to max 3 files
 
 ---
 
 ## Executive Summary
 
-**Objective**: Update VoxAltaVoiceProvider to support CustomVoice preset speakers and integrate it with Produciesta for character voice assignment.
+**Objective**: Update existing VoxAltaVoiceProvider to support CustomVoice preset speakers alongside existing clone prompt functionality.
 
-**Approach**: Dual-mode provider supporting both:
-1. **CustomVoice preset speakers** (9 voices, fast, reliable) - PRIMARY
-2. **Clone prompts** (ICL custom voices) - FALLBACK (for future use)
+**Approach**: Add Route 1 (preset speakers) to existing dual-mode provider:
+1. **Route 1 (NEW)**: CustomVoice preset speakers (9 voices, fast, reliable) - PRIMARY
+2. **Route 2 (EXISTS)**: Clone prompts (ICL custom voices) - FALLBACK
 
 **Impact**: Enables production-ready voice generation in Produciesta with 9 high-quality preset voices.
 
@@ -46,18 +47,23 @@
 ### VoxAlta (SwiftVoxAlta)
 
 **Implemented**:
-- ✅ CustomVoice model support (9 preset speakers)
+- ✅ CustomVoice model support (9 preset speakers in mlx-audio-swift)
 - ✅ diga CLI with preset speaker synthesis
 - ✅ All integration tests passing (359 tests)
-- ✅ VoxAltaVoiceProvider protocol conformance
-- ✅ VoxAltaModelManager actor
-- ✅ VoiceLockManager for clone prompts
+- ✅ VoxAltaVoiceProvider protocol conformance (Sources/SwiftVoxAlta/VoxAltaVoiceProvider.swift)
+- ✅ VoxAltaVoiceCache actor (Sources/SwiftVoxAlta/VoxAltaVoiceCache.swift, line 39)
+- ✅ VoiceLockManager static methods (Sources/SwiftVoxAlta/VoiceLockManager.swift)
+- ✅ VoiceLock struct (Sources/SwiftVoxAlta/VoiceLock.swift)
 - ✅ ICL support via mlx-audio-swift fork (f937fb6)
+- ✅ Clone prompt generation (Route 2) - lines 96-114
 
 **Needs Update**:
-- ❌ VoxAltaVoiceProvider uses clone prompts only (old approach)
-- ❌ fetchVoices() returns empty array (no preset speakers listed)
-- ❌ generateAudio() requires pre-loaded clone prompts
+- ❌ VoxAltaVoiceProvider only supports clone prompts (Route 2 only)
+- ❌ fetchVoices() returns only cached custom voices (no preset speakers)
+- ❌ generateAudio() requires pre-loaded clone prompts (no preset path)
+- ❌ Missing preset speakers array (9 CustomVoice speakers)
+- ❌ Missing isPresetSpeaker() helper
+- ❌ Missing generateWithPresetSpeaker() method
 
 ### Produciesta (../Produciesta)
 
@@ -91,8 +97,11 @@
 
 **Tasks**:
 
-1. Add `presetSpeakers` static array with 9 voices:
+1. Add `presetSpeakers` static array with 9 voices at top of class (after line 31):
    ```swift
+   // MARK: - Preset Speakers
+
+   /// CustomVoice preset speakers available without clone prompts.
    private static let presetSpeakers: [(id: String, name: String, description: String, gender: String)] = [
        ("ryan", "Ryan", "Dynamic male voice with strong rhythmic drive", "male"),
        ("aiden", "Aiden", "Sunny American male voice with clear midrange", "male"),
@@ -138,20 +147,27 @@ echo "✓ Builds successfully: $?"
 
 **File**: `Sources/SwiftVoxAlta/VoxAltaVoiceProvider.swift`
 
-**Scope**: Add methods for listing and checking voices (no generation yet)
+**Scope**: UPDATE existing methods to include preset speakers (no generation yet)
 
 **Tasks**:
 
-1. Add `isPresetSpeaker()` helper:
+1. Add `isPresetSpeaker()` helper after line 189:
    ```swift
+   // MARK: - Private Helpers (Preset Speakers)
+
+   /// Check if a voice ID corresponds to a preset speaker.
+   ///
+   /// - Parameter voiceId: The voice identifier to check.
+   /// - Returns: `true` if the voice ID matches a preset speaker, `false` otherwise.
    private func isPresetSpeaker(_ voiceId: String) -> Bool {
        Self.presetSpeakers.contains { $0.id == voiceId }
    }
    ```
 
-2. Update `fetchVoices()` to return preset speakers:
+2. UPDATE existing `fetchVoices()` method (line 69) to PREPEND preset speakers:
    ```swift
    public func fetchVoices(languageCode: String) async throws -> [Voice] {
+       // Start with preset speakers
        var voices = Self.presetSpeakers.map { speaker in
            Voice(
                id: speaker.id,
@@ -163,13 +179,13 @@ echo "✓ Builds successfully: $?"
            )
        }
 
-       // Add cached custom voices (for future use)
+       // Append cached custom voices (existing code from line 70-80)
        let cached = await voiceCache.allVoices()
        voices.append(contentsOf: cached.map { entry in
            Voice(
                id: entry.id,
-               name: "Custom: \(entry.id)",
-               description: "Custom cloned voice",
+               name: entry.id,
+               description: "VoxAlta on-device voice",
                providerId: providerId,
                language: languageCode,
                gender: entry.voice.gender
@@ -180,7 +196,7 @@ echo "✓ Builds successfully: $?"
    }
    ```
 
-3. Update `isVoiceAvailable()`:
+3. UPDATE existing `isVoiceAvailable()` method (line 162) to check presets FIRST:
    ```swift
    public func isVoiceAvailable(voiceId: String) async -> Bool {
        // Preset speakers are always available
@@ -188,7 +204,7 @@ echo "✓ Builds successfully: $?"
            return true
        }
 
-       // Check cache for custom voices
+       // Check cache for custom voices (existing code)
        let cached = await voiceCache.get(id: voiceId)
        return cached != nil
    }
@@ -218,7 +234,7 @@ echo "✓ Builds successfully: $?"
 
 **Dependencies**: Sprint 1a.1 (needs presetSpeakers array)
 
-**Rollback**: Revert methods if fails
+**Rollback**: Revert method changes if fails
 
 ---
 
@@ -229,12 +245,19 @@ echo "✓ Builds successfully: $?"
 
 **File**: `Sources/SwiftVoxAlta/VoxAltaVoiceProvider.swift`
 
-**Scope**: Add audio generation for preset speakers
+**Scope**: Add preset speaker generation and UPDATE existing generateAudio()
 
 **Tasks**:
 
-1. Add `generateWithPresetSpeaker()` method:
+1. Add `generateWithPresetSpeaker()` helper after isPresetSpeaker():
    ```swift
+   /// Generate audio using a CustomVoice preset speaker.
+   ///
+   /// - Parameters:
+   ///   - text: The text to synthesize.
+   ///   - speakerName: The preset speaker ID (e.g., "ryan").
+   ///   - language: The language code for generation.
+   /// - Returns: WAV format audio data (24kHz, 16-bit PCM, mono).
    private func generateWithPresetSpeaker(
        text: String,
        speakerName: String,
@@ -261,10 +284,10 @@ echo "✓ Builds successfully: $?"
    }
    ```
 
-2. Update `generateAudio()` with dual-mode routing:
+2. UPDATE existing `generateAudio()` method (line 96) to add Route 1 BEFORE existing Route 2:
    ```swift
    public func generateAudio(text: String, voiceId: String, languageCode: String) async throws -> Data {
-       // Route 1: CustomVoice preset speaker (fast path)
+       // Route 1: CustomVoice preset speaker (fast path) - NEW
        if isPresetSpeaker(voiceId) {
            return try await generateWithPresetSpeaker(
                text: text,
@@ -273,7 +296,7 @@ echo "✓ Builds successfully: $?"
            )
        }
 
-       // Route 2: Clone prompt (custom voice, for future use)
+       // Route 2: Clone prompt (custom voice) - EXISTING (lines 97-114)
        guard let cached = await voiceCache.get(id: voiceId) else {
            throw VoxAltaError.voiceNotLoaded(voiceId)
        }
@@ -315,7 +338,7 @@ echo "✓ Builds successfully: $?"
 
 **Success**: All 4 commands return exit code 0
 
-**Dependencies**: Sprint 1a.2 (needs isPresetSpeaker() and fetchVoices())
+**Dependencies**: Sprint 1a.2 (needs isPresetSpeaker() and updated fetchVoices())
 
 **Rollback**: Revert methods if fails
 
@@ -328,32 +351,40 @@ echo "✓ Builds successfully: $?"
 
 **File**: `Sources/SwiftVoxAlta/VoxAltaVoiceProvider.swift`
 
-**Scope**: Add required imports and handle Sendable warnings
+**Scope**: Add required imports and handle Sendable warnings (conditional)
 
 **Tasks**:
 
-1. Add imports at top of file:
-   ```swift
-   import MLX
-   import MLXAudioTTS
-   import MLXLMCommon
+1. Check if MLX imports already exist (lines 8-13):
+   ```bash
+   grep -q "import MLX" Sources/SwiftVoxAlta/VoxAltaVoiceProvider.swift
    ```
 
-2. Use `@preconcurrency` if Sendable warnings appear:
+   **IF NOT FOUND**: Add imports after line 12:
    ```swift
    @preconcurrency import MLX
    @preconcurrency import MLXAudioTTS
+   @preconcurrency import MLXLMCommon
    ```
 
-3. If build shows actor isolation warnings, mark public methods as `nonisolated`:
+2. Run build and check for Sendable/actor isolation warnings:
+   ```bash
+   xcodebuild build -scheme SwiftVoxAlta -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO 2>&1 | tee /tmp/voxalta-build-warnings.txt
+   ```
+
+3. **Decision tree for warnings**:
+
+   **IF** warnings contain "Sendable" → Use `@preconcurrency` on imports
+
+   **ELSE IF** warnings contain "actor-isolated" → Add `nonisolated` to public methods:
    ```swift
    nonisolated public func generateAudio(...)
    nonisolated public func fetchVoices(...)
    nonisolated public func isVoiceAvailable(...)
    ```
-
    **Pattern reference**: See `Sources/diga/DigaEngine.swift` (lines 45-67)
-   **When to apply**: Only if build produces errors like "Call to actor-isolated method requires 'self' to be isolated"
+
+   **ELSE** (no warnings) → DONE (skip modifications)
 
 **Exit Criteria** (machine-verifiable):
 
@@ -363,11 +394,9 @@ WARNINGS=$(xcodebuild build -scheme SwiftVoxAlta -destination 'platform=macOS' C
 test "$WARNINGS" -eq 0
 echo "✓ Zero warnings: $?"
 
-# 2. Required imports present
-grep -q "import MLX" Sources/SwiftVoxAlta/VoxAltaVoiceProvider.swift
+# 2. Required imports present (if added)
+grep -q "import MLX\|@preconcurrency import MLX" Sources/SwiftVoxAlta/VoxAltaVoiceProvider.swift
 echo "✓ MLX import exists: $?"
-grep -q "import MLXAudioTTS" Sources/SwiftVoxAlta/VoxAltaVoiceProvider.swift
-echo "✓ MLXAudioTTS import exists: $?"
 
 # 3. No Sendable conformance errors in build log
 xcodebuild build -scheme SwiftVoxAlta -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO 2>&1 | grep -q "Sendable"
@@ -521,7 +550,7 @@ echo "✓ Fast execution (no model load): $?"
    }
    ```
 
-3. **testGenerateProcessedAudioDuration()**:
+3. **testGenerateProcessedAudioDuration()** with helper:
    ```swift
    @Test("Generated audio has expected duration")
    func testGenerateProcessedAudioDuration() async throws {
@@ -535,14 +564,18 @@ echo "✓ Fast execution (no model load): $?"
        )
 
        // Parse WAV header to get duration
-       let duration = try parsedWAVDuration(audio)
+       let duration = try parseWAVDuration(audio)
 
        // Expect ~1-3 seconds for a short sentence
        #expect(duration > 0.5, "Audio should be at least 0.5 seconds")
        #expect(duration < 10.0, "Audio should be less than 10 seconds for short text")
    }
 
-   private func parsedWAVDuration(_ wavData: Data) throws -> Double {
+   // MARK: - Test Helpers (add at bottom of file)
+
+   /// Parse WAV duration from audio data.
+   /// - Location: Private helper in this test file only
+   private func parseWAVDuration(_ wavData: Data) throws -> Double {
        // Parse WAV header (44 bytes)
        guard wavData.count > 44 else { throw VoxAltaError.invalidAudioData }
 
@@ -681,20 +714,23 @@ echo "✓ No resolution errors: $?"
 1. Search for existing registrations:
    ```bash
    cd ../Produciesta
-   grep -r "register(provider:" . 2>/dev/null | tee /tmp/voxalta-register-search.txt
-   grep -r "VoiceProviderRegistry" . 2>/dev/null | tee /tmp/voxalta-registry-search.txt
-   grep -r "Apple.*TTS\|ElevenLabs" . 2>/dev/null | tee /tmp/voxalta-providers-search.txt
+   grep -r "register(provider:" . 2>/dev/null | head -10 | tee /tmp/voxalta-register-search.txt
+   grep -r "VoiceProviderRegistry" . 2>/dev/null | head -10 | tee /tmp/voxalta-registry-search.txt
+   grep -r "Apple.*TTS\|ElevenLabs" . 2>/dev/null | head -10 | tee /tmp/voxalta-providers-search.txt
    ```
 
-2. Read files containing registrations to understand pattern
+2. Read up to 3 most relevant files to understand pattern:
+   - **Bounded search**: Max 3 files
+   - **Priority**: Files with both "register" AND "VoiceProvider"
+   - **If pattern unclear after 3 files**: Document as blocker and stop
 
 3. Document findings in `/tmp/voxalta-registration-findings.md`:
    ```markdown
    # VoxAlta Registration Findings
 
    ## Registration File
-   - Path: [full path to file]
-   - Line: [line number]
+   - Path: [full path to file, e.g., ../Produciesta/Sources/Produciesta/VoiceProviderSetup.swift]
+   - Line: [line number where registration happens]
 
    ## Registration Pattern
    - Function: [function name where registration happens]
@@ -706,6 +742,11 @@ echo "✓ No resolution errors: $?"
 
    ## Registration Timing
    - [When registration happens: app startup, lazy init, etc.]
+
+   ## Files Read
+   1. [file path 1]
+   2. [file path 2]
+   3. [file path 3]
    ```
 
 **Exit Criteria** (machine-verifiable):
@@ -765,9 +806,12 @@ echo "✓ Registration file exists: $?"
    import SwiftVoxAlta
    ```
 
-3. Register VoxAlta provider using discovered pattern:
+3. Register VoxAlta provider using EXACT pattern from findings file:
+   - **Location**: Insert at line documented in findings OR append if line not specified
+   - **Pattern**: Use exact code pattern from findings (e.g., `registry.register(provider: ...)`)
+   - **Example**:
    ```swift
-   // Add adjacent to existing Apple/ElevenLabs registrations
+   // Use exact pattern from findings file
    let voxAltaProvider = VoxAltaVoiceProvider()
    registry.register(provider: voxAltaProvider)
    ```
@@ -849,24 +893,43 @@ echo "✓ Voice fetching test passes: $?"
 
 **Tasks**:
 
-1. Verify VoiceSelectionView exists:
+1. Find voice selection UI with fallback:
    ```bash
-   find ../Produciesta -name "*VoiceSelection*.swift" | head -1 | tee /tmp/voxalta-voice-ui-file.txt
+   # Try multiple patterns
+   find ../Produciesta -name "*VoiceSelection*.swift" -o -name "*Voice*Picker*.swift" | head -1 | tee /tmp/voxalta-voice-ui-file.txt
+
+   # IF NOT FOUND: Search for Picker/dropdown in SwiftUI views
+   if [ ! -s /tmp/voxalta-voice-ui-file.txt ]; then
+       grep -r "Picker.*voice\|voice.*Picker" ../Produciesta --include="*.swift" | head -5 | tee /tmp/voxalta-ui-search.txt
+   fi
+
+   # IF STILL NOT FOUND: Document as blocker
+   if [ ! -s /tmp/voxalta-voice-ui-file.txt ] && [ ! -s /tmp/voxalta-ui-search.txt ]; then
+       echo "BLOCKER: Voice selection UI not found" | tee /tmp/voxalta-ui-blocker.txt
+       exit 1
+   fi
    ```
 
-2. Update voice dropdown to show VoxAlta provider:
+2. Read existing voice selection code to understand data flow
+
+3. Update voice dropdown to show VoxAlta provider:
+   - **If voices already grouped by provider**: Update to include VoxAlta
+   - **If voices not grouped**: Add grouping logic:
    ```swift
+   let allVoices = try await registry.fetchAllVoices(languageCode: "en")
+   let groupedVoices = Dictionary(grouping: allVoices, by: { $0.providerId })
+
    // Group voices by provider
-   ForEach(groupedVoices, id: \.provider) { group in
-       Section(header: Text(group.provider)) {
-           ForEach(group.voices) { voice in
+   ForEach(groupedVoices.keys.sorted(), id: \.self) { providerId in
+       Section(header: Text(providerId)) {
+           ForEach(groupedVoices[providerId] ?? []) { voice in
                Text("\(voice.name) - \(voice.description)")
            }
        }
    }
    ```
 
-3. Add automated test:
+4. Add automated test:
    ```swift
    @Test("macOS: Voice selection includes VoxAlta provider")
    func testMacOSVoiceSelectionIncludesVoxAlta() async throws {
@@ -1001,14 +1064,49 @@ echo "✓ CLI test passes: $?"
 
 ---
 
-### Sprint 4a: E2E Test Scaffold
+### Sprint 4a: E2E Test Scaffold ✅ DELEGATED
+**Status**: COMPLETED - Delegated to ../Produciesta/EXECUTION_PLAN.md
 **Model**: 🟡 Sonnet 4.5
 **Duration**: 20 turns (40% utilization)
 **Time**: 27 min
 
-**Scope**: Write E2E test structure and AudioMetrics helper (NO EXECUTION)
+**Note**: E2E integration testing has been moved to the Produciesta repository. VoxAlta library is ready for consumption. See `../Produciesta/EXECUTION_PLAN.md` for integration test sprints.
 
-**File**: `../Produciesta/Tests/.../E2EAudioGenerationTests.swift`
+**Scope**: Verify Produciesta types exist, write E2E test structure (NO EXECUTION)
+
+**Files**:
+- Discovery: `../Produciesta/Sources/**/*.swift`
+- Test: `../Produciesta/Tests/.../E2EAudioGenerationTests.swift`
+
+**Prerequisites** (verify BEFORE writing tests):
+
+1. **Find Produciesta types**:
+   ```bash
+   # Search for PodcastProject, Character, Episode types
+   cd ../Produciesta
+   find . -name "*.swift" -type f -exec grep -l "struct PodcastProject\|class PodcastProject" {} \; | head -1 | tee /tmp/produciesta-project-type.txt
+   find . -name "*.swift" -type f -exec grep -l "struct Character\|class Character" {} \; | head -1 | tee /tmp/produciesta-character-type.txt
+   find . -name "*.swift" -type f -exec grep -l "struct Episode\|class Episode" {} \; | head -1 | tee /tmp/produciesta-episode-type.txt
+
+   # Document findings
+   cat > /tmp/produciesta-types-findings.md << EOF
+   # Produciesta Types Findings
+
+   ## PodcastProject
+   - File: $(cat /tmp/produciesta-project-type.txt)
+   - Type: [read from file]
+
+   ## Character
+   - File: $(cat /tmp/produciesta-character-type.txt)
+   - Type: [read from file]
+
+   ## Episode
+   - File: $(cat /tmp/produciesta-episode-type.txt)
+   - Type: [read from file]
+   EOF
+   ```
+
+2. **Read type definitions** to understand initializers
 
 **Tasks**:
 
@@ -1025,9 +1123,12 @@ echo "✓ CLI test passes: $?"
    }
    ```
 
-2. Write AudioMetrics helper:
+2. Write AudioMetrics helper (private to this test file):
    ```swift
-   struct AudioMetrics {
+   // MARK: - Test Helpers
+
+   /// Audio quality metrics extracted from generated audio.
+   private struct AudioMetrics {
        let sampleRate: Double
        let channelCount: Int
        let rms: Float
@@ -1085,11 +1186,12 @@ echo "✓ CLI test passes: $?"
    }
    ```
 
-3. Write E2E test structure (without execution):
+3. Write E2E test structure using ACTUAL Produciesta types from findings:
    ```swift
    @Test("E2E: Generate podcast audio with VoxAlta voices")
    func testE2EGeneratePodcastWithVoxAltaVoices() async throws {
-       // Setup: Create test podcast project
+       // Setup: Create test podcast project using actual types
+       // [Use initializers from type findings file]
        let project = PodcastProject(name: "E2E Test")
        let character1 = Character(name: "Alice", voiceId: "ryan", providerId: "voxalta")
        let character2 = Character(name: "Bob", voiceId: "serena", providerId: "voxalta")
@@ -1143,22 +1245,27 @@ echo "✓ CLI test passes: $?"
 **Exit Criteria** (machine-verifiable):
 
 ```bash
-# 1. Test file compiles
+# 1. Type findings documented
+test -f /tmp/produciesta-types-findings.md
+echo "✓ Type findings exist: $?"
+
+# 2. Test file compiles
+TEST_FILE=$(find ../Produciesta/Tests -name "E2EAudioGenerationTests.swift" -o -path "*/Tests/*/E2E*.swift" | head -1)
 cd ../Produciesta && xcodebuild build-for-testing -scheme Produciesta -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO 2>&1 | grep -q "BUILD SUCCEEDED"
 echo "✓ Test file compiles: $?"
 
-# 2. AudioMetrics struct defined
-cd ../Produciesta && grep -q "struct AudioMetrics" Tests/.../E2EAudioGenerationTests.swift
+# 3. AudioMetrics struct defined in test file
+grep -q "private struct AudioMetrics" "$TEST_FILE"
 echo "✓ AudioMetrics defined: $?"
 
-# 3. calculateRMS and calculatePeak helpers implemented
-cd ../Produciesta && grep -q "func calculateRMS" Tests/.../E2EAudioGenerationTests.swift
+# 4. calculateRMS and calculatePeak helpers implemented in test file
+grep -q "private func calculateRMS" "$TEST_FILE"
 echo "✓ calculateRMS exists: $?"
-cd ../Produciesta && grep -q "func calculatePeak" Tests/.../E2EAudioGenerationTests.swift
+grep -q "private func calculatePeak" "$TEST_FILE"
 echo "✓ calculatePeak exists: $?"
 
-# 4. E2E test structure complete
-cd ../Produciesta && grep -q "func testE2EGeneratePodcastWithVoxAltaVoices" Tests/.../E2EAudioGenerationTests.swift
+# 5. E2E test structure complete
+grep -q "func testE2EGeneratePodcastWithVoxAltaVoices" "$TEST_FILE"
 echo "✓ E2E test structure exists: $?"
 ```
 
@@ -1172,12 +1279,15 @@ echo "✓ E2E test structure exists: $?"
 
 ---
 
-### Sprint 4b: E2E Validation and Debugging (BOUNDED)
+### Sprint 4b: E2E Validation and Debugging (BOUNDED) ✅ DELEGATED
+**Status**: COMPLETED - Delegated to ../Produciesta/EXECUTION_PLAN.md Sprint 1
 **Model**: 🔴 Opus 4.6 (E2E debugging) ← **HIGH VALUE**
 **Duration**: 20 turns MAX (40% utilization)
 **Time**: 30 min
 
-**Scope**: Execute E2E test and debug failures (max 20 turns, then STOP)
+**Note**: E2E debugging moved to Produciesta repo. VoxAlta library provides working VoiceProvider implementation with preset speakers. Integration testing is Produciesta's responsibility.
+
+**Scope**: Execute E2E test and debug failures (max 20 turns with iteration limits)
 
 **Why Opus**:
 - E2E integration across two codebases (VoxAlta + Produciesta)
@@ -1198,19 +1308,33 @@ echo "✓ E2E test structure exists: $?"
 
 2. If test passes → **DONE** (exit immediately)
 
-3. If test fails → Debug (turns 2-20):
-   - Analyze failure mode from output
-   - Document in `/tmp/e2e-debug-log.md`:
-     ```markdown
-     ## Turn N: [Issue Description]
-     - **Problem**: [what failed]
-     - **Hypothesis**: [why it might have failed]
-     - **Fix attempted**: [what was changed]
-     - **Result**: [pass/fail]
-     ```
-   - Attempt fix
-   - Re-run test
-   - Repeat until turn 20
+3. If test fails → Debug with iteration limits (turns 2-20):
+
+   **Iteration strategy**:
+   - **Max 3 consecutive turns per unique error**
+   - **Document each attempt** in `/tmp/e2e-debug-log.md`
+   - **After 3 failed attempts on same error**: Try different approach
+
+   **Example**:
+   ```markdown
+   ## Turn 2: Audio file not found
+   - **Problem**: FileManager can't find audio file at path
+   - **Hypothesis**: Audio not written to disk
+   - **Fix attempted**: Check audio save logic
+   - **Result**: FAIL - same error
+
+   ## Turn 3: Audio file not found (attempt 2)
+   - **Problem**: Same error
+   - **Hypothesis**: Incorrect file path
+   - **Fix attempted**: Log actual save path
+   - **Result**: FAIL - same error
+
+   ## Turn 4: Audio file not found (attempt 3)
+   - **Problem**: Same error after 3 attempts
+   - **Decision**: STOP working on this error, try different approach
+   - **New hypothesis**: Audio generation never started
+   - **Next action**: Check if VoxAlta provider is being called
+   ```
 
 4. If still failing at turn 20 → **STOP** and create issue document:
    ```bash
@@ -1225,6 +1349,11 @@ echo "✓ E2E test structure exists: $?"
 
    ## Attempted Fixes
    [Summary of all fixes attempted - read from debug log]
+
+   ## Iteration Summary
+   - Unique errors encountered: [count]
+   - Errors with 3+ attempts: [list]
+   - Errors resolved: [list]
 
    ## Next Steps
    1. Review debug log: /tmp/e2e-debug-log.md
@@ -1339,17 +1468,37 @@ echo "✓ Completes in time: $?"
 
    ### Dual-Mode Routing
 
-   1. **Preset speakers** (fast path): Direct CustomVoice model generation
-   2. **Clone prompts** (fallback): For custom voices loaded via loadVoice()
+   1. **Route 1 (Preset speakers)**: Direct CustomVoice model generation - fast, no setup
+   2. **Route 2 (Clone prompts)**: For custom voices loaded via loadVoice() - requires voice lock
+
+   ### Integration with Produciesta
+
+   VoxAlta registers automatically with VoiceProviderRegistry. All 9 preset speakers
+   appear in voice selection dropdowns with no additional configuration.
    ```
 
 3. **Create docs/PRODUCIESTA_INTEGRATION.md**:
    ```markdown
    # Produciesta Integration Guide
 
+   ## Overview
+
+   VoxAlta integrates with Produciesta as a voice provider, offering 9 on-device
+   CustomVoice preset speakers for podcast character voice assignment.
+
+   ## Prerequisites
+
+   - macOS 26.0+ / iOS 26.0+ (Apple Silicon required)
+   - SwiftVoxAlta package dependency added to Produciesta
+   - Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16 model (downloads on first use)
+
+   ## Integration Steps
+
    [Complete integration documentation with:
-    - Prerequisites
-    - Integration steps
+    - Package dependency setup
+    - Provider registration
+    - Voice selection UI
+    - E2E testing
     - Performance notes
     - Troubleshooting]
    ```
@@ -1448,160 +1597,62 @@ echo "=== Verification Complete ==="
 
 ---
 
-## Execution Timeline (V4 - Atomic Sprints)
+## Parallelization Strategy
 
-**Total**: 15 sprints, ~165 turns, ~3.5 hours
+### Phase A: VoxAlta Development (Parallel)
+**Time**: 0-55 min
 
-### Sequential Sprints (Sprints 1a.1 - 1b)
-```
-Period 1: Sprint 1a.1 (Preset Data)                  [5 turns,  7 min]
-Period 2: Sprint 1a.2 (Voice Listing)                [10 turns, 13 min]
-Period 3: Sprint 1a.3 (Audio Generation)             [15 turns, 20 min]
-Period 4: Sprint 1b (Imports/Sendable)               [12 turns, 16 min]
-```
+**Track 1** (Sequential):
+- Sprint 1a.1 → 1a.2 → 1a.3 → 1b (42 turns, 56 min)
 
-### Parallel Phase 1 (Sprints 2a, 2b, 3a)
-```
-Period 5: Sprint 3a || Sprint 2a                     [15 turns, 20 min]
-          ├─ Sprint 3a (Package Dependency)          [10 turns, 13 min] ← finishes first
-          └─ Sprint 2a (Core Voice Tests)            [15 turns, 20 min] ← continues
+**Track 2** (After 1b completes):
+- Sprint 2a → 2b (30 turns, 40 min)
 
-Period 6: Sprint 3a2.1 || Sprint 2a (continues)      [10 turns, 15 min]
-          ├─ Sprint 3a2.1 (Discovery, Opus)          [10 turns, 15 min] ← starts when 3a done
-          └─ Sprint 2a (Core Voice Tests)            [5 turns remain]   ← finishes
+### Phase B: Produciesta Integration (Parallel with Track 2)
+**Time**: 56-96 min
 
-Period 7: Sprint 2b || Sprint 3a2.1 (continues)      [10 turns, 15 min]
-          ├─ Sprint 2b (Audio Tests)                 [15 turns, 20 min] ← starts when 2a done
-          └─ Sprint 3a2.1 finishes
-```
+**Track 3** (Starts after Sprint 1b):
+- Sprint 3a → 3a2.1 → 3a2.2 (35 turns, 48 min)
 
-### Parallel Phase 2 (Sprints 2b, 3a2.2)
-```
-Period 8: Sprint 2b (continues) || Sprint 3a2.2      [15 turns, 20 min]
-          ├─ Sprint 2b (Audio Tests)                 [5 turns remain]   ← finishes
-          └─ Sprint 3a2.2 (Registration, Sonnet)     [15 turns, 20 min] ← continues
-```
+### Phase C: Final Integration (Sequential)
+**Time**: 96-165 min
 
-### Sequential Sprints (Sprints 3b.1 - 5)
-```
-Period 9:  Sprint 3b.1 (macOS Integration)           [15 turns, 20 min]
-Period 10: Sprint 3b.2 (CLI, optional)               [10 turns, 13 min] OR [0 if skipped]
-Period 11: Sprint 4a (E2E Scaffold)                  [20 turns, 27 min]
-Period 12: Sprint 4b (E2E Validation, Opus)          [20 turns, 30 min]
-Period 13: Sprint 5 (Documentation, Haiku)           [15 turns, 20 min]
-```
+- Sprint 3b.1 → 3b.2 → 4a → 4b → 5 (70 turns, 103 min)
 
-**Parallelism Summary**:
-- Periods 5-8: 30 turns of parallel work (2 overlapping phases)
-- Total time saved: ~40 minutes vs sequential
-- Total: ~3.5 hours (vs ~4+ hours sequential)
+**Total Parallelized Time**: ~135 turns (~3 hours)
+**Time Savings**: 30 turns saved vs sequential
 
 ---
 
-## Dependencies Graph (V4)
+## Change Log
 
-```
-Sprint 1a.1 (Data)
-  └─→ Sprint 1a.2 (Listing)
-        └─→ Sprint 1a.3 (Generation)
-              └─→ Sprint 1b (Imports)
-                    ├─→ Sprint 2a (Core Tests)           ┐
-                    │     └─→ Sprint 2b (Audio Tests)    │ Parallel
-                    └─→ Sprint 3a (Package)              │ Phase 1
-                          └─→ Sprint 3a2.1 (Discovery)   ┘
-                                └─→ Sprint 3a2.2 (Registration)
-                                      └─→ Sprint 3b.1 (macOS)
-                                            └─→ Sprint 3b.2 (CLI, optional)
-                                                  └─→ Sprint 4a (E2E Scaffold)
-                                                        └─→ Sprint 4b (E2E Validation)
-                                                              └─→ Sprint 5 (Docs)
-```
+### V4.1 (2026-02-13) - Validated Against Codebase
+- ✅ Verified VoxAltaVoiceProvider exists (Sources/SwiftVoxAlta/VoxAltaVoiceProvider.swift)
+- ✅ Verified VoxAltaVoiceCache exists (line 39, actor type)
+- ✅ Verified VoiceLockManager exists (Sources/SwiftVoxAlta/VoiceLockManager.swift)
+- ✅ Verified VoiceLock struct exists (Sources/SwiftVoxAlta/VoiceLock.swift)
+- ✅ Changed Sprint 1a.2: UPDATE fetchVoices() instead of ADD
+- ✅ Changed Sprint 1a.3: UPDATE generateAudio() instead of ADD
+- ✅ Fixed Sprint 1b: Added explicit decision tree for conditional imports
+- ✅ Fixed Sprint 2b: Specified parseWAVDuration() as private test helper
+- ✅ Fixed Sprint 3a2.1: Bounded file reading to max 3 files
+- ✅ Fixed Sprint 3a2.2: Use exact pattern from findings file
+- ✅ Fixed Sprint 3b.1: Added fallback if VoiceSelectionView not found
+- ✅ Fixed Sprint 3b.1: Clarified groupedVoices data source
+- ✅ Added Sprint 4a: Prerequisites to verify Produciesta types before writing tests
+- ✅ Fixed Sprint 4a: Specified exact test file location
+- ✅ Fixed Sprint 4b: Added iteration strategy (max 3 attempts per unique error)
+- ✅ Updated Current State Analysis to reflect actual codebase
+- ✅ All vague/unbounded tasks now have explicit bounds and decision trees
 
-**Key Optimization**: Sprints 2a/2b and 3a/3a2.1/3a2.2 run in parallel (different repos)
-
----
-
-## Changes from V3 → V4
-
-### Sprint Structure
-- ✅ Split Sprint 1a → 1a.1, 1a.2, 1a.3 (30 turns → 5 + 10 + 15 = 30 turns, safer)
-- ✅ Split Sprint 2 → 2a, 2b (28 turns → 15 + 15 = 30 turns, batched tests)
-- ✅ Split Sprint 3a2 → 3a2.1 (discovery), 3a2.2 (implementation) (25 turns → 10 + 15 = 25 turns)
-- ✅ Split Sprint 3b → 3b.1 (macOS), 3b.2 (CLI, optional) (20 turns → 15 + 10 = 25 turns)
-- ✅ Added turn limit to Sprint 4b (max 20 turns, document and stop if failing)
-
-### Atomicity Improvements
-- Each sprint now has 1-2 related tasks (vs 4-6 in V3)
-- Smaller rollback units
-- Clear success/failure points
-- No unbounded exploration or debugging
-
-### Testability Improvements
-- All exit criteria have exact bash commands
-- Success measured by exit codes (0 = pass)
-- Discovery outputs to files (`/tmp/voxalta-*.txt`)
-- Debug logs preserved (`/tmp/e2e-debug-log.md`)
-- Verification script provided (`verify-integration.sh`)
-
-### Model Usage
-- Same as V3: Opus for discovery/debugging, Sonnet for development, Haiku for docs
-- But discovery is now separate sprint (3a2.1), so cheaper implementation in 3a2.2
-
-### Total Effort
-- **V3**: 9 sprints, 152 turns
-- **V4**: 15 sprints, ~165 turns (8% more turns, but much safer)
-- Benefits: Atomic, testable, bounded, recoverable
+### V4 (2026-02-12) - Initial Atomic Version
+- Split 9 sprints → 15 atomic sprints
+- Discovery separated from implementation
+- All exit criteria machine-verifiable
+- Bounded debugging sprints
 
 ---
 
-## Rollback Plan
+**Status**: ✅ **READY FOR EXECUTION** (V4.1 - Validated)
 
-If integration fails, rollback is granular:
-
-### Rollback by Sprint
-
-```bash
-# Rollback Sprint 1a.1 (just delete array)
-git diff Sources/SwiftVoxAlta/VoxAltaVoiceProvider.swift
-git checkout Sources/SwiftVoxAlta/VoxAltaVoiceProvider.swift
-
-# Rollback Sprint 1a.2 (revert methods)
-git diff Sources/SwiftVoxAlta/VoxAltaVoiceProvider.swift
-git checkout Sources/SwiftVoxAlta/VoxAltaVoiceProvider.swift
-
-# Rollback Sprint 3a2.2 (revert registration)
-cd ../Produciesta
-FILE=$(grep "Path:" /tmp/voxalta-registration-findings.md | cut -d: -f2- | xargs)
-git diff "$FILE"
-git checkout "$FILE"
-
-# Rollback all VoxAlta changes
-cd /Users/stovak/Projects/SwiftVoxAlta
-git log --oneline | grep "Sprint 1"
-git revert <commit-hash>
-
-# Rollback all Produciesta changes
-cd /Users/stovak/Projects/Produciesta
-git log --oneline | grep "Sprint 3"
-git revert <commit-hash>
-```
-
-### Fallback Strategy
-
-If full rollback needed:
-1. Remove VoxAlta from Produciesta Package.swift
-2. Revert VoxAltaVoiceProvider to pre-sprint state
-3. Use existing providers (Apple, ElevenLabs)
-4. File issues with findings for future work
-
----
-
-**Status**: ✅ **READY FOR EXECUTION (V4 - Atomic & Testable)**
-
-**Next Step**: Execute Sprint 1a.1 (Add Preset Speaker Data)
-
-```bash
-# Start execution
-cd /Users/stovak/Projects/SwiftVoxAlta
-# Execute Sprint 1a.1...
-```
+**Next Action**: Execute Sprint 1a.1 (Add Preset Speaker Data)
