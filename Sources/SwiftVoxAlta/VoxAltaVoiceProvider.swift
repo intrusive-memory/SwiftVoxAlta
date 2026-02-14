@@ -25,6 +25,11 @@ import SwiftUI
 /// actor, both of which are inherently thread-safe.
 public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
 
+    // MARK: - Version
+
+    /// Current version of the SwiftVoxAlta library
+    public static let version = "0.2.0"
+
     // MARK: - VoiceProvider Metadata
 
     public let providerId = "voxalta"

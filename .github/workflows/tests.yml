@@ -5,7 +5,7 @@ on:
     branches: [main, development]
 
 jobs:
-  # Job 1: Fast unit tests (no binary)
+  # Fast unit tests (no binary or model downloads required)
   unit-tests:
     name: Unit Tests
     runs-on: macos-26
@@ -23,38 +23,39 @@ jobs:
       - name: Run unit tests
         run: make test-unit
 
-  # Job 2: Integration tests (builds binary, uses cache)
-  integration-tests:
-    name: Integration Tests
-    runs-on: macos-26
-    timeout-minutes: 30
-    env:
-      GIT_LFS_SKIP_SMUDGE: "1"
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Cache models and voices
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/Library/SharedModels
-            ~/Library/Caches/intrusive-memory/Voices
-          key: tts-cache-v1
-          restore-keys: |
-            tts-cache-v1
-
-      - name: Show Swift version
-        run: swift --version
-
-      - name: Run integration tests
-        run: make test-integration
-
-      - name: Upload test audio artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-audio-failures
-          path: /tmp/diga-test-*/
-          retention-days: 7
+  # Integration tests disabled in CI - require 3.4GB model downloads
+  # Run locally with: make test-integration
+  # integration-tests:
+  #   name: Integration Tests
+  #   runs-on: macos-26
+  #   timeout-minutes: 30
+  #   env:
+  #     GIT_LFS_SKIP_SMUDGE: "1"
+  #
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Cache models and voices
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: |
+  #           ~/Library/SharedModels
+  #           ~/Library/Caches/intrusive-memory/Voices
+  #         key: tts-cache-v1
+  #         restore-keys: |
+  #           tts-cache-v1
+  #
+  #     - name: Show Swift version
+  #       run: swift --version
+  #
+  #     - name: Run integration tests
+  #       run: make test-integration
+  #
+  #     - name: Upload test audio artifacts on failure
+  #       if: failure()
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: test-audio-failures
+  #         path: /tmp/diga-test-*/
+  #         retention-days: 7
