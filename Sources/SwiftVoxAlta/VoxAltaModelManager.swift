@@ -8,6 +8,7 @@
 
 import Foundation
 import MLXAudioTTS
+import SwiftAcervo
 
 // MARK: - Supported Model Repos
 
@@ -25,12 +26,22 @@ public enum Qwen3TTSModelRepo: String, CaseIterable, Sendable {
     /// Lighter-weight voice cloning, suitable for draft rendering.
     case base0_6B = "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16"
 
+    /// CustomVoice model (1.7B parameters, bf16 precision).
+    /// Includes 9 preset speakers (no clone prompt needed).
+    case customVoice1_7B = "mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16"
+
+    /// CustomVoice model (0.6B parameters, bf16 precision).
+    /// Lighter-weight with 9 preset speakers.
+    case customVoice0_6B = "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-bf16"
+
     /// Human-readable display name for the model variant.
     public var displayName: String {
         switch self {
         case .voiceDesign1_7B: return "VoiceDesign 1.7B (bf16)"
         case .base1_7B: return "Base 1.7B (bf16)"
         case .base0_6B: return "Base 0.6B (bf16)"
+        case .customVoice1_7B: return "CustomVoice 1.7B (bf16)"
+        case .customVoice0_6B: return "CustomVoice 0.6B (bf16)"
         }
     }
 }
@@ -48,6 +59,8 @@ public enum Qwen3TTSModelSize {
         "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16": 3_400_000_000,
         "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16": 3_400_000_000,
         "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16": 1_200_000_000,
+        "mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16": 3_400_000_000,
+        "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-bf16": 1_200_000_000,
         // 8-bit quantized variants
         "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit": 1_700_000_000,
         "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit": 1_700_000_000,
@@ -95,8 +108,40 @@ public actor VoxAltaModelManager {
         _currentModelRepo
     }
 
+    /// Whether legacy model migration has already been attempted this session.
+    private var migrationAttempted = false
+
     /// Initializes an empty model manager with no model loaded.
     public init() {}
+
+    // MARK: - Acervo Integration
+
+    /// Migrates models from the legacy cache path (`~/Library/Caches/intrusive-memory/Models/`)
+    /// to Acervo's shared directory (`~/Library/SharedModels/`). Called once per session.
+    public func migrateIfNeeded() {
+        guard !migrationAttempted else { return }
+        migrationAttempted = true
+        do {
+            let migrated = try Acervo.migrateFromLegacyPaths()
+            if !migrated.isEmpty {
+                FileHandle.standardError.write(Data(
+                    "Migrated \(migrated.count) model(s) to ~/Library/SharedModels/\n".utf8
+                ))
+            }
+        } catch {
+            FileHandle.standardError.write(Data(
+                "Warning: model migration failed: \(error.localizedDescription)\n".utf8
+            ))
+        }
+    }
+
+    /// Checks whether a model is available in Acervo's shared directory.
+    ///
+    /// - Parameter modelId: The HuggingFace model identifier.
+    /// - Returns: `true` if the model directory contains `config.json`.
+    public nonisolated func isModelInAcervo(_ modelId: String) -> Bool {
+        Acervo.isModelAvailable(modelId)
+    }
 
     /// Loads a Qwen3-TTS model from the given HuggingFace repository.
     ///
@@ -110,6 +155,9 @@ public actor VoxAltaModelManager {
     /// - Returns: The loaded `SpeechGenerationModel` instance.
     /// - Throws: `VoxAltaError.modelNotAvailable` if loading fails.
     public func loadModel(repo: String) async throws -> any SpeechGenerationModel {
+        // One-time migration from legacy cache to Acervo shared directory
+        migrateIfNeeded()
+
         // Return cached model if same repo is requested
         if let cached = cachedModel, _currentModelRepo == repo {
             return cached

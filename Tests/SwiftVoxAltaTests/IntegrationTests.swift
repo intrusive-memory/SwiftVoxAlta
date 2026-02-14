@@ -179,7 +179,10 @@ struct PipelineFlowTests {
 
 // MARK: - VoiceProvider Pipeline Tests
 
-@Suite("Integration - VoiceProvider Pipeline")
+@Suite(
+    "Integration - VoiceProvider Pipeline",
+    .disabled(if: ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil, "Metal compiler not supported on GitHub Actions")
+)
 struct VoiceProviderPipelineTests {
 
     @Test("Provider starts unconfigured with no voices")

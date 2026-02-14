@@ -225,6 +225,8 @@ struct DigaCommand: AsyncParsableCommand {
                     description = "cloned from \(voice.clonePromptPath ?? "reference audio")"
                 case .builtin:
                     description = voice.designDescription ?? ""
+                case .preset:
+                    description = "preset speaker: \(voice.clonePromptPath ?? "unknown")"
                 }
                 print("  \(voice.name)\t\(description)")
             }

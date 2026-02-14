@@ -1,5 +1,8 @@
 import Foundation
-import SwiftVoxAlta
+@preconcurrency import SwiftVoxAlta
+@preconcurrency import MLX
+@preconcurrency import MLXAudioTTS
+@preconcurrency import MLXLMCommon
 
 // MARK: - DigaEngineError
 
@@ -207,20 +210,38 @@ actor DigaEngine {
     /// Creates a new DigaEngine.
     ///
     /// - Parameters:
-    ///   - modelManager: Model manager for download/availability. Defaults to standard instance.
     ///   - voiceStore: Voice store for custom voices. Defaults to standard instance.
     ///   - modelOverride: Optional model ID override (from --model flag).
     ///   - voxAltaModelManager: VoxAlta model manager for TTS inference. Defaults to a new instance.
     init(
-        modelManager: DigaModelManager = DigaModelManager(),
         voiceStore: VoiceStore = VoiceStore(),
         modelOverride: String? = nil,
         voxAltaModelManager: VoxAltaModelManager = VoxAltaModelManager()
     ) {
-        self.modelManager = modelManager
+        self.modelManager = DigaModelManager()
         self.voiceStore = voiceStore
         self.modelOverride = modelOverride
         self.voxAltaModelManager = voxAltaModelManager
+    }
+
+    // MARK: - Model Resolution
+
+    /// Resolves the model override string to a `Qwen3TTSModelRepo` for the TTS model.
+    ///
+    /// If `modelOverride` is set and matches a known model ID, returns that variant.
+    /// Otherwise defaults to `.customVoice1_7B` (preset speakers, no clone prompt needed).
+    private var resolvedBaseModelRepo: Qwen3TTSModelRepo {
+        guard let override = modelOverride else { return .customVoice1_7B }
+        if let match = Qwen3TTSModelRepo(rawValue: override) {
+            return match
+        }
+        // Map shorthands: the DigaCommand already resolves 0.6b/1.7b to full IDs,
+        // so we check the full ID against known repos.
+        if override == TTSModelID.small {
+            return .customVoice0_6B
+        }
+        // Default to CustomVoice 1.7B for unknown overrides
+        return .customVoice1_7B
     }
 
     // MARK: - Voice Resolution
@@ -281,6 +302,17 @@ actor DigaEngine {
         // Resolve voice.
         let voice = try resolveVoice(name: voiceName)
 
+        // For preset voices, use speaker name directly (no clone prompt needed).
+        if voice.type == .preset, let speakerName = voice.clonePromptPath {
+            return try await synthesizeWithPresetSpeaker(
+                text: text,
+                speakerName: speakerName,
+                voiceName: voice.name,
+                modelManager: voxAltaModelManager,
+                modelRepo: resolvedBaseModelRepo
+            )
+        }
+
         // Load or generate clone prompt for this voice.
         let clonePromptData = try await loadOrCreateClonePrompt(for: voice)
 
@@ -314,7 +346,8 @@ actor DigaEngine {
                     text: chunk,
                     voiceLock: voiceLock,
                     language: "en",
-                    modelManager: voxAltaModelManager
+                    modelManager: voxAltaModelManager,
+                    modelRepo: resolvedBaseModelRepo
                 )
             } catch {
                 throw DigaEngineError.synthesisFailed(
@@ -329,6 +362,84 @@ actor DigaEngine {
         }
 
         // Concatenate all WAV segments into a single output.
+        return try WAVConcatenator.concatenate(wavSegments)
+    }
+
+    /// Synthesize speech using a CustomVoice preset speaker.
+    ///
+    /// Preset speakers bypass the clone prompt generation flow entirely.
+    /// The speaker name (e.g., "ryan", "aiden", "ono_anna") is passed directly
+    /// to the Qwen3-TTS CustomVoice model for generation.
+    ///
+    /// - Parameters:
+    ///   - text: The text to synthesize.
+    ///   - speakerName: The CustomVoice speaker name.
+    ///   - voiceName: The user-facing voice name (for logging).
+    ///   - modelManager: The model manager used to load the CustomVoice model.
+    ///   - modelRepo: The CustomVoice model variant to use. Defaults to `.customVoice1_7B`.
+    /// - Returns: WAV format audio Data.
+    /// - Throws: `DigaEngineError` if model loading or synthesis fails.
+    nonisolated private func synthesizeWithPresetSpeaker(
+        text: String,
+        speakerName: String,
+        voiceName: String,
+        modelManager: VoxAltaModelManager,
+        modelRepo: Qwen3TTSModelRepo
+    ) async throws -> Data {
+        // 1. Chunk text.
+        let chunks = TextChunker.chunk(text)
+        guard !chunks.isEmpty else {
+            throw DigaEngineError.synthesisFailed("Input text is empty after chunking.")
+        }
+
+        if chunks.count > 1 {
+            FileHandle.standardError.write(Data("Synthesizing \(chunks.count) chunks...\n".utf8))
+        }
+
+        // 2. Generate each chunk with CustomVoice speaker.
+        var wavSegments: [Data] = []
+        for (i, chunk) in chunks.enumerated() {
+            if chunks.count > 1 {
+                FileHandle.standardError.write(Data("\rChunk \(i + 1)/\(chunks.count)...".utf8))
+            }
+
+            // Load model and generate
+            let audioArray: MLXArray
+            let sampleRate: Int
+            do {
+                let model = try await modelManager.loadModel(modelRepo)
+                guard let qwenModel = model as? Qwen3TTSModel else {
+                    throw DigaEngineError.synthesisFailed("Not a Qwen3TTSModel")
+                }
+
+                // Use high-level generate() API which routes to CustomVoice path
+                audioArray = try await qwenModel.generate(
+                    text: chunk,
+                    voice: speakerName,
+                    refAudio: nil,
+                    refText: nil,
+                    language: "en",
+                    generationParameters: GenerateParameters()
+                )
+                sampleRate = qwenModel.sampleRate
+            } catch {
+                throw DigaEngineError.synthesisFailed(
+                    "Failed to synthesize chunk \(i + 1): \(error.localizedDescription)"
+                )
+            }
+
+            let wavData = try AudioConversion.mlxArrayToWAVData(
+                audioArray,
+                sampleRate: sampleRate
+            )
+            wavSegments.append(wavData)
+        }
+
+        if chunks.count > 1 {
+            FileHandle.standardError.write(Data("\n".utf8))
+        }
+
+        // 3. Concatenate WAV segments.
         return try WAVConcatenator.concatenate(wavSegments)
     }
 
@@ -370,10 +481,6 @@ actor DigaEngine {
 
         if voice.type == .cloned, let refPath = voice.clonePromptPath {
             // Cloned voice: create clone prompt from reference audio.
-            FileHandle.standardError.write(
-                Data("Creating voice clone from reference audio...\n".utf8)
-            )
-
             let refURL: URL
             if refPath.hasPrefix("/") || refPath.hasPrefix("~") {
                 refURL = URL(fileURLWithPath: refPath)
@@ -381,11 +488,26 @@ actor DigaEngine {
                 refURL = voiceStore.voicesDirectory.appendingPathComponent(refPath)
             }
 
-            guard FileManager.default.fileExists(atPath: refURL.path) else {
-                throw DigaEngineError.voiceDesignFailed(
-                    "Reference audio file not found: \(refURL.path)"
+            // Auto-generate reference audio if it doesn't exist
+            if !FileManager.default.fileExists(atPath: refURL.path) {
+                FileHandle.standardError.write(
+                    Data("Generating reference audio for '\(voice.name)' (first use)...\n".utf8)
                 )
+                do {
+                    try ReferenceAudioGenerator.generate(
+                        voiceName: voice.name,
+                        outputPath: refURL
+                    )
+                } catch {
+                    throw DigaEngineError.voiceDesignFailed(
+                        "Failed to generate reference audio for '\(voice.name)': \(error.localizedDescription)"
+                    )
+                }
             }
+
+            FileHandle.standardError.write(
+                Data("Creating voice clone from reference audio...\n".utf8)
+            )
 
             let refData = try Data(contentsOf: refURL)
             do {
@@ -393,7 +515,8 @@ actor DigaEngine {
                     characterName: voice.name,
                     candidateAudio: refData,
                     designInstruction: "",
-                    modelManager: voxAltaModelManager
+                    modelManager: voxAltaModelManager,
+                    modelRepo: resolvedBaseModelRepo
                 )
                 clonePromptData = lock.clonePromptData
             } catch {
@@ -436,7 +559,8 @@ actor DigaEngine {
                     characterName: voice.name,
                     candidateAudio: candidateAudio,
                     designInstruction: description,
-                    modelManager: voxAltaModelManager
+                    modelManager: voxAltaModelManager,
+                    modelRepo: resolvedBaseModelRepo
                 )
                 clonePromptData = lock.clonePromptData
             } catch {

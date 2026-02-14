@@ -8,7 +8,7 @@ BIN_DIR = ./bin
 DESTINATION = platform=macOS,arch=arm64
 DERIVED_DATA = $(HOME)/Library/Developer/Xcode/DerivedData
 
-.PHONY: all build release install clean test resolve help
+.PHONY: all build release install clean test test-unit test-integration setup-voices resolve help
 
 all: install
 
@@ -61,9 +61,43 @@ install: resolve
 		exit 1; \
 	fi
 
-# Run all tests (library + diga)
-test:
-	xcodebuild test -scheme $(TEST_SCHEME) -destination 'platform=macOS'
+# Fast unit tests (library + audio generation, no binary required)
+# Note: SwiftVoxAltaTests skipped on CI due to Metal compiler limitations
+test-unit:
+	@echo "Running unit tests..."
+ifdef GITHUB_ACTIONS
+	@echo "CI detected: Skipping SwiftVoxAltaTests (Metal incompatible), running only DigaTests"
+	xcodebuild test \
+	  -scheme $(TEST_SCHEME) \
+	  -destination 'platform=macOS' \
+	  -only-testing:DigaTests \
+	  -skip-testing:DigaTests/DigaBinaryIntegrationTests
+else
+	@echo "Local run: Running all tests (DigaTests + SwiftVoxAltaTests)"
+	xcodebuild test \
+	  -scheme $(TEST_SCHEME) \
+	  -destination 'platform=macOS' \
+	  -skip-testing:DigaTests/DigaBinaryIntegrationTests
+endif
+
+# Integration tests (requires binary + cached voices)
+test-integration: install
+	@echo "Running integration tests (requires diga binary + cached voices)..."
+	xcodebuild test \
+	  -scheme $(TEST_SCHEME) \
+	  -destination 'platform=macOS' \
+	  -only-testing:DigaTests/DigaBinaryIntegrationTests
+
+# All tests (unit + integration)
+test: test-unit test-integration
+	@echo "All tests complete!"
+
+# One-time setup for local development (downloads CustomVoice model)
+setup-voices: install
+	@echo "Downloading CustomVoice model (~3.4GB, first run only)..."
+	@./bin/diga -v ryan -o /tmp/warmup.wav "test" && rm -f /tmp/warmup.wav
+	@echo "✓ CustomVoice model cached at ~/Library/Caches/intrusive-memory/Models/"
+	@echo "  You can now run 'make test' or 'make test-integration'."
 
 # Clean build artifacts
 clean:
@@ -77,12 +111,15 @@ help:
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Targets:"
-	@echo "  resolve  - Resolve all SPM package dependencies"
-	@echo "  build    - Development build (xcodebuild debug, no copy)"
-	@echo "  install  - Debug build with xcodebuild + copy to ./bin (default)"
-	@echo "  release  - Release build with xcodebuild + copy to ./bin"
-	@echo "  test     - Run all tests (library + diga)"
-	@echo "  clean    - Clean build artifacts"
-	@echo "  help     - Show this help"
+	@echo "  resolve         - Resolve all SPM package dependencies"
+	@echo "  build           - Development build (xcodebuild debug, no copy)"
+	@echo "  install         - Debug build with xcodebuild + copy to ./bin (default)"
+	@echo "  release         - Release build with xcodebuild + copy to ./bin"
+	@echo "  test            - Run all tests (unit + integration)"
+	@echo "  test-unit       - Run fast unit tests only (no binary required)"
+	@echo "  test-integration - Run binary integration tests (requires binary + voices)"
+	@echo "  setup-voices    - One-time setup: generate voices for local testing"
+	@echo "  clean           - Clean build artifacts"
+	@echo "  help            - Show this help"
 	@echo ""
 	@echo "All builds use: -destination '$(DESTINATION)'"

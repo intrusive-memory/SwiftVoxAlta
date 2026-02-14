@@ -2,7 +2,7 @@
 
 This file provides comprehensive documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.1.0
+**Current Version**: 0.2.0
 
 ---
 
@@ -69,7 +69,7 @@ SwiftVoxAlta/
 │       ├── DigaEngine.swift           # Synthesis engine (text -> WAV data)
 │       ├── DigaModelManager.swift     # Model download and cache management
 │       ├── TextChunker.swift          # Split long text for chunked synthesis
-│       ├── Version.swift              # Version constant (0.1.0)
+│       ├── Version.swift              # Version constant (0.2.0)
 │       └── VoiceStore.swift           # Persistent custom voice storage
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # Library tests
@@ -108,6 +108,7 @@ SwiftVoxAlta/
 | [SwiftCompartido](https://github.com/intrusive-memory/SwiftCompartido) | Input types (GuionElementModel, ElementType) |
 | [SwiftBruja](https://github.com/intrusive-memory/SwiftBruja) | LLM inference for character analysis |
 | [mlx-audio-swift](https://github.com/intrusive-memory/mlx-audio-swift) | Qwen3-TTS inference engine (MLXAudioTTS) |
+| [SwiftAcervo](https://github.com/intrusive-memory/SwiftAcervo) | Shared model management and caching |
 | [swift-argument-parser](https://github.com/apple/swift-argument-parser) | CLI argument parsing |
 
 ## Voice Design Pipeline
@@ -154,9 +155,59 @@ xcodebuild build -scheme diga -destination 'platform=macOS,arch=arm64'
 - **Swift 6.2+**
 - **Xcode 26+**
 
-## API Usage
+## VoiceProvider Implementation
 
-### VoiceProvider Implementation
+VoxAltaVoiceProvider implements SwiftHablare's VoiceProvider protocol with dual-mode routing for both preset speakers and custom voices:
+
+### Protocol Conformance
+
+```swift
+public protocol VoiceProvider {
+    var providerId: String { get }
+
+    func fetchVoices(languageCode: String) async throws -> [Voice]
+    func isVoiceAvailable(voiceId: String) async -> Bool
+    func generateAudio(text: String, voiceId: String, languageCode: String) async throws -> Data
+    func generateProcessedAudio(text: String, voiceId: String, languageCode: String) async throws -> ProcessedAudio
+}
+```
+
+### Dual-Mode Routing
+
+VoxAltaVoiceProvider automatically routes voice generation requests based on voice type:
+
+1. **Route 1 (Preset speakers)** -- Direct CustomVoice model generation - fast, no setup required:
+   ```swift
+   let audio = try await provider.generateAudio(
+       text: "Hello",
+       voiceId: "ryan",  // Routes through Route 1
+       languageCode: "en"
+   )
+   ```
+   Supports: `ryan`, `aiden`, `vivian`, `serena`, `uncle_fu`, `dylan`, `eric`, `anna`, `sohee`
+
+2. **Route 2 (Clone prompts)** -- For custom voices loaded via `loadVoice()` - requires voice lock:
+   ```swift
+   await provider.loadVoice(id: "ELENA", clonePromptData: lockData, gender: "female")
+   let audio = try await provider.generateAudio(
+       text: "Hello",
+       voiceId: "ELENA",  // Routes through Route 2
+       languageCode: "en"
+   )
+   ```
+
+### Integration with Produciesta
+
+VoxAlta integrates transparently with Produciesta:
+
+- **Auto-registration** -- VoxAlta registers automatically with VoiceProviderRegistry on app startup
+- **Preset voices** -- All 9 CustomVoice speakers appear in voice selection dropdowns immediately
+- **No configuration** -- Works out-of-the-box with no additional setup
+- **On-device inference** -- All audio generation runs locally on Apple Silicon
+
+See **[Produciesta Integration Guide](../docs/PRODUCIESTA_INTEGRATION.md)** for complete integration instructions.
+
+### API Usage
 
 ```swift
 import SwiftVoxAlta
@@ -165,20 +216,32 @@ import SwiftHablare
 // Create provider
 let provider = VoxAltaVoiceProvider()
 
-// Load a voice (clone prompt data from a VoiceLock)
-await provider.loadVoice(id: "ELENA", clonePromptData: lockData, gender: "female")
+// Fetch available voices (includes 9 presets + any loaded custom voices)
+let voices = try await provider.fetchVoices(languageCode: "en")
 
-// Generate audio (returns WAV data: 24kHz, 16-bit PCM, mono)
+// Check voice availability
+let available = await provider.isVoiceAvailable(voiceId: "ryan")
+
+// Generate audio with preset speaker (Route 1)
 let audioData = try await provider.generateAudio(
     text: "Hello from VoxAlta!",
+    voiceId: "ryan",
+    languageCode: "en"
+)
+
+// Load a custom voice for cloning (Route 2)
+await provider.loadVoice(id: "ELENA", clonePromptData: lockData, gender: "female")
+
+let customAudio = try await provider.generateAudio(
+    text: "Hello from custom Elena!",
     voiceId: "ELENA",
     languageCode: "en"
 )
 
-// Generate with duration measurement
+// Generate with duration measurement (returns ProcessedAudio)
 let processed = try await provider.generateProcessedAudio(
     text: "Hello!",
-    voiceId: "ELENA",
+    voiceId: "ryan",
     languageCode: "en"
 )
 // processed.audioData, processed.durationSeconds, processed.mimeType
@@ -228,6 +291,8 @@ await registry.register(VoxAltaProviderDescriptor.descriptor())
 ## CLI Tool (`diga`)
 
 `diga` is a drop-in replacement for `/usr/bin/say` with neural text-to-speech via Qwen3-TTS.
+
+**See [Available Voices Documentation](docs/AVAILABLE_VOICES.md)** for a complete list of built-in voices, canonical URIs for voice casting, and voice management details.
 
 ### Usage
 
@@ -288,7 +353,8 @@ diga --model 1.7b "Hello"     # Use larger model
 | Base 0.6B | `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16` | ~2.4 GB | Voice cloning (lighter, <16GB RAM) |
 
 - Models are auto-downloaded on first use from HuggingFace
-- Cached at `~/Library/Caches/intrusive-memory/Models/TTS/`
+- Cached at `~/Library/SharedModels/` (via SwiftAcervo), shared across the intrusive-memory ecosystem
+- Legacy models at `~/Library/Caches/intrusive-memory/Models/TTS/` are auto-migrated on first use
 - `diga` auto-selects 1.7B (>=16GB RAM) or 0.6B (<16GB RAM)
 
 ## Error Types
@@ -317,7 +383,7 @@ public enum VoxAltaError: Error {
 
 ## Memory Management
 
-- **Model caching** -- TTS models cached at `~/Library/Caches/intrusive-memory/Models/TTS/`
+- **Model caching** -- TTS models cached at `~/Library/SharedModels/` via SwiftAcervo
 - **Lazy loading** -- Models loaded only when needed for synthesis
 - **Memory checks** -- `VoxAltaModelManager.checkMemory()` warns on low memory via stderr
 - **Single-model cache** -- Only one TTS model loaded at a time; switching unloads the previous
@@ -325,25 +391,28 @@ public enum VoxAltaError: Error {
 
 ## Development Workflow
 
-- **Branch**: `development` -> PR -> `master`
-- **CI Required**: Tests must pass before merge
-- **Never commit directly to `master`**
+- **Branch**: `development` -> PR -> `main`
+- **CI Required**: Build + Integration Tests + Audio Integration Test must pass before merge
+- **CI Architecture**: See [CI Dependency Chain](docs/CI_DEPENDENCY_CHAIN.md) for parallel voice caching + sequential test execution
+- **Never commit directly to `main`**
 - **Platforms**: macOS 26+, iOS 26+ only (Apple Silicon required)
 - **NEVER add `@available` attributes** for older platforms
 - **CI runner**: `macos-26`
 
 ## Release Process
 
-1. Tag on `master` (e.g., `v0.1.0`)
+1. Tag on `main` (e.g., `v0.1.1`)
 2. GitHub Release triggers `.github/workflows/release.yml`
 3. Release workflow: `make release` -> tarball -> upload assets -> dispatch to `intrusive-memory/homebrew-tap`
 4. Homebrew tap auto-updates formula with new URL and SHA256
 
 ## Testing
 
-- **Library tests** (`SwiftVoxAltaTests/`): VoiceProvider, model manager, voice cache, character analysis, error paths, audio conversion, voice design, voice lock
-- **CLI tests** (`DigaTests/`): CLI integration, audio file writer, audio playback, engine, model manager, voice store, version, release checks
-- **362 total tests** (222 library + 140 CLI)
+- **Library tests** (`SwiftVoxAltaTests/`): VoiceProvider, model manager, voice cache, character analysis, error paths, audio conversion, voice design, voice lock, Acervo integration
+- **CLI tests** (`DigaTests/`): CLI integration, audio file writer, audio playback, engine, model manager (Acervo-backed), voice store, version, release checks
+- **Binary integration tests** (`DigaBinaryIntegrationTests`): End-to-end audio generation validation (WAV/AIFF/M4A formats, silence detection, error handling)
+- **359 total tests** (229 library + 130 CLI)
+- **CI Test Execution**: See [CI Dependency Chain](docs/CI_DEPENDENCY_CHAIN.md) for parallel voice caching strategy and test dependencies
 
 ## Important Notes
 
@@ -353,3 +422,14 @@ public enum VoxAltaError: Error {
 - **Character consistency** -- Locked voices ensure same character sounds identical across scenes
 - **Privacy** -- All processing on-device, no cloud APIs
 - **Experimental status** -- VoxAlta is in active development, APIs may change
+
+## Documentation Index
+
+| Document | Purpose |
+|----------|---------|
+| [AGENTS.md](AGENTS.md) | This file - complete project documentation and development guidelines |
+| [CLAUDE.md](CLAUDE.md) | Claude Code quick reference pointer to AGENTS.md |
+| [Available Voices](docs/AVAILABLE_VOICES.md) | **Complete list of built-in voices with canonical URIs for voice casting** |
+| [CI Dependency Chain](docs/CI_DEPENDENCY_CHAIN.md) | Parallel voice caching and test execution strategy |
+| [CustomVoice Execution Plan](docs/CUSTOMVOICE_EXECUTION_PLAN.md) | CustomVoice implementation plan |
+| [CustomVoice Migration](docs/CUSTOMVOICE_MIGRATION.md) | Migration guide from Base/VoiceDesign to CustomVoice |

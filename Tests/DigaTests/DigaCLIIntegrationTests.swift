@@ -41,8 +41,7 @@ struct CLIVoiceFlagTests {
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
         let voiceStore = VoiceStore(directory: tempDir.appendingPathComponent("voices"))
-        let modelManager = DigaModelManager(modelsDirectory: tempDir.appendingPathComponent("models"))
-        let engine = DigaEngine(modelManager: modelManager, voiceStore: voiceStore)
+        let engine = DigaEngine(voiceStore: voiceStore)
 
         // Resolving a nonexistent voice should throw voiceNotFound.
         do {
@@ -57,21 +56,20 @@ struct CLIVoiceFlagTests {
         }
     }
 
-    // --- Test 4: Default voice when -v not specified is first built-in (alex) ---
+    // --- Test 4: Default voice when -v not specified is first preset (ryan) ---
 
-    @Test("Default voice when -v not specified is the first built-in voice")
-    func defaultVoiceIsFirstBuiltin() async throws {
+    @Test("Default voice when -v not specified is the first preset voice")
+    func defaultVoiceIsFirstPreset() async throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("diga-cli-test-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
         let voiceStore = VoiceStore(directory: tempDir.appendingPathComponent("voices"))
-        let modelManager = DigaModelManager(modelsDirectory: tempDir.appendingPathComponent("models"))
-        let engine = DigaEngine(modelManager: modelManager, voiceStore: voiceStore)
+        let engine = DigaEngine(voiceStore: voiceStore)
 
         let defaultVoice = try await engine.resolveVoice(name: nil)
-        #expect(defaultVoice.name == "alex")
-        #expect(defaultVoice.type == .builtin)
+        #expect(defaultVoice.name == "ryan")
+        #expect(defaultVoice.type == .preset)
     }
 }
 

@@ -172,12 +172,12 @@ struct VoiceStoreTests {
 @Suite("BuiltinVoices Tests")
 struct BuiltinVoicesTests {
 
-    // --- Test 9: all() returns 4 voices ---
+    // --- Test 9: all() returns 9 preset voices ---
 
-    @Test("all() returns exactly 4 built-in voices")
-    func allReturnsFourVoices() {
+    @Test("all() returns exactly 9 preset voices")
+    func allReturnsNineVoices() {
         let voices = BuiltinVoices.all()
-        #expect(voices.count == 4)
+        #expect(voices.count == 9)
     }
 
     // --- Test 10: Each voice has non-empty name and description ---
@@ -194,18 +194,18 @@ struct BuiltinVoicesTests {
 
     // --- Test 11: get(name:) returns correct voice ---
 
-    @Test("get(name:) returns the correct built-in voice")
+    @Test("get(name:) returns the correct preset voice")
     func getByNameReturnsCorrectVoice() {
-        let alex = BuiltinVoices.get(name: "alex")
-        #expect(alex != nil)
-        #expect(alex?.name == "alex")
-        #expect(alex?.type == .builtin)
-        #expect(alex?.designDescription?.contains("baritone") == true)
+        let ryan = BuiltinVoices.get(name: "ryan")
+        #expect(ryan != nil)
+        #expect(ryan?.name == "ryan")
+        #expect(ryan?.type == .preset)
+        #expect(ryan?.designDescription?.contains("Dynamic male") == true)
 
-        let karen = BuiltinVoices.get(name: "karen")
-        #expect(karen != nil)
-        #expect(karen?.name == "karen")
-        #expect(karen?.designDescription?.contains("Australian") == true)
+        let anna = BuiltinVoices.get(name: "anna")
+        #expect(anna != nil)
+        #expect(anna?.name == "anna")
+        #expect(anna?.designDescription?.contains("Japanese female") == true)
     }
 
     // --- Test 12: get(name:) returns nil for unknown ---
@@ -216,25 +216,25 @@ struct BuiltinVoicesTests {
         #expect(unknown == nil)
     }
 
-    // --- Test 13: All built-in voices have type .builtin ---
+    // --- Test 13: All preset voices have type .preset ---
 
-    @Test("All built-in voices have type .builtin")
-    func allVoicesAreBuiltinType() {
+    @Test("All preset voices have type .preset")
+    func allVoicesArePresetType() {
         let voices = BuiltinVoices.all()
         for voice in voices {
-            #expect(voice.type == .builtin, "Voice \(voice.name) should have type .builtin")
+            #expect(voice.type == .preset, "Voice \(voice.name) should have type .preset")
         }
     }
 
     // --- Test 14: Known voice names are present ---
 
-    @Test("Built-in voices include alex, samantha, daniel, karen")
+    @Test("Preset voices include ryan, aiden, vivian, anna")
     func knownVoiceNamesPresent() {
         let names = Set(BuiltinVoices.all().map(\.name))
-        #expect(names.contains("alex"))
-        #expect(names.contains("samantha"))
-        #expect(names.contains("daniel"))
-        #expect(names.contains("karen"))
+        #expect(names.contains("ryan"))
+        #expect(names.contains("aiden"))
+        #expect(names.contains("vivian"))
+        #expect(names.contains("anna"))
     }
 }
 
@@ -319,17 +319,17 @@ struct CLIVoiceListingTests {
 
     // --- Test 18: --voices output format verification ---
 
-    @Test("Voices listing contains Built-in header and all 4 voice names")
+    @Test("Voices listing contains Built-in header and all 9 preset voice names")
     func voicesOutputContainsExpectedContent() throws {
         // Simulate what runListVoices produces by calling the same
         // underlying types and verifying the data.
         let builtinVoices = BuiltinVoices.all()
         let names = builtinVoices.map(\.name)
 
-        #expect(names.contains("alex"))
-        #expect(names.contains("samantha"))
-        #expect(names.contains("daniel"))
-        #expect(names.contains("karen"))
+        #expect(names.contains("ryan"))
+        #expect(names.contains("aiden"))
+        #expect(names.contains("vivian"))
+        #expect(names.contains("anna"))
 
         // Verify the output format by building the same strings the command would print.
         var output = "Built-in:\n"
@@ -341,10 +341,10 @@ struct CLIVoiceListingTests {
         output += "  (none \u{2014} use --design or --clone to create)\n"
 
         #expect(output.contains("Built-in:"))
-        #expect(output.contains("alex"))
-        #expect(output.contains("samantha"))
-        #expect(output.contains("daniel"))
-        #expect(output.contains("karen"))
+        #expect(output.contains("ryan"))
+        #expect(output.contains("aiden"))
+        #expect(output.contains("vivian"))
+        #expect(output.contains("anna"))
         #expect(output.contains("Custom:"))
     }
 }

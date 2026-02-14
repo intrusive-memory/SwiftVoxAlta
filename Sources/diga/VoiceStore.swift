@@ -7,6 +7,7 @@ enum VoiceType: String, Codable, Sendable {
     case builtin
     case designed
     case cloned
+    case preset  // CustomVoice preset speaker (no clone prompt needed)
 }
 
 /// A voice entry stored in the VoiceStore index.

@@ -30,7 +30,7 @@ public enum VoiceLockManager: Sendable {
 
     /// Create a VoiceLock from candidate audio by extracting a voice clone prompt.
     ///
-    /// Loads the Base model (which supports voice cloning), converts the candidate
+    /// Loads a Base model (which supports voice cloning), converts the candidate
     /// WAV audio to an MLXArray, and uses the model's speaker encoder to extract
     /// a reusable clone prompt. The clone prompt is serialized and stored in the
     /// returned `VoiceLock`.
@@ -41,6 +41,7 @@ public enum VoiceLockManager: Sendable {
     ///     (output from `VoiceDesigner.generateCandidate`).
     ///   - designInstruction: The voice description text used to generate the candidate.
     ///   - modelManager: The model manager used to load the Base model.
+    ///   - modelRepo: The Base model variant to use for cloning. Defaults to `.base1_7B`.
     /// - Returns: A `VoiceLock` containing the serialized clone prompt.
     /// - Throws: `VoxAltaError.cloningFailed` if clone prompt extraction fails,
     ///           `VoxAltaError.modelNotAvailable` if the Base model cannot be loaded.
@@ -48,10 +49,11 @@ public enum VoiceLockManager: Sendable {
         characterName: String,
         candidateAudio: Data,
         designInstruction: String,
-        modelManager: VoxAltaModelManager
+        modelManager: VoxAltaModelManager,
+        modelRepo: Qwen3TTSModelRepo = .base1_7B
     ) async throws -> VoiceLock {
         // Load Base model (supports voice cloning)
-        let model = try await modelManager.loadModel(.base1_7B)
+        let model = try await modelManager.loadModel(modelRepo)
 
         // Cast to Qwen3TTSModel for clone prompt API
         guard let qwenModel = model as? Qwen3TTSModel else {
@@ -107,7 +109,7 @@ public enum VoiceLockManager: Sendable {
     /// Generate speech audio using a locked voice identity.
     ///
     /// Deserializes the clone prompt from the voice lock and uses it to generate
-    /// audio with the Base model. The resulting audio reproduces the locked voice
+    /// audio with a Base model. The resulting audio reproduces the locked voice
     /// identity consistently across calls.
     ///
     /// - Parameters:
@@ -115,6 +117,7 @@ public enum VoiceLockManager: Sendable {
     ///   - voiceLock: The voice lock containing the serialized clone prompt.
     ///   - language: The language code for generation. Defaults to "en".
     ///   - modelManager: The model manager used to load the Base model.
+    ///   - modelRepo: The Base model variant to use for generation. Defaults to `.base1_7B`.
     /// - Returns: WAV format Data of the generated speech audio (24kHz, 16-bit PCM, mono).
     /// - Throws: `VoxAltaError.cloningFailed` if generation fails,
     ///           `VoxAltaError.modelNotAvailable` if the Base model cannot be loaded.
@@ -122,10 +125,11 @@ public enum VoiceLockManager: Sendable {
         text: String,
         voiceLock: VoiceLock,
         language: String = "en",
-        modelManager: VoxAltaModelManager
+        modelManager: VoxAltaModelManager,
+        modelRepo: Qwen3TTSModelRepo = .base1_7B
     ) async throws -> Data {
         // Load Base model
-        let model = try await modelManager.loadModel(.base1_7B)
+        let model = try await modelManager.loadModel(modelRepo)
 
         // Cast to Qwen3TTSModel
         guard let qwenModel = model as? Qwen3TTSModel else {
