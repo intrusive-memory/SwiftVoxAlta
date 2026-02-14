@@ -10,12 +10,18 @@ jobs:
     name: Unit Tests
     runs-on: macos-26
     timeout-minutes: 15
-    env:
-      GIT_LFS_SKIP_SMUDGE: "1"
 
     steps:
-      - name: Checkout code
+      - name: Checkout code (with LFS)
         uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install LFS models to SharedModels
+        run: |
+          mkdir -p ~/Library/SharedModels
+          cp -R Models/* ~/Library/SharedModels/
+          ls -lh ~/Library/SharedModels/
 
       - name: Show Swift version
         run: swift --version
@@ -23,39 +29,34 @@ jobs:
       - name: Run unit tests
         run: make test-unit
 
-  # Integration tests disabled in CI - require 3.4GB model downloads
-  # Run locally with: make test-integration
-  # integration-tests:
-  #   name: Integration Tests
-  #   runs-on: macos-26
-  #   timeout-minutes: 30
-  #   env:
-  #     GIT_LFS_SKIP_SMUDGE: "1"
-  #
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
-  #
-  #     - name: Cache models and voices
-  #       uses: actions/cache@v4
-  #       with:
-  #         path: |
-  #           ~/Library/SharedModels
-  #           ~/Library/Caches/intrusive-memory/Voices
-  #         key: tts-cache-v1
-  #         restore-keys: |
-  #           tts-cache-v1
-  #
-  #     - name: Show Swift version
-  #       run: swift --version
-  #
-  #     - name: Run integration tests
-  #       run: make test-integration
-  #
-  #     - name: Upload test audio artifacts on failure
-  #       if: failure()
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: test-audio-failures
-  #         path: /tmp/diga-test-*/
-  #         retention-days: 7
+  # Integration tests with LFS models
+  integration-tests:
+    name: Integration Tests
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code (with LFS)
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install LFS models to SharedModels
+        run: |
+          mkdir -p ~/Library/SharedModels
+          cp -R Models/* ~/Library/SharedModels/
+          ls -lh ~/Library/SharedModels/
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Run integration tests
+        run: make test-integration
+
+      - name: Upload test audio artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-audio-failures
+          path: /tmp/diga-test-*/
+          retention-days: 7

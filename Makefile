@@ -61,16 +61,14 @@ install: resolve
 		exit 1; \
 	fi
 
-# Fast unit tests (library only, no binary or model downloads required)
+# Fast unit tests (library + audio generation, no binary required)
+# Note: Audio tests use LFS model in CI, downloaded from HuggingFace locally
 test-unit:
-	@echo "Running unit tests (library only, no binary or model downloads required)..."
+	@echo "Running unit tests (library tests including audio generation)..."
 	xcodebuild test \
 	  -scheme $(TEST_SCHEME) \
 	  -destination 'platform=macOS' \
-	  -skip-testing:DigaTests/DigaBinaryIntegrationTests \
-	  -skip-testing:SwiftVoxAltaTests/VoxAltaVoiceProviderVoiceTests/testGenerateAudioWithPresetSpeaker \
-	  -skip-testing:SwiftVoxAltaTests/VoxAltaVoiceProviderVoiceTests/testGenerateAudioWithAllPresetSpeakers \
-	  -skip-testing:SwiftVoxAltaTests/VoxAltaVoiceProviderVoiceTests/testGenerateProcessedAudioDuration
+	  -skip-testing:DigaTests/DigaBinaryIntegrationTests
 
 # Integration tests (requires binary + cached voices)
 test-integration: install
