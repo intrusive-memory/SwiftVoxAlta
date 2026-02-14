@@ -180,15 +180,17 @@ VoxAlta provides 9 high-quality CustomVoice preset speakers for character voice 
 
 ### Available Voices
 
+**All voices are fully multilingual with English as their primary language.** Voice descriptions reference accent and prosody characteristics rather than exclusive language support.
+
 - **Ryan** -- Dynamic male voice with strong rhythmic drive
 - **Aiden** -- Sunny American male voice with clear midrange
-- **Vivian** -- Bright, slightly edgy young Chinese female voice
-- **Serena** -- Warm, gentle young Chinese female voice
-- **Uncle Fu** -- Seasoned Chinese male voice with low, mellow timbre
-- **Dylan** -- Youthful Beijing male voice with clear timbre
-- **Eric** -- Lively Chengdu male voice with husky brightness
-- **Anna** -- Playful Japanese female voice with light timbre
-- **Sohee** -- Warm Korean female voice with rich emotion
+- **Vivian** -- Bright, slightly edgy young Chinese female voice (English + Mandarin)
+- **Serena** -- Warm, gentle young Chinese female voice (English + Mandarin)
+- **Uncle Fu** -- Seasoned Chinese male voice with low, mellow timbre (English + Mandarin)
+- **Dylan** -- Youthful Beijing male voice with clear timbre (English + Mandarin)
+- **Eric** -- Lively Chengdu male voice with husky brightness (English + Mandarin)
+- **Anna** -- Playful Japanese female voice with light timbre (English + Japanese)
+- **Sohee** -- Warm Korean female voice with rich emotion (English + Korean)
 
 ### Quick Start
 
