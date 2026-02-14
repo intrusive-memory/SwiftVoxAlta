@@ -17,8 +17,8 @@ jobs:
 
       - name: Download model from HuggingFace
         run: |
-          brew install huggingface-cli
-          huggingface-cli download mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16 \
+          pip3 install --quiet huggingface_hub
+          python3 -m huggingface_hub.cli download mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16 \
             --local-dir ~/Library/SharedModels/mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16 \
             --local-dir-use-symlinks False
 
@@ -45,8 +45,8 @@ jobs:
 
       - name: Download model from HuggingFace
         run: |
-          brew install huggingface-cli
-          huggingface-cli download mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16 \
+          pip3 install --quiet huggingface_hub
+          python3 -m huggingface_hub.cli download mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16 \
             --local-dir ~/Library/SharedModels/mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16 \
             --local-dir-use-symlinks False
 
