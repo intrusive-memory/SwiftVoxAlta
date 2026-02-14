@@ -39,42 +39,45 @@ jobs:
         run: make test-unit
 
   # Integration tests with LFS models
-  integration-tests:
-    name: Integration Tests
-    runs-on: macos-26
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download model from HuggingFace
-        run: |
-          pip3 install --quiet --break-system-packages huggingface_hub
-          python3 -c "
-          from huggingface_hub import snapshot_download
-          snapshot_download(
-              repo_id='mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16',
-              local_dir='$HOME/Library/SharedModels/mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16',
-              local_dir_use_symlinks=False
-          )
-          "
-
-      - name: Verify model download
-        run: |
-          ls -lh ~/Library/SharedModels/mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16/
-          du -sh ~/Library/SharedModels/mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16/
-
-      - name: Show Swift version
-        run: swift --version
-
-      - name: Run integration tests
-        run: make test-integration
-
-      - name: Upload test audio artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-audio-failures
-          path: /tmp/diga-test-*/
-          retention-days: 7
+  # DISABLED: Metal compiler on GitHub Actions doesn't support features required by MLX
+  # These tests pass locally but fail on CI with: unsupported deferred-static-alloca-size
+  # Run integration tests locally to verify audio generation functionality
+  #integration-tests:
+  #  name: Integration Tests
+  #  runs-on: macos-26
+  #  timeout-minutes: 30
+  #
+  #  steps:
+  #    - name: Checkout code
+  #      uses: actions/checkout@v4
+  #
+  #    - name: Download model from HuggingFace
+  #      run: |
+  #        pip3 install --quiet --break-system-packages huggingface_hub
+  #        python3 -c "
+  #        from huggingface_hub import snapshot_download
+  #        snapshot_download(
+  #            repo_id='mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16',
+  #            local_dir='$HOME/Library/SharedModels/mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16',
+  #            local_dir_use_symlinks=False
+  #        )
+  #        "
+  #
+  #    - name: Verify model download
+  #      run: |
+  #        ls -lh ~/Library/SharedModels/mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16/
+  #        du -sh ~/Library/SharedModels/mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16/
+  #
+  #    - name: Show Swift version
+  #      run: swift --version
+  #
+  #    - name: Run integration tests
+  #      run: make test-integration
+  #
+  #    - name: Upload test audio artifacts on failure
+  #      if: failure()
+  #      uses: actions/upload-artifact@v4
+  #      with:
+  #        name: test-audio-failures
+  #        path: /tmp/diga-test-*/
+  #        retention-days: 7
