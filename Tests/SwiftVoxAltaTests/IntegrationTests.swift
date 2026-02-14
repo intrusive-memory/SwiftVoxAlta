@@ -193,7 +193,7 @@ struct VoiceProviderPipelineTests {
         #expect(configured == true, "Provider should report configured (no API key needed)")
 
         let voices = try await provider.fetchVoices(languageCode: "en")
-        #expect(voices.isEmpty, "No voices should be loaded initially")
+        #expect(voices.count == 9, "Should have 9 preset speakers initially")
     }
 
     @Test("Load voices, verify availability, then unload")
@@ -207,9 +207,9 @@ struct VoiceProviderPipelineTests {
         await provider.loadVoice(id: "ELENA", clonePromptData: elenaCloneData, gender: "female")
         await provider.loadVoice(id: "MARCUS", clonePromptData: marcusCloneData, gender: "male")
 
-        // Verify fetchVoices returns 2 voices
+        // Verify fetchVoices returns 9 preset speakers + 2 custom voices
         let voices = try await provider.fetchVoices(languageCode: "en")
-        #expect(voices.count == 2, "Should have 2 loaded voices")
+        #expect(voices.count == 11, "Should have 9 preset speakers + 2 custom voices")
 
         let voiceIds = Set(voices.map { $0.id })
         #expect(voiceIds.contains("ELENA"))
@@ -246,10 +246,10 @@ struct VoiceProviderPipelineTests {
         #expect(shortDuration > 0, "Short text should have positive duration estimate")
         #expect(longDuration > shortDuration, "Longer text should have longer duration estimate")
 
-        // Unload all voices and verify empty
+        // Unload all voices and verify presets remain
         await provider.unloadAllVoices()
         let afterUnload = try await provider.fetchVoices(languageCode: "en")
-        #expect(afterUnload.isEmpty, "All voices should be unloaded")
+        #expect(afterUnload.count == 9, "Should still have 9 preset speakers after unloading custom voices")
 
         let elenaStillAvailable = await provider.isVoiceAvailable(voiceId: "ELENA")
         #expect(elenaStillAvailable == false, "ELENA should no longer be available after unload")

@@ -425,4 +425,4 @@ For issues or feature requests:
 
 **Version**: 1.0
 **Last Updated**: February 2026
-**SwiftVoxAlta Version**: 0.2.0+
+**SwiftVoxAlta Version**: 0.2.1+

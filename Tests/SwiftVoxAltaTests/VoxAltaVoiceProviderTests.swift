@@ -156,7 +156,7 @@ struct VoxAltaVoiceProviderVoiceTests {
         #expect(available == false)
 
         let voices = try? await provider.fetchVoices(languageCode: "en")
-        #expect(voices?.isEmpty == true)
+        #expect(voices?.count == 9, "Should still have 9 preset speakers after unloading custom voice")
     }
 
     @Test("unloadAllVoices clears custom voices but presets remain")

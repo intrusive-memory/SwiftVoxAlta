@@ -2,7 +2,7 @@
 
 This file provides comprehensive documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.2.0
+**Current Version**: 0.2.1
 
 ---
 
@@ -69,7 +69,7 @@ SwiftVoxAlta/
 │       ├── DigaEngine.swift           # Synthesis engine (text -> WAV data)
 │       ├── DigaModelManager.swift     # Model download and cache management
 │       ├── TextChunker.swift          # Split long text for chunked synthesis
-│       ├── Version.swift              # Version constant (0.2.0)
+│       ├── Version.swift              # Version constant (0.2.1)
 │       └── VoiceStore.swift           # Persistent custom voice storage
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # Library tests
@@ -195,6 +195,29 @@ VoxAltaVoiceProvider automatically routes voice generation requests based on voi
        languageCode: "en"
    )
    ```
+
+### Multilingual Voice Support
+
+**All preset speakers are fully multilingual with English as their primary language.**
+
+While voice descriptions reference ethnic or regional characteristics (e.g., "Chinese female voice", "Japanese female voice"), **all 9 preset speakers have English as their first language** and their indicated regional language as a secondary language. This means:
+
+- **English requests return all voices** -- `fetchVoices(languageCode: "en")` returns all 9 preset speakers
+- **No language filtering** -- The `languageCode` parameter labels voices but does not filter them
+- **Universal availability** -- All voices work seamlessly for English text synthesis regardless of their descriptive labels
+
+Voice characteristics (e.g., "Chinese", "Japanese", "Korean") describe accent, prosody, and timbral qualities rather than exclusive language support.
+
+**Example:**
+```swift
+// All 9 preset speakers are returned for English
+let voices = try await provider.fetchVoices(languageCode: "en")
+// voices.count == 9 (plus any loaded custom voices)
+
+// Same voices are returned for other languages (just labeled differently)
+let voicesZh = try await provider.fetchVoices(languageCode: "zh")
+// voicesZh.count == 9 (same voices, language field set to "zh")
+```
 
 ### Integration with Produciesta
 

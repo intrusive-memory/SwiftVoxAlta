@@ -2,7 +2,7 @@
 
 This document lists all voices available in SwiftVoxAlta and the `diga` CLI.
 
-**Current Version**: 0.2.0
+**Current Version**: 0.2.1
 
 ---
 
