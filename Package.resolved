@@ -1,5 +1,5 @@
 {
-  "originHash" : "91b0528beb5ed08bf78ac9cc6c0eccd28b539654afa41fc29d9cfde07adc5a08",
+  "originHash" : "96a4312829e4a76ab84bbc776df76152f5a6afe3cb35f4776197ac5b5e78a0b0",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -17,6 +17,15 @@
       "state" : {
         "revision" : "ca2a9d90cbe49e09b92f4b6ebd922c03ebea51d0",
         "version" : "1.3.0"
+      }
+    },
+    {
+      "identity" : "mlx-audio-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/intrusive-memory/mlx-audio-swift.git",
+      "state" : {
+        "branch" : "development",
+        "revision" : "eedb0f5a34163976d499814d469373cfe7e05ae3"
       }
     },
     {
@@ -322,7 +331,7 @@
       "location" : "https://github.com/intrusive-memory/SwiftHablare.git",
       "state" : {
         "branch" : "development",
-        "revision" : "348c5596d91045a36a0cfd4b7596d1f0c9ed1abc"
+        "revision" : "119eabf1e73592ea512ebb7e5d75c65674b51500"
       }
     },
     {
