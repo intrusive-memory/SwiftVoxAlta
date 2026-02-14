@@ -8,7 +8,7 @@ For detailed project documentation, architecture, and development guidelines, se
 
 **Project**: SwiftVoxAlta - On-device voice design and cloning for screenplay characters
 
-**Version**: 0.2.0
+**Version**: 0.2.1
 
 **Platforms**: iOS 26.0+, macOS 26.0+ (Apple Silicon only)
 
