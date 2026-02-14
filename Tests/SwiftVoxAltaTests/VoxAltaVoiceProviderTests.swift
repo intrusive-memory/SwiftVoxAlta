@@ -176,7 +176,10 @@ struct VoxAltaVoiceProviderVoiceTests {
         #expect(voices?.count == 9, "Should still have 9 preset speakers")
     }
 
-    @Test("Dual-mode routing: preset vs clone prompt")
+    @Test(
+        "Dual-mode routing: preset vs clone prompt",
+        .disabled(if: ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil, "Metal compiler not supported on GitHub Actions")
+    )
     func testDualModeRouting() async throws {
         let provider = VoxAltaVoiceProvider()
 
@@ -190,7 +193,10 @@ struct VoxAltaVoiceProviderVoiceTests {
         }
     }
 
-    @Test("Generate audio with preset speaker 'ryan'")
+    @Test(
+        "Generate audio with preset speaker 'ryan'",
+        .disabled(if: ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil, "Metal compiler not supported on GitHub Actions")
+    )
     func testGenerateAudioWithPresetSpeaker() async throws {
         let provider = VoxAltaVoiceProvider()
         let audio = try await provider.generateAudio(
@@ -206,7 +212,10 @@ struct VoxAltaVoiceProviderVoiceTests {
         #expect(riff == "RIFF", "Should be WAV format (RIFF header)")
     }
 
-    @Test("Generate audio with all 9 preset speakers")
+    @Test(
+        "Generate audio with all 9 preset speakers",
+        .disabled(if: ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil, "Metal compiler not supported on GitHub Actions")
+    )
     func testGenerateAudioWithAllPresetSpeakers() async throws {
         let provider = VoxAltaVoiceProvider()
         let presetIds = ["ryan", "aiden", "vivian", "serena", "uncle_fu", "dylan", "eric", "anna", "sohee"]
@@ -221,7 +230,10 @@ struct VoxAltaVoiceProviderVoiceTests {
         }
     }
 
-    @Test("Generated audio has expected duration")
+    @Test(
+        "Generated audio has expected duration",
+        .disabled(if: ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil, "Metal compiler not supported on GitHub Actions")
+    )
     func testGenerateProcessedAudioDuration() async throws {
         let provider = VoxAltaVoiceProvider()
         let text = "This is a test sentence."
@@ -243,7 +255,10 @@ struct VoxAltaVoiceProviderVoiceTests {
 
 // MARK: - Audio Generation
 
-@Suite("VoxAltaVoiceProvider - Audio Generation")
+@Suite(
+    "VoxAltaVoiceProvider - Audio Generation",
+    .disabled(if: ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil, "Metal compiler not supported on GitHub Actions")
+)
 struct VoxAltaVoiceProviderAudioTests {
 
     @Test("generateAudio throws voiceNotLoaded for unloaded voice")
