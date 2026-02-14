@@ -62,13 +62,23 @@ install: resolve
 	fi
 
 # Fast unit tests (library + audio generation, no binary required)
-# Note: Audio tests use LFS model in CI, downloaded from HuggingFace locally
+# Note: SwiftVoxAltaTests skipped on CI due to Metal compiler limitations
 test-unit:
-	@echo "Running unit tests (library tests including audio generation)..."
+	@echo "Running unit tests..."
+ifdef GITHUB_ACTIONS
+	@echo "CI detected: Skipping SwiftVoxAltaTests (Metal incompatible), running only DigaTests"
+	xcodebuild test \
+	  -scheme $(TEST_SCHEME) \
+	  -destination 'platform=macOS' \
+	  -only-testing:DigaTests \
+	  -skip-testing:DigaTests/DigaBinaryIntegrationTests
+else
+	@echo "Local run: Running all tests (DigaTests + SwiftVoxAltaTests)"
 	xcodebuild test \
 	  -scheme $(TEST_SCHEME) \
 	  -destination 'platform=macOS' \
 	  -skip-testing:DigaTests/DigaBinaryIntegrationTests
+endif
 
 # Integration tests (requires binary + cached voices)
 test-integration: install
