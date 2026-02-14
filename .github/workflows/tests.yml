@@ -18,9 +18,14 @@ jobs:
       - name: Download model from HuggingFace
         run: |
           pip3 install --quiet --break-system-packages huggingface_hub
-          huggingface-cli download mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16 \
-            --local-dir ~/Library/SharedModels/mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16 \
-            --local-dir-use-symlinks False
+          python3 -c "
+          from huggingface_hub import snapshot_download
+          snapshot_download(
+              repo_id='mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16',
+              local_dir='$HOME/Library/SharedModels/mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16',
+              local_dir_use_symlinks=False
+          )
+          "
 
       - name: Verify model download
         run: |
@@ -46,9 +51,14 @@ jobs:
       - name: Download model from HuggingFace
         run: |
           pip3 install --quiet --break-system-packages huggingface_hub
-          huggingface-cli download mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16 \
-            --local-dir ~/Library/SharedModels/mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16 \
-            --local-dir-use-symlinks False
+          python3 -c "
+          from huggingface_hub import snapshot_download
+          snapshot_download(
+              repo_id='mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16',
+              local_dir='$HOME/Library/SharedModels/mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16',
+              local_dir_use_symlinks=False
+          )
+          "
 
       - name: Verify model download
         run: |
