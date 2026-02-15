@@ -153,11 +153,13 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
             designInstruction: ""  // Not needed for generation
         )
 
+        // Pass the cache to enable clone prompt caching
         return try await VoiceLockManager.generateAudio(
             text: text,
             voiceLock: voiceLock,
             language: languageCode,
-            modelManager: modelManager
+            modelManager: modelManager,
+            cache: voiceCache
         )
     }
 

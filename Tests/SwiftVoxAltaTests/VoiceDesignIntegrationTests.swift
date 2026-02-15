@@ -249,4 +249,79 @@ struct VoiceDesignIntegrationTests {
         // decoding and comparing spectral features, but the test validates that
         // the clone prompt survives serialization and can be reused.
     }
+
+    // MARK: - Clone Prompt Caching Test
+
+    @Test("Clone prompt cache avoids repeated deserialization")
+    func clonePromptCaching() async throws {
+        // This test verifies that the clone prompt cache works correctly:
+        // - First generation deserializes and caches the clone prompt
+        // - Second generation reuses the cached clone prompt (cache hit)
+        // - Cache is cleared when unloadAllVoices() is called
+
+        let profile = CharacterProfile(
+            name: "CACHE_TEST",
+            gender: .male,
+            ageRange: "40s",
+            description: "A test character for clone prompt caching validation.",
+            voiceTraits: ["deep", "authoritative"],
+            summary: "A male test character in his 40s."
+        )
+
+        let modelManager = VoxAltaModelManager()
+        let cache = VoxAltaVoiceCache()
+        let voiceDescription = VoiceDesigner.composeVoiceDescription(from: profile)
+
+        // Generate candidate and create lock
+        let candidate = try await VoiceDesigner.generateCandidate(
+            profile: profile,
+            modelManager: modelManager
+        )
+
+        let voiceLock = try await VoiceLockManager.createLock(
+            characterName: profile.name,
+            candidateAudio: candidate,
+            designInstruction: voiceDescription,
+            modelManager: modelManager
+        )
+
+        // First generation - cache miss, should deserialize and cache
+        let audio1 = try await VoiceLockManager.generateAudio(
+            text: "First test sentence.",
+            voiceLock: voiceLock,
+            language: "en",
+            modelManager: modelManager,
+            cache: cache
+        )
+
+        // Verify cache now contains the clone prompt
+        let cachedPrompt = await cache.getClonePrompt(id: profile.name)
+        #expect(cachedPrompt != nil, "Clone prompt should be cached after first generation")
+
+        // Second generation - cache hit, should reuse cached clone prompt
+        let audio2 = try await VoiceLockManager.generateAudio(
+            text: "Second test sentence.",
+            voiceLock: voiceLock,
+            language: "en",
+            modelManager: modelManager,
+            cache: cache
+        )
+
+        // Verify both generations produced valid WAV data
+        #expect(audio1.count > 0, "First generation should not be empty")
+        #expect(audio2.count > 0, "Second generation should not be empty")
+
+        let riff1 = String(data: audio1.prefix(4), encoding: .ascii)
+        let riff2 = String(data: audio2.prefix(4), encoding: .ascii)
+        #expect(riff1 == "RIFF", "First generation should be RIFF WAV")
+        #expect(riff2 == "RIFF", "Second generation should be RIFF WAV")
+
+        // Clear cache and verify clone prompt is removed
+        await cache.removeAll()
+        let clearedPrompt = await cache.getClonePrompt(id: profile.name)
+        #expect(clearedPrompt == nil, "Clone prompt should be cleared after removeAll()")
+
+        // Performance note: Second generation should be ~2x faster due to cache hit.
+        // Log output will show "cache hit" vs "cache miss - deserialized" messages.
+    }
 }

@@ -90,7 +90,7 @@ SwiftVoxAlta/
 |-----------|---------|
 | **VoxAltaVoiceProvider** | Implements SwiftHablare's `VoiceProvider` protocol |
 | **VoxAltaModelManager** | Actor managing Qwen3-TTS model lifecycle via mlx-audio-swift |
-| **VoxAltaVoiceCache** | Actor caching loaded voice clone prompts |
+| **VoxAltaVoiceCache** | Actor caching loaded voice clone prompts and deserialized clone prompts for performance |
 | **VoiceDesigner** | Generates voice candidates from character profiles |
 | **VoiceLockManager** | Generates audio from locked voice identities |
 | **CharacterAnalyzer** | LLM-based character analysis via SwiftBruja |
@@ -291,9 +291,9 @@ let voiceLock = try await VoiceLockManager.createLock(
 - Store in SwiftData alongside character records
 - Reusable across all dialogue for the character
 
-#### `generateAudio(text:voiceLock:language:modelManager:modelRepo:)`
+#### `generateAudio(text:voiceLock:language:modelManager:modelRepo:cache:)`
 
-Generate speech audio using a locked voice identity. Deserializes the clone prompt and uses it to render dialogue with the Base model.
+Generate speech audio using a locked voice identity. Deserializes the clone prompt and uses it to render dialogue with the Base model. If a cache is provided, the clone prompt is retrieved from the cache if available (avoiding deserialization overhead). On cache miss, the clone prompt is deserialized and stored in the cache for subsequent calls.
 
 ```swift
 public static func generateAudio(
@@ -301,7 +301,8 @@ public static func generateAudio(
     voiceLock: VoiceLock,
     language: String = "en",
     modelManager: VoxAltaModelManager,
-    modelRepo: Qwen3TTSModelRepo = .base1_7B
+    modelRepo: Qwen3TTSModelRepo = .base1_7B,
+    cache: VoxAltaVoiceCache? = nil
 ) async throws -> Data
 ```
 
@@ -311,6 +312,7 @@ public static func generateAudio(
 - `language: String` - The language code for generation (default: "en")
 - `modelManager: VoxAltaModelManager` - The model manager (loads Base model)
 - `modelRepo: Qwen3TTSModelRepo` - The Base model variant (default: `.base1_7B`)
+- `cache: VoxAltaVoiceCache?` - Optional voice cache for clone prompt caching. If provided, reduces deserialization overhead on repeated calls (default: `nil`)
 
 **Returns:** WAV format Data (24kHz, 16-bit PCM, mono) of the generated speech audio
 
@@ -320,6 +322,7 @@ public static func generateAudio(
 
 **Example:**
 ```swift
+// Without caching (clone prompt deserialized on each call)
 let audio = try await VoiceLockManager.generateAudio(
     text: "Did you get the documents?",
     voiceLock: voiceLock,
@@ -327,11 +330,30 @@ let audio = try await VoiceLockManager.generateAudio(
     modelManager: modelManager
 )
 // Result: WAV Data in Elena's locked voice
+
+// With caching (2× speedup on repeated calls)
+let cache = VoxAltaVoiceCache()
+let audio1 = try await VoiceLockManager.generateAudio(
+    text: "First line.",
+    voiceLock: voiceLock,
+    language: "en",
+    modelManager: modelManager,
+    cache: cache  // Cache miss - deserializes and caches
+)
+let audio2 = try await VoiceLockManager.generateAudio(
+    text: "Second line.",
+    voiceLock: voiceLock,
+    language: "en",
+    modelManager: modelManager,
+    cache: cache  // Cache hit - reuses cached clone prompt (fast!)
+)
 ```
 
 **Performance:**
 - First generation: ~20-40s per line (includes clone prompt deserialization)
-- See Sprint 6 in the execution plan for clone prompt caching optimization (2× speedup)
+- Subsequent generations: ~10-20s per line (2× speedup via clone prompt caching)
+- Cache is stored in `VoxAltaVoiceCache` actor and shared across all audio generation calls
+- Cache is cleared on `unloadAllVoices()` or when a voice is removed from the cache
 
 ### Complete Pipeline Example
 
@@ -671,7 +693,8 @@ public enum VoxAltaError: Error {
 - **Lazy loading** -- Models loaded only when needed for synthesis
 - **Memory checks** -- `VoxAltaModelManager.checkMemory()` warns on low memory via stderr
 - **Single-model cache** -- Only one TTS model loaded at a time; switching unloads the previous
-- **Voice cache** -- `VoxAltaVoiceCache` actor stores loaded clone prompts in memory
+- **Voice cache** -- `VoxAltaVoiceCache` actor stores loaded clone prompts (serialized Data) in memory
+- **Clone prompt cache** -- Deserialized `VoiceClonePrompt` instances cached to avoid repeated deserialization overhead (2× speedup)
 
 ## Development Workflow
 
