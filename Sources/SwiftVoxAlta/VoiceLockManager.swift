@@ -10,6 +10,14 @@ import Foundation
 @preconcurrency import MLX
 @preconcurrency import MLXLMCommon
 
+/// Internal logger for VoiceLockManager clone prompt caching.
+/// Writes to stderr to match the project-wide logging convention.
+private enum VoiceLockManagerLogger {
+    static func log(_ message: String) {
+        FileHandle.standardError.write(Data("[VoiceLockManager] \(message)\n".utf8))
+    }
+}
+
 /// Manages creation and use of `VoiceLock` instances for voice cloning.
 ///
 /// `VoiceLockManager` is an enum namespace with static methods. It handles:
@@ -112,12 +120,18 @@ public enum VoiceLockManager: Sendable {
     /// audio with a Base model. The resulting audio reproduces the locked voice
     /// identity consistently across calls.
     ///
+    /// If a cache is provided, the clone prompt is retrieved from the cache if available
+    /// (avoiding deserialization overhead). On cache miss, the clone prompt is deserialized
+    /// and stored in the cache for subsequent calls.
+    ///
     /// - Parameters:
     ///   - text: The text to synthesize.
     ///   - voiceLock: The voice lock containing the serialized clone prompt.
     ///   - language: The language code for generation. Defaults to "en".
     ///   - modelManager: The model manager used to load the Base model.
     ///   - modelRepo: The Base model variant to use for generation. Defaults to `.base1_7B`.
+    ///   - cache: Optional voice cache for clone prompt caching. If provided, reduces
+    ///            deserialization overhead on repeated calls.
     /// - Returns: WAV format Data of the generated speech audio (24kHz, 16-bit PCM, mono).
     /// - Throws: `VoxAltaError.cloningFailed` if generation fails,
     ///           `VoxAltaError.modelNotAvailable` if the Base model cannot be loaded.
@@ -126,7 +140,8 @@ public enum VoiceLockManager: Sendable {
         voiceLock: VoiceLock,
         language: String = "en",
         modelManager: VoxAltaModelManager,
-        modelRepo: Qwen3TTSModelRepo = .base1_7B
+        modelRepo: Qwen3TTSModelRepo = .base1_7B,
+        cache: VoxAltaVoiceCache? = nil
     ) async throws -> Data {
         // Load Base model
         let model = try await modelManager.loadModel(modelRepo)
@@ -138,14 +153,27 @@ public enum VoiceLockManager: Sendable {
             )
         }
 
-        // Deserialize clone prompt
+        // Check cache for deserialized clone prompt first
         let clonePrompt: VoiceClonePrompt
-        do {
-            clonePrompt = try VoiceClonePrompt.deserialize(from: voiceLock.clonePromptData)
-        } catch {
-            throw VoxAltaError.cloningFailed(
-                "Failed to deserialize voice clone prompt for '\(voiceLock.characterName)': \(error.localizedDescription)"
-            )
+        if let cache = cache, let cached = await cache.getClonePrompt(id: voiceLock.characterName) {
+            clonePrompt = cached
+            VoiceLockManagerLogger.log("Clone prompt cache hit for '\(voiceLock.characterName)'")
+        } else {
+            // Cache miss - deserialize clone prompt
+            do {
+                clonePrompt = try VoiceClonePrompt.deserialize(from: voiceLock.clonePromptData)
+                VoiceLockManagerLogger.log("Clone prompt cache miss for '\(voiceLock.characterName)' - deserialized")
+            } catch {
+                throw VoxAltaError.cloningFailed(
+                    "Failed to deserialize voice clone prompt for '\(voiceLock.characterName)': \(error.localizedDescription)"
+                )
+            }
+
+            // Store in cache for next time
+            if let cache = cache {
+                await cache.storeClonePrompt(id: voiceLock.characterName, clonePrompt: clonePrompt)
+                VoiceLockManagerLogger.log("Stored clone prompt in cache for '\(voiceLock.characterName)'")
+            }
         }
 
         // Generate audio with clone prompt

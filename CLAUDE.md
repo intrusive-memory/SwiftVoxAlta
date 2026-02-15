@@ -1,48 +1,64 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+**Claude Code-specific instructions for SwiftVoxAlta**
 
-For detailed project documentation, architecture, and development guidelines, see **[AGENTS.md](AGENTS.md)**.
+For comprehensive project documentation, architecture, API reference, and development guidelines, see **[AGENTS.md](AGENTS.md)**.
 
-## Quick Reference
+---
 
-**Project**: SwiftVoxAlta - On-device voice design and cloning for screenplay characters
+## Claude Code Tool Preferences
 
-**Version**: 0.2.1
+### Build System
 
-**Platforms**: iOS 26.0+, macOS 26.0+ (Apple Silicon only)
+**CRITICAL**: Always use `xcodebuild` or Makefile targets. NEVER use `swift build` or `swift test`.
 
-**Purpose**: VoiceProvider library for SwiftHablare using Qwen3-TTS for character-driven voice design.
+```bash
+# ✅ CORRECT
+make build
+make test
+xcodebuild build -scheme SwiftVoxAlta -destination 'platform=macOS'
 
-## Key Components
+# ❌ WRONG - Metal shaders won't compile
+swift build
+swift test
+```
 
-- **VoiceProvider implementation** - text + voiceId -> audio Data via Qwen3-TTS
-- **Voice design API** - character evidence -> CharacterProfile -> voice candidates -> locked voice
-- **`diga` CLI** - drop-in replacement for `/usr/bin/say` with neural TTS
-- **Auto-registration** - VoiceProviderDescriptor for SwiftHablare registry
+**Why**: Qwen3-TTS requires Metal shader compilation which only works with `xcodebuild`.
 
-## Important Notes
+### Tool Usage
 
-- **Apple Silicon only** - Qwen3-TTS requires Metal/MLX (NO Intel support)
-- **ONLY supports iOS 26.0+ and macOS 26.0+** (NEVER add code for older platforms)
-- **NEVER add `@available` attributes** for versions below iOS 26/macOS 26
-- **MUST build with `xcodebuild`** (Metal shaders required, `swift build` won't work)
-- **Use Makefile targets** for builds: `make build`, `make release`, `make test`
-- **Experimental status** - APIs in active development, subject to change
+- **Read/Write/Edit** - Prefer these over `cat`, `sed`, `echo >>`
+- **Glob** - Prefer over `find` or `ls` for file discovery
+- **Grep** - Prefer over `grep` or `rg` for content search
+- **Bash** - Reserve for git, build commands, system operations only
 
-## What Belongs Here
+### Testing Workflow
 
-- VoiceProvider protocol implementation
-- Character analysis and voice design
-- Clone prompt generation and locking
-- Qwen3-TTS audio synthesis
-- CLI tool for voice management
+```bash
+# Fast iteration during development
+make test-unit          # ~5-10 seconds, no binary required
 
-## What Doesn't Belong
+# Before submitting PR
+make test              # ~15-60 seconds, includes integration tests
+```
 
-- Fountain parsing (SwiftCompartido)
-- Voice selection UI (app layer)
-- Audio storage (Produciesta/SwiftData)
-- Streaming playback (SwiftHablare)
+### Git Workflow
 
-See [AGENTS.md](AGENTS.md) for complete documentation, voice design pipeline, CLI commands, and integration patterns.
+- Branch: `development` → PR → `main`
+- Never commit directly to `main`
+- Use `/ship-swift-library` skill for releases
+
+### Platform Constraints
+
+- **ONLY** iOS 26.0+ and macOS 26.0+
+- **NEVER** add `@available` attributes for older versions
+- **Apple Silicon only** - M1/M2/M3/M4 required
+
+---
+
+**See [AGENTS.md](AGENTS.md) for:**
+- Complete API documentation and usage examples
+- Voice design pipeline and character analysis
+- CLI commands and voice management
+- Architecture patterns and design decisions
+- Integration guides for SwiftHablare/Produciesta

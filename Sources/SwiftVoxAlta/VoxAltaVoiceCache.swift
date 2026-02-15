@@ -6,12 +6,17 @@
 //
 
 import Foundation
+@preconcurrency import MLXAudioTTS
 
 /// Thread-safe cache for voice clone prompt data, keyed by voice ID (character name).
 ///
 /// `VoxAltaVoiceCache` is an actor that stores deserialized clone prompt data
 /// along with optional metadata (gender) for each loaded voice. The cache is
 /// used by `VoxAltaVoiceProvider` to look up clone prompts when generating audio.
+///
+/// In addition to storing serialized clone prompt data, this cache maintains
+/// deserialized `VoiceClonePrompt` instances to avoid repeated deserialization
+/// overhead during audio generation.
 public actor VoxAltaVoiceCache {
 
     /// A cached voice entry containing clone prompt data and optional metadata.
@@ -31,6 +36,10 @@ public actor VoxAltaVoiceCache {
     // MARK: - State
 
     private var voices: [String: CachedVoice] = [:]
+
+    /// Cache of deserialized clone prompts to avoid repeated deserialization.
+    /// Keyed by voice ID (character name). Cleared on unloadAllVoices().
+    private var clonePromptCache: [String: VoiceClonePrompt] = [:]
 
     // MARK: - Public API
 
@@ -54,6 +63,7 @@ public actor VoxAltaVoiceCache {
     /// Remove all voices from the cache.
     public func removeAll() {
         voices.removeAll()
+        clonePromptCache.removeAll()
     }
 
     /// Retrieve a cached voice by ID.
@@ -81,5 +91,24 @@ public actor VoxAltaVoiceCache {
     /// The number of voices currently in the cache.
     public var count: Int {
         voices.count
+    }
+
+    // MARK: - Clone Prompt Cache
+
+    /// Retrieve a deserialized clone prompt from the cache.
+    ///
+    /// - Parameter id: The voice identifier to look up.
+    /// - Returns: The cached `VoiceClonePrompt`, or `nil` if not found.
+    public func getClonePrompt(id: String) -> VoiceClonePrompt? {
+        clonePromptCache[id]
+    }
+
+    /// Store a deserialized clone prompt in the cache.
+    ///
+    /// - Parameters:
+    ///   - id: The voice identifier (character name).
+    ///   - clonePrompt: The deserialized `VoiceClonePrompt` to cache.
+    public func storeClonePrompt(id: String, clonePrompt: VoiceClonePrompt) {
+        clonePromptCache[id] = clonePrompt
     }
 }

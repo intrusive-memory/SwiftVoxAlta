@@ -11,6 +11,14 @@ import Foundation
 @preconcurrency import MLX
 @preconcurrency import MLXLMCommon
 
+/// Internal logger for VoiceDesigner performance metrics.
+/// Writes to stderr to match the project-wide logging convention.
+private enum VoiceDesignerLogger {
+    static func log(_ message: String) {
+        FileHandle.standardError.write(Data("[VoiceDesigner] \(message)\n".utf8))
+    }
+}
+
 /// Voice design utilities for composing voice descriptions and generating candidate audio
 /// from `CharacterProfile` data using Qwen3-TTS VoiceDesign models.
 ///
@@ -121,33 +129,119 @@ public enum VoiceDesigner: Sendable {
         }
     }
 
-    /// Generate multiple voice candidates from a character profile.
+    /// Generate multiple voice candidates from a character profile using parallel generation.
     ///
     /// Each candidate uses the same voice description but will produce a slightly
     /// different voice due to sampling stochasticity. The returned array contains
-    /// WAV format Data for each candidate.
+    /// WAV format Data for each candidate, ordered by candidate index.
+    ///
+    /// Candidates are generated concurrently using a `TaskGroup`. The VoiceDesign model
+    /// is loaded once before spawning tasks, and all tasks share the same model instance.
+    /// Performance metrics (total wall-clock time and per-candidate timing) are logged
+    /// to stderr.
     ///
     /// - Parameters:
     ///   - profile: The character profile to design voices for.
     ///   - count: The number of candidates to generate. Defaults to 3.
     ///   - modelManager: The model manager used to load the VoiceDesign model.
-    /// - Returns: An array of WAV audio Data, one per candidate.
-    /// - Throws: `VoxAltaError.voiceDesignFailed` if any generation fails.
+    /// - Returns: An array of WAV audio Data, one per candidate, in index order.
+    /// - Throws: `VoxAltaError.voiceDesignFailed` if any generation fails,
+    ///           `VoxAltaError.modelNotAvailable` if the model cannot be loaded.
     public static func generateCandidates(
         profile: CharacterProfile,
         count: Int = 3,
         modelManager: VoxAltaModelManager
     ) async throws -> [Data] {
-        var candidates: [Data] = []
-        candidates.reserveCapacity(count)
+        let clock = ContinuousClock()
+        let totalStart = clock.now
 
-        for _ in 0..<count {
-            let candidate = try await generateCandidate(
-                profile: profile,
-                modelManager: modelManager
+        // Pre-load the VoiceDesign model once (avoids redundant actor calls per task)
+        let model = try await modelManager.loadModel(.voiceDesign1_7B)
+
+        guard let qwenModel = model as? Qwen3TTSModel else {
+            throw VoxAltaError.voiceDesignFailed(
+                "Loaded model is not a Qwen3TTSModel. Got \(type(of: model))."
             )
-            candidates.append(candidate)
         }
+
+        // Compose the voice description once (pure function, no model needed)
+        let voiceDescription = composeVoiceDescription(from: profile)
+
+        let generationParams = GenerateParameters(
+            temperature: 0.7,
+            topP: 0.9,
+            repetitionPenalty: 1.1
+        )
+
+        VoiceDesignerLogger.log(
+            "Generating \(count) candidate(s) for '\(profile.name)' in parallel..."
+        )
+
+        // Generate candidates concurrently using TaskGroup.
+        // Each task returns (index, Data) to preserve ordering.
+        let indexedCandidates: [(Int, Data)] = try await withThrowingTaskGroup(
+            of: (Int, Data).self
+        ) { group in
+            for index in 0..<count {
+                group.addTask {
+                    let candidateStart = clock.now
+
+                    let audioArray: MLXArray
+                    do {
+                        audioArray = try await qwenModel.generate(
+                            text: sampleText,
+                            voice: voiceDescription,
+                            refAudio: nil,
+                            refText: nil,
+                            language: "en",
+                            generationParameters: generationParams
+                        )
+                    } catch {
+                        throw VoxAltaError.voiceDesignFailed(
+                            "Failed to generate voice candidate \(index) for '\(profile.name)': \(error.localizedDescription)"
+                        )
+                    }
+
+                    let wavData: Data
+                    do {
+                        wavData = try AudioConversion.mlxArrayToWAVData(
+                            audioArray, sampleRate: qwenModel.sampleRate
+                        )
+                    } catch {
+                        throw VoxAltaError.audioExportFailed(
+                            "Failed to convert candidate \(index) audio to WAV: \(error.localizedDescription)"
+                        )
+                    }
+
+                    let candidateElapsed = clock.now - candidateStart
+                    VoiceDesignerLogger.log(
+                        "Candidate \(index) generated in \(candidateElapsed)"
+                    )
+
+                    return (index, wavData)
+                }
+            }
+
+            // Collect all results, preserving order
+            var results: [(Int, Data)] = []
+            results.reserveCapacity(count)
+
+            for try await result in group {
+                results.append(result)
+            }
+
+            return results
+        }
+
+        // Sort by index to ensure deterministic output order
+        let candidates = indexedCandidates
+            .sorted { $0.0 < $1.0 }
+            .map(\.1)
+
+        let totalElapsed = clock.now - totalStart
+        VoiceDesignerLogger.log(
+            "All \(count) candidate(s) generated in \(totalElapsed) (wall-clock)"
+        )
 
         return candidates
     }

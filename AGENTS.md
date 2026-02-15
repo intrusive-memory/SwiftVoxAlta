@@ -2,7 +2,7 @@
 
 This file provides comprehensive documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.2.1
+**Current Version**: 0.3.0
 
 ---
 
@@ -90,12 +90,13 @@ SwiftVoxAlta/
 |-----------|---------|
 | **VoxAltaVoiceProvider** | Implements SwiftHablare's `VoiceProvider` protocol |
 | **VoxAltaModelManager** | Actor managing Qwen3-TTS model lifecycle via mlx-audio-swift |
-| **VoxAltaVoiceCache** | Actor caching loaded voice clone prompts |
+| **VoxAltaVoiceCache** | Actor caching loaded voice clone prompts and deserialized clone prompts for performance |
 | **VoiceDesigner** | Generates voice candidates from character profiles |
 | **VoiceLockManager** | Generates audio from locked voice identities |
 | **CharacterAnalyzer** | LLM-based character analysis via SwiftBruja |
 | **CharacterEvidenceExtractor** | Extracts evidence from screenplay elements |
 | **CharacterProfile** | Structured character attributes for voice design |
+| **AppleSiliconInfo** | Apple Silicon generation detection (M1-M5) and Neural Accelerator status |
 | **VoxAltaConfig** | Configuration (model IDs, candidate count, output format) |
 | **VoxAltaProviderDescriptor** | Factory for SwiftHablare registry registration |
 | **`diga` CLI** | Drop-in `say` replacement with neural TTS |
@@ -111,14 +112,296 @@ SwiftVoxAlta/
 | [SwiftAcervo](https://github.com/intrusive-memory/SwiftAcervo) | Shared model management and caching |
 | [swift-argument-parser](https://github.com/apple/swift-argument-parser) | CLI argument parsing |
 
+### mlx-audio-swift Fork Notes
+
+VoxAlta uses a pinned fork of `mlx-audio-swift` from the intrusive-memory GitHub org:
+
+- **Repository**: `https://github.com/intrusive-memory/mlx-audio-swift.git`
+- **Pinned Commit**: `eedb0f5a34163976d499814d469373cfe7e05ae3`
+- **Rationale**: Fork includes VoiceDesign v1 support (via PR #23 from upstream) and voice cloning with clone prompts. Pinned to ensure reproducible builds while waiting for upstream integration.
+- **Fork Basis**: Main branch + PR #23 (VoiceDesign support by INQTR)
+- **Plan**: Upstream PR to base repo after fork validation and performance optimization complete
+
+This fork enables:
+- **VoiceDesign**: Text description → novel voice generation (1.7B model)
+- **Voice Cloning**: Reference audio → clone prompt generation (Base 0.6B/1.7B models)
+- **VoiceDesignIntegrationTests**: Full pipeline testing on-device
+
 ## Voice Design Pipeline
+
+VoxAlta provides a complete VoiceDesign pipeline for creating custom character voices from screenplay evidence. The pipeline uses Qwen3-TTS VoiceDesign models to generate novel voices and Base models to lock and reproduce them consistently.
+
+### Pipeline Steps
 
 1. **Character Evidence Collection** -- Extract dialogue, parentheticals, actions, and scene headings from screenplay elements
 2. **LLM Analysis** -- Use SwiftBruja to analyze character traits, age, gender, personality
 3. **Profile Creation** -- Structure character attributes into `CharacterProfile`
-4. **Voice Candidate Generation** -- Generate VoiceDesign descriptions based on profile
-5. **Voice Locking** -- Select candidate and lock voice identity as a `VoiceLock` with clone prompt data
-6. **Audio Synthesis** -- Render dialogue using Qwen3-TTS Base model with the locked clone prompt
+4. **Voice Candidate Generation** -- Generate voice samples from text description (VoiceDesign model)
+5. **Voice Locking** -- Extract clone prompt from selected candidate (Base model)
+6. **Audio Synthesis** -- Render dialogue using locked clone prompt (Base model)
+
+### VoiceDesigner API
+
+`VoiceDesigner` is an enum namespace providing voice description composition and candidate generation.
+
+#### `composeVoiceDescription(from:)`
+
+Compose a Qwen3-TTS VoiceDesign description string from a character profile.
+
+```swift
+public static func composeVoiceDescription(from profile: CharacterProfile) -> String
+```
+
+**Parameters:**
+- `profile: CharacterProfile` - The character profile to compose a description from
+
+**Returns:** A voice description string suitable for VoiceDesign generation
+
+**Format:** `"A {gender} voice, {ageRange}. {summary}. Voice traits: {traits joined}."`
+
+**Example:**
+```swift
+let profile = CharacterProfile(
+    name: "ELENA",
+    gender: .female,
+    ageRange: "30s",
+    description: "A determined investigative journalist.",
+    voiceTraits: ["warm", "confident", "slightly husky"],
+    summary: "A female journalist in her 30s."
+)
+
+let description = VoiceDesigner.composeVoiceDescription(from: profile)
+// Result: "A female voice, 30s. A female journalist in her 30s. Voice traits: warm, confident, slightly husky."
+```
+
+#### `generateCandidate(profile:modelManager:)`
+
+Generate a single voice candidate from a character profile using the VoiceDesign 1.7B model.
+
+```swift
+public static func generateCandidate(
+    profile: CharacterProfile,
+    modelManager: VoxAltaModelManager
+) async throws -> Data
+```
+
+**Parameters:**
+- `profile: CharacterProfile` - The character profile to design a voice for
+- `modelManager: VoxAltaModelManager` - The model manager (loads VoiceDesign model)
+
+**Returns:** WAV audio Data (24kHz, 16-bit PCM, mono) of the generated voice candidate
+
+**Throws:**
+- `VoxAltaError.voiceDesignFailed` - Generation failed
+- `VoxAltaError.modelNotAvailable` - VoiceDesign model cannot be loaded
+
+**Example:**
+```swift
+let modelManager = VoxAltaModelManager()
+let candidate = try await VoiceDesigner.generateCandidate(
+    profile: profile,
+    modelManager: modelManager
+)
+// Result: WAV Data (~5-10 seconds of audio)
+```
+
+#### `generateCandidates(profile:count:modelManager:)`
+
+Generate multiple voice candidates from a character profile using parallel generation. Each candidate uses the same voice description but produces a different voice due to sampling stochasticity. Candidates are returned in index order regardless of completion order.
+
+```swift
+public static func generateCandidates(
+    profile: CharacterProfile,
+    count: Int = 3,
+    modelManager: VoxAltaModelManager
+) async throws -> [Data]
+```
+
+**Parameters:**
+- `profile: CharacterProfile` - The character profile to design voices for
+- `count: Int` - The number of candidates to generate (default: 3)
+- `modelManager: VoxAltaModelManager` - The model manager (loads VoiceDesign model)
+
+**Returns:** An array of WAV audio Data, one per candidate, in index order
+
+**Throws:**
+- `VoxAltaError.voiceDesignFailed` - Any generation fails
+- `VoxAltaError.modelNotAvailable` - VoiceDesign model cannot be loaded
+
+**Example:**
+```swift
+let candidates = try await VoiceDesigner.generateCandidates(
+    profile: profile,
+    count: 3,
+    modelManager: modelManager
+)
+// Result: [Data, Data, Data] - 3 different voice samples
+```
+
+**Parallel Generation:** Candidates are generated concurrently using `withThrowingTaskGroup`. The VoiceDesign model is loaded once and shared across all tasks. Per-candidate and total wall-clock timing are logged to stderr. If any candidate fails, the TaskGroup cancels remaining tasks and propagates the first error. Observed speedup is approximately 1.7x for 2 candidates; expected 2-3x for 3 candidates depending on GPU scheduling.
+
+### VoiceLockManager API
+
+`VoiceLockManager` is an enum namespace providing voice lock creation and audio generation from locked voices.
+
+#### `createLock(characterName:candidateAudio:designInstruction:modelManager:modelRepo:)`
+
+Create a VoiceLock from candidate audio by extracting a voice clone prompt using the Base model.
+
+```swift
+public static func createLock(
+    characterName: String,
+    candidateAudio: Data,
+    designInstruction: String,
+    modelManager: VoxAltaModelManager,
+    modelRepo: Qwen3TTSModelRepo = .base1_7B
+) async throws -> VoiceLock
+```
+
+**Parameters:**
+- `characterName: String` - The character name to associate with this voice lock
+- `candidateAudio: Data` - WAV format Data of the selected voice candidate
+- `designInstruction: String` - The voice description text used to generate the candidate
+- `modelManager: VoxAltaModelManager` - The model manager (loads Base model)
+- `modelRepo: Qwen3TTSModelRepo` - The Base model variant (default: `.base1_7B`)
+
+**Returns:** A `VoiceLock` containing the serialized clone prompt
+
+**Throws:**
+- `VoxAltaError.cloningFailed` - Clone prompt extraction failed
+- `VoxAltaError.modelNotAvailable` - Base model cannot be loaded
+
+**Example:**
+```swift
+let description = VoiceDesigner.composeVoiceDescription(from: profile)
+let candidates = try await VoiceDesigner.generateCandidates(profile: profile, modelManager: modelManager)
+
+// User selects candidates[1] as best voice
+let voiceLock = try await VoiceLockManager.createLock(
+    characterName: "ELENA",
+    candidateAudio: candidates[1],
+    designInstruction: description,
+    modelManager: modelManager
+)
+// Result: VoiceLock with ~3-4 MB serialized clone prompt
+```
+
+**Clone Prompt Details:**
+- Clone prompts contain speaker embeddings (from ECAPA-TDNN encoder) and reference audio codes
+- Serialized size: ~3-4 MB per voice
+- Store in SwiftData alongside character records
+- Reusable across all dialogue for the character
+
+#### `generateAudio(text:voiceLock:language:modelManager:modelRepo:cache:)`
+
+Generate speech audio using a locked voice identity. Deserializes the clone prompt and uses it to render dialogue with the Base model. If a cache is provided, the clone prompt is retrieved from the cache if available (avoiding deserialization overhead). On cache miss, the clone prompt is deserialized and stored in the cache for subsequent calls.
+
+```swift
+public static func generateAudio(
+    text: String,
+    voiceLock: VoiceLock,
+    language: String = "en",
+    modelManager: VoxAltaModelManager,
+    modelRepo: Qwen3TTSModelRepo = .base1_7B,
+    cache: VoxAltaVoiceCache? = nil
+) async throws -> Data
+```
+
+**Parameters:**
+- `text: String` - The text to synthesize
+- `voiceLock: VoiceLock` - The voice lock containing the serialized clone prompt
+- `language: String` - The language code for generation (default: "en")
+- `modelManager: VoxAltaModelManager` - The model manager (loads Base model)
+- `modelRepo: Qwen3TTSModelRepo` - The Base model variant (default: `.base1_7B`)
+- `cache: VoxAltaVoiceCache?` - Optional voice cache for clone prompt caching. If provided, reduces deserialization overhead on repeated calls (default: `nil`)
+
+**Returns:** WAV format Data (24kHz, 16-bit PCM, mono) of the generated speech audio
+
+**Throws:**
+- `VoxAltaError.cloningFailed` - Generation or deserialization failed
+- `VoxAltaError.modelNotAvailable` - Base model cannot be loaded
+
+**Example:**
+```swift
+// Without caching (clone prompt deserialized on each call)
+let audio = try await VoiceLockManager.generateAudio(
+    text: "Did you get the documents?",
+    voiceLock: voiceLock,
+    language: "en",
+    modelManager: modelManager
+)
+// Result: WAV Data in Elena's locked voice
+
+// With caching (2× speedup on repeated calls)
+let cache = VoxAltaVoiceCache()
+let audio1 = try await VoiceLockManager.generateAudio(
+    text: "First line.",
+    voiceLock: voiceLock,
+    language: "en",
+    modelManager: modelManager,
+    cache: cache  // Cache miss - deserializes and caches
+)
+let audio2 = try await VoiceLockManager.generateAudio(
+    text: "Second line.",
+    voiceLock: voiceLock,
+    language: "en",
+    modelManager: modelManager,
+    cache: cache  // Cache hit - reuses cached clone prompt (fast!)
+)
+```
+
+**Performance:**
+- First generation: ~20-40s per line (includes clone prompt deserialization)
+- Subsequent generations: ~10-20s per line (2× speedup via clone prompt caching)
+- Cache is stored in `VoxAltaVoiceCache` actor and shared across all audio generation calls
+- Cache is cleared on `unloadAllVoices()` or when a voice is removed from the cache
+
+### Complete Pipeline Example
+
+```swift
+import SwiftVoxAlta
+
+// Step 1: Character analysis (evidence → profile)
+let evidence = CharacterEvidence(
+    characterName: "ELENA",
+    dialogueLines: ["Did you get the documents?", "I won't let you down."],
+    parentheticals: ["determined", "quietly"],
+    sceneHeadings: ["INT. OFFICE - DAY"],
+    actionMentions: ["Elena paces nervously."]
+)
+
+let profile = try await CharacterAnalyzer.analyze(evidence: evidence)
+
+// Step 2: Voice description composition
+let description = VoiceDesigner.composeVoiceDescription(from: profile)
+
+// Step 3: Generate voice candidates
+let modelManager = VoxAltaModelManager()
+let candidates = try await VoiceDesigner.generateCandidates(
+    profile: profile,
+    count: 3,
+    modelManager: modelManager
+)
+
+// Step 4: Lock selected candidate (e.g., user picks candidates[1])
+let voiceLock = try await VoiceLockManager.createLock(
+    characterName: "ELENA",
+    candidateAudio: candidates[1],
+    designInstruction: description,
+    modelManager: modelManager
+)
+
+// Step 5: Generate dialogue with locked voice
+let audio = try await VoiceLockManager.generateAudio(
+    text: "Did you get the documents?",
+    voiceLock: voiceLock,
+    language: "en",
+    modelManager: modelManager
+)
+
+// Step 6: Store voice lock in SwiftData (app layer)
+// voiceLock.clonePromptData -> SwiftData @Model character.voiceLockData
+```
 
 ## Build and Test
 
@@ -394,6 +677,58 @@ public enum VoxAltaError: Error {
 }
 ```
 
+## Apple Silicon Detection API
+
+`AppleSiliconInfo` provides runtime detection of Apple Silicon generation (M1 through M5) to identify Neural Accelerator availability for MLX performance optimizations.
+
+### AppleSiliconGeneration Enum
+
+Detects the current Apple Silicon chip generation at runtime via `sysctlbyname("machdep.cpu.brand_string")`.
+
+```swift
+public enum AppleSiliconGeneration: String, Sendable, CaseIterable {
+    case m1, m1Pro, m1Max, m1Ultra
+    case m2, m2Pro, m2Max, m2Ultra
+    case m3, m3Pro, m3Max, m3Ultra
+    case m4, m4Pro, m4Max, m4Ultra
+    case m5, m5Pro, m5Max, m5Ultra
+    case unknown
+
+    /// Whether this chip generation includes M5 Neural Accelerators.
+    public var hasNeuralAccelerators: Bool { /* true for M5 family */ }
+
+    /// The current Apple Silicon generation detected on this system.
+    public static var current: AppleSiliconGeneration { /* cached detection */ }
+}
+```
+
+### Usage Example
+
+```swift
+import SwiftVoxAlta
+
+let generation = AppleSiliconGeneration.current
+print("Running on \(generation.rawValue)")
+
+if generation.hasNeuralAccelerators {
+    print("Neural Accelerators available - expect 4× TTS speedup on macOS 26.2+")
+}
+```
+
+### Neural Accelerator Benefits
+
+M5 Neural Accelerators (M5/M5 Pro/M5 Max/M5 Ultra, 2025+) provide hardware-accelerated inference for MLX workloads:
+
+- **4× faster TTS inference** on macOS 26.2+ with zero code changes
+- **Auto-detection** - MLX automatically leverages Neural Accelerators when available
+- **Graceful fallback** - Works seamlessly on M1/M2/M3/M4 without Neural Accelerators
+- **Logged on model load** - VoxAltaModelManager logs Neural Accelerator status to stderr
+
+When a model is loaded on M5 hardware, VoxAlta logs:
+```
+Neural Accelerators detected (M5 Pro) - MLX will auto-accelerate TTS inference (4× speedup on macOS 26.2+)
+```
+
 ## Design Patterns
 
 - **VoiceProvider abstraction** -- Implements SwiftHablare's protocol for plug-and-play integration
@@ -401,6 +736,7 @@ public enum VoxAltaError: Error {
 - **Lazy model loading** -- Qwen3-TTS models loaded on-demand, cached for reuse, auto-unloaded on switch
 - **Memory-aware loading** -- Warns on low memory but lets macOS manage swap (non-blocking)
 - **Clone prompt locking** -- `VoiceLock` ensures voice consistency across all character dialogue
+- **Parallel voice generation** -- `generateCandidates()` uses `withThrowingTaskGroup` for concurrent candidate generation with index-ordered results and first-error propagation
 - **On-device inference** -- All LLM and TTS processing runs locally via Apple Silicon GPU
 - **Strict concurrency** -- Swift 6 language mode with `StrictConcurrency` enabled
 
@@ -410,7 +746,8 @@ public enum VoxAltaError: Error {
 - **Lazy loading** -- Models loaded only when needed for synthesis
 - **Memory checks** -- `VoxAltaModelManager.checkMemory()` warns on low memory via stderr
 - **Single-model cache** -- Only one TTS model loaded at a time; switching unloads the previous
-- **Voice cache** -- `VoxAltaVoiceCache` actor stores loaded clone prompts in memory
+- **Voice cache** -- `VoxAltaVoiceCache` actor stores loaded clone prompts (serialized Data) in memory
+- **Clone prompt cache** -- Deserialized `VoiceClonePrompt` instances cached to avoid repeated deserialization overhead (2× speedup)
 
 ## Development Workflow
 
@@ -432,6 +769,7 @@ public enum VoxAltaError: Error {
 ## Testing
 
 - **Library tests** (`SwiftVoxAltaTests/`): VoiceProvider, model manager, voice cache, character analysis, error paths, audio conversion, voice design, voice lock, Acervo integration
+  - **VoiceDesign integration tests** (`VoiceDesignIntegrationTests.swift`): Full pipeline validation (profile → description → candidates → lock → audio generation, WAV format validation, clone prompt serialization round-trip). Disabled on CI due to Metal compiler limitations.
 - **CLI tests** (`DigaTests/`): CLI integration, audio file writer, audio playback, engine, model manager (Acervo-backed), voice store, version, release checks
 - **Binary integration tests** (`DigaBinaryIntegrationTests`): End-to-end audio generation validation (WAV/AIFF/M4A formats, silence detection, error handling)
 - **359 total tests** (229 library + 130 CLI)

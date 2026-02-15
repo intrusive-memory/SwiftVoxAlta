@@ -186,6 +186,15 @@ public actor VoxAltaModelManager {
         // Cache the loaded model
         cachedModel = model
         _currentModelRepo = repo
+
+        // Log Neural Accelerator status on M5
+        let generation = AppleSiliconGeneration.current
+        if generation.hasNeuralAccelerators {
+            FileHandle.standardError.write(Data(
+                "Neural Accelerators detected (\(generation.rawValue)) - MLX will auto-accelerate TTS inference (4× speedup on macOS 26.2+)\n".utf8
+            ))
+        }
+
         return model
     }
 
