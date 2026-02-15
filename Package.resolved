@@ -1,5 +1,5 @@
 {
-  "originHash" : "96a4312829e4a76ab84bbc776df76152f5a6afe3cb35f4776197ac5b5e78a0b0",
+  "originHash" : "95ce1e8be6e165d96f8642f0accb9a7d4c580ee1e54fd75829aa0c0dead5f17d",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -24,7 +24,6 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/intrusive-memory/mlx-audio-swift.git",
       "state" : {
-        "branch" : "development",
         "revision" : "eedb0f5a34163976d499814d469373cfe7e05ae3"
       }
     },

@@ -111,6 +111,21 @@ SwiftVoxAlta/
 | [SwiftAcervo](https://github.com/intrusive-memory/SwiftAcervo) | Shared model management and caching |
 | [swift-argument-parser](https://github.com/apple/swift-argument-parser) | CLI argument parsing |
 
+### mlx-audio-swift Fork Notes
+
+VoxAlta uses a pinned fork of `mlx-audio-swift` from the intrusive-memory GitHub org:
+
+- **Repository**: `https://github.com/intrusive-memory/mlx-audio-swift.git`
+- **Pinned Commit**: `eedb0f5a34163976d499814d469373cfe7e05ae3`
+- **Rationale**: Fork includes VoiceDesign v1 support (via PR #23 from upstream) and voice cloning with clone prompts. Pinned to ensure reproducible builds while waiting for upstream integration.
+- **Fork Basis**: Main branch + PR #23 (VoiceDesign support by INQTR)
+- **Plan**: Upstream PR to base repo after fork validation and performance optimization complete
+
+This fork enables:
+- **VoiceDesign**: Text description → novel voice generation (1.7B model)
+- **Voice Cloning**: Reference audio → clone prompt generation (Base 0.6B/1.7B models)
+- **VoiceDesignIntegrationTests**: Full pipeline testing on-device
+
 ## Voice Design Pipeline
 
 1. **Character Evidence Collection** -- Extract dialogue, parentheticals, actions, and scene headings from screenplay elements

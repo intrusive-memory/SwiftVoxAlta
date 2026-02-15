@@ -22,7 +22,7 @@ let package = Package(
         .package(url: "https://github.com/intrusive-memory/SwiftHablare.git", branch: "development"),
         .package(url: "https://github.com/intrusive-memory/SwiftCompartido.git", branch: "development"),
         .package(url: "https://github.com/intrusive-memory/SwiftBruja.git", branch: "main"),
-        .package(url: "https://github.com/intrusive-memory/mlx-audio-swift.git", branch: "development"),
+        .package(url: "https://github.com/intrusive-memory/mlx-audio-swift.git", revision: "eedb0f5a34163976d499814d469373cfe7e05ae3"),
         .package(url: "https://github.com/intrusive-memory/SwiftAcervo.git", branch: "main"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
     ],
