@@ -2,7 +2,7 @@
 
 This file provides comprehensive documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.2.1
+**Current Version**: 0.3.0
 
 ---
 

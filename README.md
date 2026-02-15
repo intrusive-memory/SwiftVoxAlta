@@ -53,7 +53,7 @@ brew install diga
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/intrusive-memory/SwiftVoxAlta.git", from: "0.1.0")
+    .package(url: "https://github.com/intrusive-memory/SwiftVoxAlta.git", from: "0.3.0")
 ]
 ```
 
