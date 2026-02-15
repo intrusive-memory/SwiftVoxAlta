@@ -128,12 +128,256 @@ This fork enables:
 
 ## Voice Design Pipeline
 
+VoxAlta provides a complete VoiceDesign pipeline for creating custom character voices from screenplay evidence. The pipeline uses Qwen3-TTS VoiceDesign models to generate novel voices and Base models to lock and reproduce them consistently.
+
+### Pipeline Steps
+
 1. **Character Evidence Collection** -- Extract dialogue, parentheticals, actions, and scene headings from screenplay elements
 2. **LLM Analysis** -- Use SwiftBruja to analyze character traits, age, gender, personality
 3. **Profile Creation** -- Structure character attributes into `CharacterProfile`
-4. **Voice Candidate Generation** -- Generate VoiceDesign descriptions based on profile
-5. **Voice Locking** -- Select candidate and lock voice identity as a `VoiceLock` with clone prompt data
-6. **Audio Synthesis** -- Render dialogue using Qwen3-TTS Base model with the locked clone prompt
+4. **Voice Candidate Generation** -- Generate voice samples from text description (VoiceDesign model)
+5. **Voice Locking** -- Extract clone prompt from selected candidate (Base model)
+6. **Audio Synthesis** -- Render dialogue using locked clone prompt (Base model)
+
+### VoiceDesigner API
+
+`VoiceDesigner` is an enum namespace providing voice description composition and candidate generation.
+
+#### `composeVoiceDescription(from:)`
+
+Compose a Qwen3-TTS VoiceDesign description string from a character profile.
+
+```swift
+public static func composeVoiceDescription(from profile: CharacterProfile) -> String
+```
+
+**Parameters:**
+- `profile: CharacterProfile` - The character profile to compose a description from
+
+**Returns:** A voice description string suitable for VoiceDesign generation
+
+**Format:** `"A {gender} voice, {ageRange}. {summary}. Voice traits: {traits joined}."`
+
+**Example:**
+```swift
+let profile = CharacterProfile(
+    name: "ELENA",
+    gender: .female,
+    ageRange: "30s",
+    description: "A determined investigative journalist.",
+    voiceTraits: ["warm", "confident", "slightly husky"],
+    summary: "A female journalist in her 30s."
+)
+
+let description = VoiceDesigner.composeVoiceDescription(from: profile)
+// Result: "A female voice, 30s. A female journalist in her 30s. Voice traits: warm, confident, slightly husky."
+```
+
+#### `generateCandidate(profile:modelManager:)`
+
+Generate a single voice candidate from a character profile using the VoiceDesign 1.7B model.
+
+```swift
+public static func generateCandidate(
+    profile: CharacterProfile,
+    modelManager: VoxAltaModelManager
+) async throws -> Data
+```
+
+**Parameters:**
+- `profile: CharacterProfile` - The character profile to design a voice for
+- `modelManager: VoxAltaModelManager` - The model manager (loads VoiceDesign model)
+
+**Returns:** WAV audio Data (24kHz, 16-bit PCM, mono) of the generated voice candidate
+
+**Throws:**
+- `VoxAltaError.voiceDesignFailed` - Generation failed
+- `VoxAltaError.modelNotAvailable` - VoiceDesign model cannot be loaded
+
+**Example:**
+```swift
+let modelManager = VoxAltaModelManager()
+let candidate = try await VoiceDesigner.generateCandidate(
+    profile: profile,
+    modelManager: modelManager
+)
+// Result: WAV Data (~5-10 seconds of audio)
+```
+
+#### `generateCandidates(profile:count:modelManager:)`
+
+Generate multiple voice candidates from a character profile. Each candidate uses the same voice description but produces a different voice due to sampling stochasticity.
+
+```swift
+public static func generateCandidates(
+    profile: CharacterProfile,
+    count: Int = 3,
+    modelManager: VoxAltaModelManager
+) async throws -> [Data]
+```
+
+**Parameters:**
+- `profile: CharacterProfile` - The character profile to design voices for
+- `count: Int` - The number of candidates to generate (default: 3)
+- `modelManager: VoxAltaModelManager` - The model manager (loads VoiceDesign model)
+
+**Returns:** An array of WAV audio Data, one per candidate
+
+**Throws:**
+- `VoxAltaError.voiceDesignFailed` - Any generation fails
+
+**Example:**
+```swift
+let candidates = try await VoiceDesigner.generateCandidates(
+    profile: profile,
+    count: 3,
+    modelManager: modelManager
+)
+// Result: [Data, Data, Data] - 3 different voice samples
+```
+
+**Note:** Candidates are generated sequentially. See Sprint 5 in the execution plan for parallel generation optimization (3× speedup).
+
+### VoiceLockManager API
+
+`VoiceLockManager` is an enum namespace providing voice lock creation and audio generation from locked voices.
+
+#### `createLock(characterName:candidateAudio:designInstruction:modelManager:modelRepo:)`
+
+Create a VoiceLock from candidate audio by extracting a voice clone prompt using the Base model.
+
+```swift
+public static func createLock(
+    characterName: String,
+    candidateAudio: Data,
+    designInstruction: String,
+    modelManager: VoxAltaModelManager,
+    modelRepo: Qwen3TTSModelRepo = .base1_7B
+) async throws -> VoiceLock
+```
+
+**Parameters:**
+- `characterName: String` - The character name to associate with this voice lock
+- `candidateAudio: Data` - WAV format Data of the selected voice candidate
+- `designInstruction: String` - The voice description text used to generate the candidate
+- `modelManager: VoxAltaModelManager` - The model manager (loads Base model)
+- `modelRepo: Qwen3TTSModelRepo` - The Base model variant (default: `.base1_7B`)
+
+**Returns:** A `VoiceLock` containing the serialized clone prompt
+
+**Throws:**
+- `VoxAltaError.cloningFailed` - Clone prompt extraction failed
+- `VoxAltaError.modelNotAvailable` - Base model cannot be loaded
+
+**Example:**
+```swift
+let description = VoiceDesigner.composeVoiceDescription(from: profile)
+let candidates = try await VoiceDesigner.generateCandidates(profile: profile, modelManager: modelManager)
+
+// User selects candidates[1] as best voice
+let voiceLock = try await VoiceLockManager.createLock(
+    characterName: "ELENA",
+    candidateAudio: candidates[1],
+    designInstruction: description,
+    modelManager: modelManager
+)
+// Result: VoiceLock with ~3-4 MB serialized clone prompt
+```
+
+**Clone Prompt Details:**
+- Clone prompts contain speaker embeddings (from ECAPA-TDNN encoder) and reference audio codes
+- Serialized size: ~3-4 MB per voice
+- Store in SwiftData alongside character records
+- Reusable across all dialogue for the character
+
+#### `generateAudio(text:voiceLock:language:modelManager:modelRepo:)`
+
+Generate speech audio using a locked voice identity. Deserializes the clone prompt and uses it to render dialogue with the Base model.
+
+```swift
+public static func generateAudio(
+    text: String,
+    voiceLock: VoiceLock,
+    language: String = "en",
+    modelManager: VoxAltaModelManager,
+    modelRepo: Qwen3TTSModelRepo = .base1_7B
+) async throws -> Data
+```
+
+**Parameters:**
+- `text: String` - The text to synthesize
+- `voiceLock: VoiceLock` - The voice lock containing the serialized clone prompt
+- `language: String` - The language code for generation (default: "en")
+- `modelManager: VoxAltaModelManager` - The model manager (loads Base model)
+- `modelRepo: Qwen3TTSModelRepo` - The Base model variant (default: `.base1_7B`)
+
+**Returns:** WAV format Data (24kHz, 16-bit PCM, mono) of the generated speech audio
+
+**Throws:**
+- `VoxAltaError.cloningFailed` - Generation or deserialization failed
+- `VoxAltaError.modelNotAvailable` - Base model cannot be loaded
+
+**Example:**
+```swift
+let audio = try await VoiceLockManager.generateAudio(
+    text: "Did you get the documents?",
+    voiceLock: voiceLock,
+    language: "en",
+    modelManager: modelManager
+)
+// Result: WAV Data in Elena's locked voice
+```
+
+**Performance:**
+- First generation: ~20-40s per line (includes clone prompt deserialization)
+- See Sprint 6 in the execution plan for clone prompt caching optimization (2× speedup)
+
+### Complete Pipeline Example
+
+```swift
+import SwiftVoxAlta
+
+// Step 1: Character analysis (evidence → profile)
+let evidence = CharacterEvidence(
+    characterName: "ELENA",
+    dialogueLines: ["Did you get the documents?", "I won't let you down."],
+    parentheticals: ["determined", "quietly"],
+    sceneHeadings: ["INT. OFFICE - DAY"],
+    actionMentions: ["Elena paces nervously."]
+)
+
+let profile = try await CharacterAnalyzer.analyze(evidence: evidence)
+
+// Step 2: Voice description composition
+let description = VoiceDesigner.composeVoiceDescription(from: profile)
+
+// Step 3: Generate voice candidates
+let modelManager = VoxAltaModelManager()
+let candidates = try await VoiceDesigner.generateCandidates(
+    profile: profile,
+    count: 3,
+    modelManager: modelManager
+)
+
+// Step 4: Lock selected candidate (e.g., user picks candidates[1])
+let voiceLock = try await VoiceLockManager.createLock(
+    characterName: "ELENA",
+    candidateAudio: candidates[1],
+    designInstruction: description,
+    modelManager: modelManager
+)
+
+// Step 5: Generate dialogue with locked voice
+let audio = try await VoiceLockManager.generateAudio(
+    text: "Did you get the documents?",
+    voiceLock: voiceLock,
+    language: "en",
+    modelManager: modelManager
+)
+
+// Step 6: Store voice lock in SwiftData (app layer)
+// voiceLock.clonePromptData -> SwiftData @Model character.voiceLockData
+```
 
 ## Build and Test
 
