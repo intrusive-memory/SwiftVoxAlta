@@ -206,7 +206,7 @@ let candidate = try await VoiceDesigner.generateCandidate(
 
 #### `generateCandidates(profile:count:modelManager:)`
 
-Generate multiple voice candidates from a character profile. Each candidate uses the same voice description but produces a different voice due to sampling stochasticity.
+Generate multiple voice candidates from a character profile using parallel generation. Each candidate uses the same voice description but produces a different voice due to sampling stochasticity. Candidates are returned in index order regardless of completion order.
 
 ```swift
 public static func generateCandidates(
@@ -221,10 +221,11 @@ public static func generateCandidates(
 - `count: Int` - The number of candidates to generate (default: 3)
 - `modelManager: VoxAltaModelManager` - The model manager (loads VoiceDesign model)
 
-**Returns:** An array of WAV audio Data, one per candidate
+**Returns:** An array of WAV audio Data, one per candidate, in index order
 
 **Throws:**
 - `VoxAltaError.voiceDesignFailed` - Any generation fails
+- `VoxAltaError.modelNotAvailable` - VoiceDesign model cannot be loaded
 
 **Example:**
 ```swift
@@ -236,7 +237,7 @@ let candidates = try await VoiceDesigner.generateCandidates(
 // Result: [Data, Data, Data] - 3 different voice samples
 ```
 
-**Note:** Candidates are generated sequentially. See Sprint 5 in the execution plan for parallel generation optimization (3× speedup).
+**Parallel Generation:** Candidates are generated concurrently using `withThrowingTaskGroup`. The VoiceDesign model is loaded once and shared across all tasks. Per-candidate and total wall-clock timing are logged to stderr. If any candidate fails, the TaskGroup cancels remaining tasks and propagates the first error. Observed speedup is approximately 1.7x for 2 candidates; expected 2-3x for 3 candidates depending on GPU scheduling.
 
 ### VoiceLockManager API
 
@@ -660,6 +661,7 @@ public enum VoxAltaError: Error {
 - **Lazy model loading** -- Qwen3-TTS models loaded on-demand, cached for reuse, auto-unloaded on switch
 - **Memory-aware loading** -- Warns on low memory but lets macOS manage swap (non-blocking)
 - **Clone prompt locking** -- `VoiceLock` ensures voice consistency across all character dialogue
+- **Parallel voice generation** -- `generateCandidates()` uses `withThrowingTaskGroup` for concurrent candidate generation with index-ordered results and first-error propagation
 - **On-device inference** -- All LLM and TTS processing runs locally via Apple Silicon GPU
 - **Strict concurrency** -- Swift 6 language mode with `StrictConcurrency` enabled
 

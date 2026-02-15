@@ -122,34 +122,43 @@ struct VoiceDesignIntegrationTests {
         }
     }
 
-    // MARK: - VoiceDesign Multi-Candidate Test
+    // MARK: - Parallel Multi-Candidate Generation Test
 
-    @Test("VoiceDesign generates multiple distinct candidates from same profile")
-    func multiCandidateGeneration() async throws {
+    @Test("Parallel generation produces correct count and valid WAV candidates")
+    func parallelMultiCandidateGeneration() async throws {
+        // This test exercises the parallel TaskGroup-based generateCandidates() path.
+        // VoiceDesigner.generateCandidates() uses withThrowingTaskGroup internally.
         let profile = CharacterProfile(
             name: "TEST_CHARACTER",
             gender: .male,
             ageRange: "40s",
-            description: "A test character for multi-candidate generation.",
+            description: "A test character for parallel multi-candidate generation.",
             voiceTraits: ["deep", "authoritative"],
             summary: "A male test character in his 40s."
         )
 
         let modelManager = VoxAltaModelManager()
 
-        // Generate 2 candidates (reduced from 3 for test speed)
+        // Measure wall-clock time for parallel generation
+        let clock = ContinuousClock()
+        let start = clock.now
+
+        // Generate 2 candidates in parallel (reduced from 3 for test speed)
         let candidates = try await VoiceDesigner.generateCandidates(
             profile: profile,
             count: 2,
             modelManager: modelManager
         )
 
-        // Verify we got 2 candidates
-        #expect(candidates.count == 2, "Should generate 2 candidates")
+        let elapsed = clock.now - start
 
-        // Verify both are valid WAV data
+        // Verify we got the requested number of candidates
+        #expect(candidates.count == 2, "Should generate exactly 2 candidates")
+
+        // Verify all candidates are valid WAV data
         for (index, candidate) in candidates.enumerated() {
             #expect(candidate.count > 0, "Candidate \(index) should not be empty")
+            #expect(candidate.count > 100, "Candidate \(index) should be substantial (>100 bytes)")
 
             let riffHeader = candidate.prefix(4)
             let riffString = String(data: riffHeader, encoding: .ascii)
@@ -158,11 +167,28 @@ struct VoiceDesignIntegrationTests {
             let waveHeader = candidate.dropFirst(8).prefix(4)
             let waveString = String(data: waveHeader, encoding: .ascii)
             #expect(waveString == "WAVE", "Candidate \(index) should be WAVE format")
+
+            // Validate WAV sample rate (24kHz)
+            if candidate.count >= 28 {
+                let sampleRateBytes = candidate.dropFirst(24).prefix(4)
+                let sampleRate = sampleRateBytes.withUnsafeBytes { $0.load(as: UInt32.self) }
+                #expect(sampleRate == 24000, "Candidate \(index) should be 24kHz")
+            }
+
+            // Validate mono channel
+            if candidate.count >= 24 {
+                let channelBytes = candidate.dropFirst(22).prefix(2)
+                let channels = channelBytes.withUnsafeBytes { $0.load(as: UInt16.self) }
+                #expect(channels == 1, "Candidate \(index) should be mono")
+            }
         }
 
-        // Note: Due to sampling stochasticity, candidates should be different,
-        // but we can't easily verify this without decoding the audio.
-        // The existence of 2 valid WAV files is sufficient validation.
+        // Log performance for manual inspection (not an assertion --
+        // actual speedup depends on GPU scheduling and model concurrency).
+        // Performance logging is also emitted by VoiceDesigner itself via stderr.
+        FileHandle.standardError.write(Data(
+            "[Test] Parallel generation of 2 candidates completed in \(elapsed)\n".utf8
+        ))
     }
 
     // MARK: - VoiceLock Serialization Test
