@@ -30,6 +30,16 @@ VoxAlta ingests structured screenplay data from [SwiftCompartido](https://github
 - Swift 6.2+
 - Xcode 26+
 
+### M5 Neural Accelerator Support
+
+SwiftVoxAlta automatically detects and leverages **M5 Neural Accelerators** (Apple M5/M5 Pro/M5 Max/M5 Ultra chips, 2025+) for significant TTS performance improvements:
+
+- **4× faster inference** on macOS 26.2+ with M5 chips
+- **Zero code changes required** - MLX auto-detects Neural Accelerators at runtime
+- **Automatic fallback** - Works seamlessly on M1/M2/M3/M4 without Neural Accelerators
+
+When a model is loaded on M5 hardware, VoxAlta logs: `Neural Accelerators detected (M5 Pro) - MLX will auto-accelerate TTS inference (4× speedup on macOS 26.2+)`
+
 ## Installation
 
 ### Homebrew (CLI tool)

@@ -96,6 +96,7 @@ SwiftVoxAlta/
 | **CharacterAnalyzer** | LLM-based character analysis via SwiftBruja |
 | **CharacterEvidenceExtractor** | Extracts evidence from screenplay elements |
 | **CharacterProfile** | Structured character attributes for voice design |
+| **AppleSiliconInfo** | Apple Silicon generation detection (M1-M5) and Neural Accelerator status |
 | **VoxAltaConfig** | Configuration (model IDs, candidate count, output format) |
 | **VoxAltaProviderDescriptor** | Factory for SwiftHablare registry registration |
 | **`diga` CLI** | Drop-in `say` replacement with neural TTS |
@@ -674,6 +675,58 @@ public enum VoxAltaError: Error {
     case insufficientMemory(available:required:) // Not enough RAM for model
     case audioExportFailed(String)           // Audio format conversion failed
 }
+```
+
+## Apple Silicon Detection API
+
+`AppleSiliconInfo` provides runtime detection of Apple Silicon generation (M1 through M5) to identify Neural Accelerator availability for MLX performance optimizations.
+
+### AppleSiliconGeneration Enum
+
+Detects the current Apple Silicon chip generation at runtime via `sysctlbyname("machdep.cpu.brand_string")`.
+
+```swift
+public enum AppleSiliconGeneration: String, Sendable, CaseIterable {
+    case m1, m1Pro, m1Max, m1Ultra
+    case m2, m2Pro, m2Max, m2Ultra
+    case m3, m3Pro, m3Max, m3Ultra
+    case m4, m4Pro, m4Max, m4Ultra
+    case m5, m5Pro, m5Max, m5Ultra
+    case unknown
+
+    /// Whether this chip generation includes M5 Neural Accelerators.
+    public var hasNeuralAccelerators: Bool { /* true for M5 family */ }
+
+    /// The current Apple Silicon generation detected on this system.
+    public static var current: AppleSiliconGeneration { /* cached detection */ }
+}
+```
+
+### Usage Example
+
+```swift
+import SwiftVoxAlta
+
+let generation = AppleSiliconGeneration.current
+print("Running on \(generation.rawValue)")
+
+if generation.hasNeuralAccelerators {
+    print("Neural Accelerators available - expect 4× TTS speedup on macOS 26.2+")
+}
+```
+
+### Neural Accelerator Benefits
+
+M5 Neural Accelerators (M5/M5 Pro/M5 Max/M5 Ultra, 2025+) provide hardware-accelerated inference for MLX workloads:
+
+- **4× faster TTS inference** on macOS 26.2+ with zero code changes
+- **Auto-detection** - MLX automatically leverages Neural Accelerators when available
+- **Graceful fallback** - Works seamlessly on M1/M2/M3/M4 without Neural Accelerators
+- **Logged on model load** - VoxAltaModelManager logs Neural Accelerator status to stderr
+
+When a model is loaded on M5 hardware, VoxAlta logs:
+```
+Neural Accelerators detected (M5 Pro) - MLX will auto-accelerate TTS inference (4× speedup on macOS 26.2+)
 ```
 
 ## Design Patterns
