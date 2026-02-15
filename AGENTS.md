@@ -691,6 +691,7 @@ public enum VoxAltaError: Error {
 ## Testing
 
 - **Library tests** (`SwiftVoxAltaTests/`): VoiceProvider, model manager, voice cache, character analysis, error paths, audio conversion, voice design, voice lock, Acervo integration
+  - **VoiceDesign integration tests** (`VoiceDesignIntegrationTests.swift`): Full pipeline validation (profile → description → candidates → lock → audio generation, WAV format validation, clone prompt serialization round-trip). Disabled on CI due to Metal compiler limitations.
 - **CLI tests** (`DigaTests/`): CLI integration, audio file writer, audio playback, engine, model manager (Acervo-backed), voice store, version, release checks
 - **Binary integration tests** (`DigaBinaryIntegrationTests`): End-to-end audio generation validation (WAV/AIFF/M4A formats, silence detection, error handling)
 - **359 total tests** (229 library + 130 CLI)
