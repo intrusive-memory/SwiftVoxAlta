@@ -1,4 +1,0 @@
-Models/**/*.safetensors filter=lfs diff=lfs merge=lfs -text
-Models/**/*.json filter=lfs diff=lfs merge=lfs -text
-Models/**/merges.txt filter=lfs diff=lfs merge=lfs -text
-Models/**/vocab.json filter=lfs diff=lfs merge=lfs -text
