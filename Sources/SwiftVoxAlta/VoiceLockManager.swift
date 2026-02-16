@@ -112,7 +112,45 @@ public enum VoiceLockManager: Sendable {
         )
     }
 
-    // MARK: - Audio Generation from Lock
+    // MARK: - Audio Generation from Lock (Context Envelope)
+
+    /// Generate speech audio using a locked voice identity and a generation context.
+    ///
+    /// Logs the envelope size, then delegates to the text-based `generateAudio` using
+    /// the context's phrase. The metadata is available for future pipeline stages.
+    ///
+    /// - Parameters:
+    ///   - context: The generation context containing the phrase and optional metadata.
+    ///   - voiceLock: The voice lock containing the serialized clone prompt.
+    ///   - language: The language code for generation. Defaults to "en".
+    ///   - modelManager: The model manager used to load the Base model.
+    ///   - modelRepo: The Base model variant to use for generation. Defaults to `.base1_7B`.
+    ///   - cache: Optional voice cache for clone prompt caching.
+    /// - Returns: WAV format Data of the generated speech audio (24kHz, 16-bit PCM, mono).
+    /// - Throws: `VoxAltaError.cloningFailed` if generation fails,
+    ///           `VoxAltaError.modelNotAvailable` if the Base model cannot be loaded.
+    public static func generateAudio(
+        context: GenerationContext,
+        voiceLock: VoiceLock,
+        language: String = "en",
+        modelManager: VoxAltaModelManager,
+        modelRepo: Qwen3TTSModelRepo = .base1_7B,
+        cache: VoxAltaVoiceCache? = nil
+    ) async throws -> Data {
+        VoiceLockManagerLogger.log(
+            "Envelope for '\(voiceLock.characterName)': \(context.serializedSize) bytes, \(context.metadata.count) metadata key(s)"
+        )
+        return try await generateAudio(
+            text: context.phrase,
+            voiceLock: voiceLock,
+            language: language,
+            modelManager: modelManager,
+            modelRepo: modelRepo,
+            cache: cache
+        )
+    }
+
+    // MARK: - Audio Generation from Lock (Text)
 
     /// Generate speech audio using a locked voice identity.
     ///

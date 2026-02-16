@@ -120,9 +120,8 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
 
     /// Generate speech audio from text using a loaded voice.
     ///
-    /// The voice must have been previously loaded via `loadVoice(id:clonePromptData:)`.
-    /// Audio is generated using the Base model with the stored clone prompt for
-    /// consistent voice identity.
+    /// Convenience wrapper that creates a bare `GenerationContext` from the text
+    /// and delegates to `generateAudio(context:voiceId:languageCode:)`.
     ///
     /// - Parameters:
     ///   - text: The text to synthesize.
@@ -132,10 +131,28 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     /// - Throws: `VoxAltaError.voiceNotLoaded` if the voice is not in the cache,
     ///           or other errors from model loading and audio generation.
     public func generateAudio(text: String, voiceId: String, languageCode: String) async throws -> Data {
+        let context = GenerationContext(phrase: text)
+        return try await generateAudio(context: context, voiceId: voiceId, languageCode: languageCode)
+    }
+
+    /// Generate speech audio from a generation context using a loaded voice.
+    ///
+    /// The voice must have been previously loaded via `loadVoice(id:clonePromptData:)`.
+    /// Audio is generated using the Base model with the stored clone prompt for
+    /// consistent voice identity.
+    ///
+    /// - Parameters:
+    ///   - context: The generation context containing the phrase and optional metadata.
+    ///   - voiceId: The voice identifier (character name) to use.
+    ///   - languageCode: The language code for generation (e.g., "en").
+    /// - Returns: WAV format audio data (24kHz, 16-bit PCM, mono).
+    /// - Throws: `VoxAltaError.voiceNotLoaded` if the voice is not in the cache,
+    ///           or other errors from model loading and audio generation.
+    public func generateAudio(context: GenerationContext, voiceId: String, languageCode: String) async throws -> Data {
         // Route 1: CustomVoice preset speaker (fast path)
         if let speaker = presetSpeaker(for: voiceId) {
             return try await generateWithPresetSpeaker(
-                text: text,
+                text: context.phrase,
                 speakerName: speaker.mlxSpeaker,
                 language: languageCode
             )
@@ -155,7 +172,7 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
 
         // Pass the cache to enable clone prompt caching
         return try await VoiceLockManager.generateAudio(
-            text: text,
+            context: context,
             voiceLock: voiceLock,
             language: languageCode,
             modelManager: modelManager,

@@ -69,6 +69,22 @@ struct VoxAltaErrorTests {
         #expect(error.errorDescription!.contains("WAV header corrupt"))
     }
 
+    @Test("voxExportFailed has non-empty errorDescription")
+    func voxExportFailed() {
+        let error = VoxAltaError.voxExportFailed("archive write failed")
+        #expect(error.errorDescription != nil)
+        #expect(!error.errorDescription!.isEmpty)
+        #expect(error.errorDescription!.contains("archive write failed"))
+    }
+
+    @Test("voxImportFailed has non-empty errorDescription")
+    func voxImportFailed() {
+        let error = VoxAltaError.voxImportFailed("invalid ZIP")
+        #expect(error.errorDescription != nil)
+        #expect(!error.errorDescription!.isEmpty)
+        #expect(error.errorDescription!.contains("invalid ZIP"))
+    }
+
     @Test("All error cases conform to Error protocol")
     func allCasesAreErrors() {
         let errors: [any Error] = [
@@ -79,9 +95,11 @@ struct VoxAltaErrorTests {
             VoxAltaError.profileAnalysisFailed("test"),
             VoxAltaError.insufficientMemory(available: 100, required: 200),
             VoxAltaError.audioExportFailed("test"),
+            VoxAltaError.voxExportFailed("test"),
+            VoxAltaError.voxImportFailed("test"),
         ]
 
-        #expect(errors.count == 7)
+        #expect(errors.count == 9)
         for error in errors {
             #expect(error is VoxAltaError)
             let voxError = error as! VoxAltaError
