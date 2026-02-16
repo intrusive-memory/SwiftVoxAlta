@@ -66,12 +66,12 @@ struct DigaCommand: AsyncParsableCommand {
         }
 
         if let description = design {
-            try runDesignVoice(description: description)
+            try await runDesignVoice(description: description)
             return
         }
 
         if let referencePath = clone {
-            try runCloneVoice(referencePath: referencePath)
+            try await runCloneVoice(referencePath: referencePath)
             return
         }
 
@@ -255,7 +255,7 @@ struct DigaCommand: AsyncParsableCommand {
     // MARK: - --design
 
     /// Creates a new voice from a text description and saves it to the VoiceStore.
-    private func runDesignVoice(description: String) throws {
+    private func runDesignVoice(description: String) async throws {
         guard let voiceName = positionalArgs.first else {
             throw ValidationError("A voice name is required: --design \"description\" <name>")
         }
@@ -288,12 +288,23 @@ struct DigaCommand: AsyncParsableCommand {
         }
 
         print("Voice \"\(voiceName)\" created.")
+
+        // Generate clone prompt, synthesize pangram sample, play it, and embed in .vox.
+        let resolvedModel = try resolveModelFlag()
+        let engine = DigaEngine(voiceStore: store, modelOverride: resolvedModel)
+        do {
+            try await engine.generateSampleAndUpdateVox(voice: voice)
+        } catch {
+            FileHandle.standardError.write(
+                Data("Warning: sample generation failed: \(error.localizedDescription)\n".utf8)
+            )
+        }
     }
 
     // MARK: - --clone
 
     /// Clones a voice from a reference audio file and saves it to the VoiceStore.
-    private func runCloneVoice(referencePath: String) throws {
+    private func runCloneVoice(referencePath: String) async throws {
         guard let voiceName = positionalArgs.first else {
             throw ValidationError("A voice name is required: --clone reference.wav <name>")
         }
@@ -338,6 +349,17 @@ struct DigaCommand: AsyncParsableCommand {
 
         let filename = fileURL.lastPathComponent
         print("Voice \"\(voiceName)\" cloned from \(filename)")
+
+        // Generate clone prompt, synthesize pangram sample, play it, and embed in .vox.
+        let resolvedModel = try resolveModelFlag()
+        let engine = DigaEngine(voiceStore: store, modelOverride: resolvedModel)
+        do {
+            try await engine.generateSampleAndUpdateVox(voice: voice)
+        } catch {
+            FileHandle.standardError.write(
+                Data("Warning: sample generation failed: \(error.localizedDescription)\n".utf8)
+            )
+        }
     }
 
     // MARK: - --import-vox

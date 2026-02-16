@@ -69,14 +69,14 @@ ifdef GITHUB_ACTIONS
 	@echo "CI detected: Skipping SwiftVoxAltaTests (Metal incompatible), running only DigaTests"
 	xcodebuild test \
 	  -scheme $(TEST_SCHEME) \
-	  -destination 'platform=macOS' \
+	  -destination '$(DESTINATION)' \
 	  -only-testing:DigaTests \
 	  -skip-testing:DigaTests/DigaBinaryIntegrationTests
 else
 	@echo "Local run: Running all tests (DigaTests + SwiftVoxAltaTests)"
 	xcodebuild test \
 	  -scheme $(TEST_SCHEME) \
-	  -destination 'platform=macOS' \
+	  -destination '$(DESTINATION)' \
 	  -skip-testing:DigaTests/DigaBinaryIntegrationTests
 endif
 
@@ -85,7 +85,7 @@ test-integration: install
 	@echo "Running integration tests (requires diga binary + cached voices)..."
 	xcodebuild test \
 	  -scheme $(TEST_SCHEME) \
-	  -destination 'platform=macOS' \
+	  -destination '$(DESTINATION)' \
 	  -only-testing:DigaTests/DigaBinaryIntegrationTests
 
 # All tests (unit + integration)

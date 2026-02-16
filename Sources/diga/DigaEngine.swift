@@ -227,22 +227,24 @@ actor DigaEngine {
 
     // MARK: - Model Resolution
 
-    /// Resolves the model override string to a `Qwen3TTSModelRepo` for the TTS model.
+    /// Resolves the model override string to a `Qwen3TTSModelRepo` for clone-prompt synthesis.
     ///
     /// If `modelOverride` is set and matches a known model ID, returns that variant.
-    /// Otherwise defaults to `.customVoice1_7B` (preset speakers, no clone prompt needed).
+    /// Otherwise defaults to `.base1_7B` because clone prompt extraction and
+    /// clone-prompt-based generation require the Base model (not CustomVoice).
+    /// Preset speaker paths bypass this and use CustomVoice directly.
     private var resolvedBaseModelRepo: Qwen3TTSModelRepo {
-        guard let override = modelOverride else { return .customVoice1_7B }
+        guard let override = modelOverride else { return .base1_7B }
         if let match = Qwen3TTSModelRepo(rawValue: override) {
             return match
         }
         // Map shorthands: the DigaCommand already resolves 0.6b/1.7b to full IDs,
         // so we check the full ID against known repos.
         if override == TTSModelID.small {
-            return .customVoice0_6B
+            return .base0_6B
         }
-        // Default to CustomVoice 1.7B for unknown overrides
-        return .customVoice1_7B
+        // Default to Base 1.7B for unknown overrides
+        return .base1_7B
     }
 
     // MARK: - Voice Resolution
@@ -310,7 +312,7 @@ actor DigaEngine {
                 speakerName: speakerName,
                 voiceName: voice.name,
                 modelManager: voxAltaModelManager,
-                modelRepo: resolvedBaseModelRepo
+                modelRepo: .customVoice1_7B
             )
         }
 
@@ -567,7 +569,7 @@ actor DigaEngine {
     /// - Parameter voice: The resolved `StoredVoice`.
     /// - Returns: Serialized clone prompt data.
     /// - Throws: `DigaEngineError` if clone prompt creation fails.
-    private func loadOrCreateClonePrompt(for voice: StoredVoice) async throws -> Data {
+    func loadOrCreateClonePrompt(for voice: StoredVoice) async throws -> Data {
         // 1. Check in-memory cache.
         if let cached = cachedClonePromptData, cachedVoiceName == voice.name {
             return cached
@@ -715,5 +717,74 @@ actor DigaEngine {
         cachedVoiceName = voice.name
 
         return clonePromptData
+    }
+
+    // MARK: - Sample Audio Generation
+
+    /// Generate a sample audio clip for a voice, play it through speakers,
+    /// and embed it into the voice's `.vox` file.
+    ///
+    /// This method:
+    /// 1. Loads or creates the clone prompt for the voice
+    /// 2. Synthesizes a phoneme pangram using that voice
+    /// 3. Plays the generated audio through speakers
+    /// 4. Writes the sample audio into the `.vox` file as an embedding
+    ///
+    /// - Parameter voice: The stored voice to generate a sample for.
+    /// - Throws: `DigaEngineError` if synthesis or playback fails.
+    func generateSampleAndUpdateVox(voice: StoredVoice) async throws {
+        // 1. Load or create clone prompt.
+        let clonePromptData = try await loadOrCreateClonePrompt(for: voice)
+
+        // 2. Build a VoiceLock and synthesize the pangram.
+        let voiceLock = VoiceLock(
+            characterName: voice.name,
+            clonePromptData: clonePromptData,
+            designInstruction: voice.designDescription ?? ""
+        )
+
+        FileHandle.standardError.write(
+            Data("Generating voice sample...\n".utf8)
+        )
+
+        let context = GenerationContext(phrase: VoiceDesigner.phonemePangram)
+        let sampleWAV: Data
+        do {
+            sampleWAV = try await VoiceLockManager.generateAudio(
+                context: context,
+                voiceLock: voiceLock,
+                language: "en",
+                modelManager: voxAltaModelManager,
+                modelRepo: resolvedBaseModelRepo
+            )
+        } catch {
+            throw DigaEngineError.synthesisFailed(
+                "Failed to generate voice sample: \(error.localizedDescription)"
+            )
+        }
+
+        // 3. Play the sample through speakers.
+        do {
+            try await AudioPlayback.play(wavData: sampleWAV)
+        } catch {
+            FileHandle.standardError.write(
+                Data("Warning: could not play sample audio: \(error.localizedDescription)\n".utf8)
+            )
+        }
+
+        // 4. Write sample audio into the .vox file.
+        let voxFile = voiceStore.voicesDirectory.appendingPathComponent("\(voice.name).vox")
+        if FileManager.default.fileExists(atPath: voxFile.path) {
+            do {
+                try VoxExporter.updateSampleAudio(in: voxFile, sampleAudioData: sampleWAV)
+                FileHandle.standardError.write(
+                    Data("Sample audio saved to \(voice.name).vox\n".utf8)
+                )
+            } catch {
+                FileHandle.standardError.write(
+                    Data("Warning: could not update .vox with sample audio: \(error.localizedDescription)\n".utf8)
+                )
+            }
+        }
     }
 }

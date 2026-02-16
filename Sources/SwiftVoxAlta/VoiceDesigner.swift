@@ -31,6 +31,10 @@ public enum VoiceDesigner: Sendable {
     /// This text is synthesized with the designed voice to produce an audible preview.
     static let sampleText = "Hello, this is a voice sample for testing purposes."
 
+    /// A phoneme pangram covering all English phonemes for voice sample generation.
+    /// Used to produce a representative audio sample when creating a new voice.
+    public static let phonemePangram = "That quick beige fox jumped in the air over each thin dog. Look out, I shout, for he's foiled you again, creating chaos."
+
     // MARK: - Voice Description Composition
 
     /// Compose a Qwen3-TTS VoiceDesign description string from a character profile.

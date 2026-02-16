@@ -159,6 +159,59 @@ struct VoxExporterTests {
         #expect(!readBack.referenceAudio.isEmpty)
     }
 
+    @Test("updateSampleAudio adds sample audio to existing .vox")
+    func updateSampleAudio() throws {
+        let tempDir = makeTempDir()
+        defer { cleanup(tempDir) }
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+        // First export without sample audio.
+        let manifest = VoxExporter.buildManifest(
+            name: "SampleTest",
+            description: "Testing sample audio update flow.",
+            voiceType: "designed"
+        )
+        let voxURL = tempDir.appendingPathComponent("sample.vox")
+        try VoxExporter.export(manifest: manifest, to: voxURL)
+
+        // Now update with sample audio.
+        let sampleData = Data(repeating: 0xAA, count: 256)
+        try VoxExporter.updateSampleAudio(in: voxURL, sampleAudioData: sampleData)
+
+        // Verify the sample audio is now present.
+        let reader = VoxReader()
+        let readBack = try reader.read(from: voxURL)
+        let roundTripped = readBack.embeddings[VoxExporter.sampleAudioEmbeddingPath]
+        #expect(roundTripped == sampleData)
+    }
+
+    @Test("updateSampleAudio preserves existing clone prompt")
+    func updateSampleAudioPreservesClonePrompt() throws {
+        let tempDir = makeTempDir()
+        defer { cleanup(tempDir) }
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+        // Export with clone prompt.
+        let manifest = VoxExporter.buildManifest(
+            name: "PreserveTest",
+            description: "Testing that sample audio doesn't clobber clone prompt.",
+            voiceType: "designed"
+        )
+        let cloneData = Data(repeating: 0xBB, count: 64)
+        let voxURL = tempDir.appendingPathComponent("preserve.vox")
+        try VoxExporter.export(manifest: manifest, clonePromptData: cloneData, to: voxURL)
+
+        // Add sample audio.
+        let sampleData = Data(repeating: 0xCC, count: 128)
+        try VoxExporter.updateSampleAudio(in: voxURL, sampleAudioData: sampleData)
+
+        // Both should be present.
+        let reader = VoxReader()
+        let readBack = try reader.read(from: voxURL)
+        #expect(readBack.embeddings["qwen3-tts/clone-prompt.bin"] == cloneData)
+        #expect(readBack.embeddings[VoxExporter.sampleAudioEmbeddingPath] == sampleData)
+    }
+
     @Test("updateClonePrompt adds prompt to existing .vox")
     func updateClonePrompt() throws {
         let tempDir = makeTempDir()

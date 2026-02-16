@@ -43,6 +43,7 @@ public enum AudioConversion: Sendable {
 
         // Convert float samples to 16-bit PCM integers
         let pcmSamples = floatSamples.map { sample -> Int16 in
+            guard sample.isFinite else { return 0 }
             let clamped = min(max(sample, -1.0), 1.0)
             return Int16(clamped * Float(Int16.max))
         }
