@@ -95,32 +95,6 @@ struct VoxImporterTests {
         #expect(result.method == "cloned")
     }
 
-    @Test("importVox extracts sample audio data")
-    func importWithSampleAudio() throws {
-        let tempDir = makeTempDir()
-        defer { cleanup(tempDir) }
-
-        let sampleData = Data(repeating: 0xDA, count: 128)
-        let voxURL = try createTestVox(in: tempDir)
-
-        // Add sample audio to the .vox file.
-        try VoxExporter.updateSampleAudio(in: voxURL, sampleAudioData: sampleData)
-
-        let result = try VoxImporter.importVox(from: voxURL)
-        #expect(result.sampleAudioData == sampleData)
-    }
-
-    @Test("importVox returns nil sampleAudioData when none embedded")
-    func importWithoutSampleAudio() throws {
-        let tempDir = makeTempDir()
-        defer { cleanup(tempDir) }
-
-        let voxURL = try createTestVox(in: tempDir)
-
-        let result = try VoxImporter.importVox(from: voxURL)
-        #expect(result.sampleAudioData == nil)
-    }
-
     @Test("importVox throws for invalid file")
     func importInvalidFile() throws {
         let tempDir = makeTempDir()

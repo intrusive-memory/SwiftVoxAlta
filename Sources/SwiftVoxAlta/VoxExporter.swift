@@ -7,9 +7,6 @@ public enum VoxExporter: Sendable {
     /// The embeddings path within a `.vox` archive for Qwen3-TTS clone prompts.
     static let clonePromptEmbeddingPath = "qwen3-tts/clone-prompt.bin"
 
-    /// The embeddings path within a `.vox` archive for engine-generated sample audio.
-    public static let sampleAudioEmbeddingPath = "qwen3-tts/sample-audio.wav"
-
     // MARK: - Manifest Building
 
     /// Build a `VoxManifest` from a `VoiceLock`.
@@ -167,38 +164,6 @@ public enum VoxExporter: Sendable {
             throw error
         } catch {
             throw VoxAltaError.voxExportFailed("Failed to update clone prompt: \(error.localizedDescription)")
-        }
-    }
-
-    /// Update (or add) the sample audio in an existing `.vox` archive.
-    ///
-    /// Reads the existing `.vox`, extracts its manifest, reference audio, and embeddings,
-    /// then re-writes it with the sample audio WAV data embedded.
-    ///
-    /// - Parameters:
-    ///   - voxURL: Path to the existing `.vox` file.
-    ///   - sampleAudioData: The WAV audio data to embed as a voice sample.
-    /// - Throws: `VoxAltaError.voxExportFailed` on failure.
-    public static func updateSampleAudio(in voxURL: URL, sampleAudioData: Data) throws {
-        do {
-            let reader = VoxReader()
-            let existing = try reader.read(from: voxURL)
-
-            var embeddings = existing.embeddings
-            embeddings[sampleAudioEmbeddingPath] = sampleAudioData
-
-            let updated = VoxFile(
-                manifest: existing.manifest,
-                referenceAudio: existing.referenceAudio,
-                embeddings: embeddings
-            )
-
-            let writer = VoxWriter()
-            try writer.write(updated, to: voxURL)
-        } catch let error as VoxAltaError {
-            throw error
-        } catch {
-            throw VoxAltaError.voxExportFailed("Failed to update sample audio: \(error.localizedDescription)")
         }
     }
 }

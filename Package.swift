@@ -25,7 +25,7 @@ let package = Package(
         .package(url: "https://github.com/intrusive-memory/mlx-audio-swift.git", branch: "development"),
         .package(url: "https://github.com/intrusive-memory/SwiftAcervo.git", branch: "main"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
-        .package(url: "https://github.com/intrusive-memory/vox-format.git", branch: "development"),
+        .package(name: "VoxFormat", path: "../vox-format/implementations/swift"),
     ],
     targets: [
         .target(
@@ -36,7 +36,7 @@ let package = Package(
                 .product(name: "SwiftBruja", package: "SwiftBruja"),
                 .product(name: "MLXAudioTTS", package: "mlx-audio-swift"),
                 .product(name: "SwiftAcervo", package: "SwiftAcervo"),
-                .product(name: "VoxFormat", package: "vox-format"),
+                .product(name: "VoxFormat", package: "VoxFormat"),
             ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency")
@@ -60,7 +60,7 @@ let package = Package(
                 "SwiftVoxAlta",
                 .product(name: "SwiftCompartido", package: "SwiftCompartido"),
                 .product(name: "SwiftAcervo", package: "SwiftAcervo"),
-                .product(name: "VoxFormat", package: "vox-format"),
+                .product(name: "VoxFormat", package: "VoxFormat"),
             ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency")
@@ -72,7 +72,7 @@ let package = Package(
                 "diga",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "SwiftAcervo", package: "SwiftAcervo"),
-                .product(name: "VoxFormat", package: "vox-format"),
+                .product(name: "VoxFormat", package: "VoxFormat"),
             ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency")
