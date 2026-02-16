@@ -80,11 +80,6 @@ struct DigaCommand: AsyncParsableCommand {
             return
         }
 
-        if let voxPath = importVox {
-            try runImportVox(path: voxPath)
-            return
-        }
-
         // Resolve --model shorthand (0.6b, 1.7b) to full HuggingFace IDs.
         let resolvedModel = try resolveModelFlag()
 
@@ -353,81 +348,6 @@ struct DigaCommand: AsyncParsableCommand {
         let resolvedModel = try resolveModelFlag()
         let engine = DigaEngine(voiceStore: store, modelOverride: resolvedModel)
         try await engine.generateSampleAndUpdateVox(voice: voice)
-    }
-
-    // MARK: - --import-vox
-
-    /// Imports a voice from a .vox file and registers it in the VoiceStore.
-    private func runImportVox(path: String) throws {
-        let fileURL = URL(fileURLWithPath: path)
-        guard FileManager.default.isReadableFile(atPath: fileURL.path) else {
-            throw ValidationError("VOX file not found or not readable: \(path)")
-        }
-
-        let result = try VoxImporter.importVox(from: fileURL)
-        let store = VoiceStore()
-
-        // Determine voice type from provenance method.
-        let voiceType: VoiceType
-        switch result.method {
-        case "cloned":
-            voiceType = .cloned
-        case "preset":
-            voiceType = .preset
-        default:
-            voiceType = .designed
-        }
-
-        // Write clone prompt to disk if present.
-        var clonePromptPath: String?
-        if let promptData = result.clonePromptData {
-            let promptURL = store.voicesDirectory.appendingPathComponent("\(result.name).cloneprompt")
-            try FileManager.default.createDirectory(
-                at: store.voicesDirectory,
-                withIntermediateDirectories: true
-            )
-            try promptData.write(to: promptURL, options: .atomic)
-        }
-
-        // For cloned voices without a clone prompt, store reference audio path.
-        if voiceType == .cloned && result.clonePromptData == nil {
-            // Write first reference audio to disk for later clone prompt extraction.
-            if let (filename, data) = result.referenceAudio.first {
-                let refPath = store.voicesDirectory.appendingPathComponent(filename)
-                try FileManager.default.createDirectory(
-                    at: store.voicesDirectory,
-                    withIntermediateDirectories: true
-                )
-                try data.write(to: refPath, options: .atomic)
-                clonePromptPath = refPath.path
-            }
-        }
-
-        // Copy the .vox file to the voices directory.
-        let destVoxURL = store.voicesDirectory.appendingPathComponent("\(result.name).vox")
-        try FileManager.default.createDirectory(
-            at: store.voicesDirectory,
-            withIntermediateDirectories: true
-        )
-        if FileManager.default.fileExists(atPath: destVoxURL.path) {
-            try FileManager.default.removeItem(at: destVoxURL)
-        }
-        try FileManager.default.copyItem(at: fileURL, to: destVoxURL)
-
-        let voice = StoredVoice(
-            name: result.name,
-            type: voiceType,
-            designDescription: result.description,
-            clonePromptPath: clonePromptPath,
-            createdAt: result.createdAt
-        )
-        try store.saveVoice(voice)
-
-        if result.clonePromptData != nil {
-            print("Voice \"\(result.name)\" imported (ready to use).")
-        } else {
-            print("Voice \"\(result.name)\" imported (clone prompt will generate on first use).")
-        }
     }
 
     // MARK: - --import-vox

@@ -11,6 +11,8 @@ public struct VoxImportResult: Sendable {
     public let method: String?
     /// Clone prompt binary data, if present in the archive.
     public let clonePromptData: Data?
+    /// Engine-generated sample audio WAV data, if present in the archive.
+    public let sampleAudioData: Data?
     /// Reference audio data keyed by filename, extracted from the archive.
     public let referenceAudio: [String: Data]
     /// Creation timestamp from the manifest.
@@ -33,13 +35,17 @@ public enum VoxImporter: Sendable {
             let voxFile = try reader.read(from: url)
 
             // Extract clone prompt from embeddings if present.
-            let clonePromptData = voxFile.embeddings["qwen3-tts/clone-prompt.bin"]
+            let clonePromptData = voxFile.embeddings[VoxExporter.clonePromptEmbeddingPath]
+
+            // Extract sample audio from embeddings if present.
+            let sampleAudioData = voxFile.embeddings[VoxExporter.sampleAudioEmbeddingPath]
 
             return VoxImportResult(
                 name: voxFile.manifest.voice.name,
                 description: voxFile.manifest.voice.description,
                 method: voxFile.manifest.provenance?.method,
                 clonePromptData: clonePromptData,
+                sampleAudioData: sampleAudioData,
                 referenceAudio: voxFile.referenceAudio,
                 createdAt: voxFile.manifest.created,
                 manifest: voxFile.manifest
