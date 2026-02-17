@@ -53,7 +53,7 @@ brew install diga
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/intrusive-memory/SwiftVoxAlta.git", from: "0.3.0")
+    .package(url: "https://github.com/intrusive-memory/SwiftVoxAlta.git", from: "0.5.0")
 ]
 ```
 
@@ -83,6 +83,8 @@ diga --voices                                          # List voices
 diga -v elena "Hello"                                  # Use a voice
 diga --design "warm female voice, 30s, confident" elena  # Design voice
 diga --clone reference.wav elena                       # Clone voice
+diga --import-vox elena.vox                            # Import .vox file
+diga -v elena.vox "Hello"                              # Synthesize from .vox directly
 
 # Model selection
 diga --model 0.6b "Hello"   # Smaller model (<16GB RAM)
@@ -90,6 +92,30 @@ diga --model 1.7b "Hello"   # Larger model (better quality)
 ```
 
 On first run, `diga` auto-downloads the appropriate Qwen3-TTS model (~2-4 GB) from HuggingFace.
+
+## Portable Voice Files (.vox)
+
+VoxAlta uses the `.vox` format for portable voice identity files. A `.vox` is a ZIP archive containing:
+
+- **Manifest** -- Voice metadata (name, description, provenance)
+- **Reference audio** -- Source audio for cloned voices
+- **Embeddings** -- Clone prompt (`qwen3-tts/clone-prompt.bin`) and sample audio (`qwen3-tts/sample-audio.wav`)
+
+When you create a voice with `--design` or `--clone`, a `.vox` file is automatically exported to `~/.diga/voices/`. The CLI synthesizes a phoneme pangram, plays it through speakers so you can hear the voice immediately, and embeds the sample into the `.vox` file.
+
+```bash
+# Create a voice -- hear it immediately, .vox saved automatically
+diga --design "warm male baritone, 40s" narrator
+
+# Import a .vox from someone else
+diga --import-vox narrator.vox
+
+# Use a .vox directly without importing
+diga -v narrator.vox "Hello, world!"
+
+# Inspect a .vox file
+unzip -l ~/.diga/voices/narrator.vox
+```
 
 ## Migration from v0.2.x
 
@@ -258,8 +284,9 @@ let voiceLock = try await VoiceLockManager.createLock(
 // Result: VoiceLock with serialized clone prompt data
 
 // Step 6: Generate dialogue with locked voice
+let context = GenerationContext(phrase: "Did you get the documents?")
 let audio = try await VoiceLockManager.generateAudio(
-    text: "Did you get the documents?",
+    context: context,
     voiceLock: voiceLock,
     language: "en",
     modelManager: modelManager
@@ -370,6 +397,7 @@ For detailed integration instructions, see **[Produciesta Integration Guide](doc
 - [SwiftBruja](https://github.com/intrusive-memory/SwiftBruja) -- LLM inference for character analysis
 - [mlx-audio-swift](https://github.com/intrusive-memory/mlx-audio-swift) -- Qwen3-TTS inference
 - [SwiftAcervo](https://github.com/intrusive-memory/SwiftAcervo) -- Shared model management and caching
+- [vox-format](https://github.com/intrusive-memory/vox-format) -- Portable `.vox` voice identity file format
 
 ## License
 
