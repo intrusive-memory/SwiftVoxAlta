@@ -7,6 +7,7 @@
 //
 
 import Foundation
+@preconcurrency import MLX
 import MLXAudioTTS
 import SwiftAcervo
 
@@ -34,6 +35,15 @@ public enum Qwen3TTSModelRepo: String, CaseIterable, Sendable {
     /// Lighter-weight with 9 preset speakers.
     case customVoice0_6B = "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-bf16"
 
+    /// Base model (1.7B parameters, 8-bit quantized).
+    /// Reduced memory footprint (~1.7GB) with minor quality loss.
+    case base1_7B_8bit = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit"
+
+    /// Base model (1.7B parameters, 4-bit quantized).
+    /// Smallest memory footprint (~850MB) but significant quality degradation.
+    /// NOT recommended for production use.
+    case base1_7B_4bit = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-4bit"
+
     /// Human-readable display name for the model variant.
     public var displayName: String {
         switch self {
@@ -42,6 +52,8 @@ public enum Qwen3TTSModelRepo: String, CaseIterable, Sendable {
         case .base0_6B: return "Base 0.6B (bf16)"
         case .customVoice1_7B: return "CustomVoice 1.7B (bf16)"
         case .customVoice0_6B: return "CustomVoice 0.6B (bf16)"
+        case .base1_7B_8bit: return "Base 1.7B (8-bit)"
+        case .base1_7B_4bit: return "Base 1.7B (4-bit)"
         }
     }
 }
@@ -218,6 +230,13 @@ public actor VoxAltaModelManager {
     public func unloadModel() {
         cachedModel = nil
         _currentModelRepo = nil
+
+        // Synchronize the GPU stream to ensure all in-flight Metal compute
+        // from the previous model is complete, then release cached Metal buffers.
+        // Without this, loading a new model can crash in AGX::ComputeContext
+        // due to stale Metal command buffers from the previous model.
+        Stream.defaultStream(.gpu).synchronize()
+        Memory.clearCache()
     }
 
     // MARK: - Memory Validation

@@ -1,5 +1,7 @@
 import ArgumentParser
 import Foundation
+import SwiftVoxAlta
+import VoxFormat
 
 @main
 struct DigaCommand: AsyncParsableCommand {
@@ -19,6 +21,9 @@ struct DigaCommand: AsyncParsableCommand {
 
     @Option(name: .long, help: "Clone a voice from a reference audio file: --clone reference.wav <name>")
     var clone: String?
+
+    @Option(name: .long, help: "Import a voice from a .vox file: --import-vox voice.vox")
+    var importVox: String?
 
     // MARK: - Model Management Flags
 
@@ -61,20 +66,29 @@ struct DigaCommand: AsyncParsableCommand {
         }
 
         if let description = design {
-            try runDesignVoice(description: description)
+            try await runDesignVoice(description: description)
             return
         }
 
         if let referencePath = clone {
-            try runCloneVoice(referencePath: referencePath)
+            try await runCloneVoice(referencePath: referencePath)
+            return
+        }
+
+        if let voxPath = importVox {
+            try runImportVox(path: voxPath)
             return
         }
 
         // Resolve --model shorthand (0.6b, 1.7b) to full HuggingFace IDs.
         let resolvedModel = try resolveModelFlag()
 
+        // Check if -v points to a .vox file for direct synthesis.
+        let isVoxFile = voice?.hasSuffix(".vox") == true
+            && FileManager.default.isReadableFile(atPath: voice!)
+
         // Validate voice name before doing anything expensive.
-        if let voiceName = voice {
+        if let voiceName = voice, !isVoxFile {
             try validateVoiceExists(name: voiceName)
         }
 
@@ -105,7 +119,12 @@ struct DigaCommand: AsyncParsableCommand {
 
         // Synthesize text to WAV audio via Qwen3-TTS.
         let engine = DigaEngine(modelOverride: resolvedModel)
-        let wavData = try await engine.synthesize(text: trimmedText, voiceName: voice)
+        let wavData: Data
+        if isVoxFile {
+            wavData = try await engine.synthesizeFromVox(text: trimmedText, voxPath: voice!)
+        } else {
+            wavData = try await engine.synthesize(text: trimmedText, voiceName: voice)
+        }
 
         // Route output: file (-o) or speaker playback.
         if let outputPath = output {
@@ -236,7 +255,7 @@ struct DigaCommand: AsyncParsableCommand {
     // MARK: - --design
 
     /// Creates a new voice from a text description and saves it to the VoiceStore.
-    private func runDesignVoice(description: String) throws {
+    private func runDesignVoice(description: String) async throws {
         guard let voiceName = positionalArgs.first else {
             throw ValidationError("A voice name is required: --design \"description\" <name>")
         }
@@ -251,13 +270,41 @@ struct DigaCommand: AsyncParsableCommand {
 
         let store = VoiceStore()
         try store.saveVoice(voice)
+
+        // Auto-export .vox file (non-fatal on failure).
+        do {
+            let manifest = VoxExporter.buildManifest(
+                name: voiceName,
+                description: description,
+                voiceType: "designed",
+                createdAt: voice.createdAt
+            )
+            let voxURL = store.voicesDirectory.appendingPathComponent("\(voiceName).vox")
+            try VoxExporter.export(manifest: manifest, to: voxURL)
+        } catch {
+            FileHandle.standardError.write(
+                Data("Warning: could not export .vox file: \(error.localizedDescription)\n".utf8)
+            )
+        }
+
         print("Voice \"\(voiceName)\" created.")
+
+        // Generate clone prompt, synthesize pangram sample, play it, and embed in .vox.
+        let resolvedModel = try resolveModelFlag()
+        let engine = DigaEngine(voiceStore: store, modelOverride: resolvedModel)
+        do {
+            try await engine.generateSampleAndUpdateVox(voice: voice)
+        } catch {
+            FileHandle.standardError.write(
+                Data("Warning: sample generation failed: \(error.localizedDescription)\n".utf8)
+            )
+        }
     }
 
     // MARK: - --clone
 
     /// Clones a voice from a reference audio file and saves it to the VoiceStore.
-    private func runCloneVoice(referencePath: String) throws {
+    private func runCloneVoice(referencePath: String) async throws {
         guard let voiceName = positionalArgs.first else {
             throw ValidationError("A voice name is required: --clone reference.wav <name>")
         }
@@ -279,8 +326,115 @@ struct DigaCommand: AsyncParsableCommand {
         let store = VoiceStore()
         try store.saveVoice(voice)
 
+        // Auto-export .vox file with reference audio (non-fatal on failure).
+        do {
+            let manifest = VoxExporter.buildManifest(
+                name: voiceName,
+                description: nil,
+                voiceType: "cloned",
+                createdAt: voice.createdAt,
+                referenceAudioPaths: [referencePath]
+            )
+            let voxURL = store.voicesDirectory.appendingPathComponent("\(voiceName).vox")
+            try VoxExporter.export(
+                manifest: manifest,
+                referenceAudioURLs: [fileURL],
+                to: voxURL
+            )
+        } catch {
+            FileHandle.standardError.write(
+                Data("Warning: could not export .vox file: \(error.localizedDescription)\n".utf8)
+            )
+        }
+
         let filename = fileURL.lastPathComponent
         print("Voice \"\(voiceName)\" cloned from \(filename)")
+
+        // Generate clone prompt, synthesize pangram sample, play it, and embed in .vox.
+        let resolvedModel = try resolveModelFlag()
+        let engine = DigaEngine(voiceStore: store, modelOverride: resolvedModel)
+        do {
+            try await engine.generateSampleAndUpdateVox(voice: voice)
+        } catch {
+            FileHandle.standardError.write(
+                Data("Warning: sample generation failed: \(error.localizedDescription)\n".utf8)
+            )
+        }
+    }
+
+    // MARK: - --import-vox
+
+    /// Imports a voice from a .vox file and registers it in the VoiceStore.
+    private func runImportVox(path: String) throws {
+        let fileURL = URL(fileURLWithPath: path)
+        guard FileManager.default.isReadableFile(atPath: fileURL.path) else {
+            throw ValidationError("VOX file not found or not readable: \(path)")
+        }
+
+        let result = try VoxImporter.importVox(from: fileURL)
+        let store = VoiceStore()
+
+        // Determine voice type from provenance method.
+        let voiceType: VoiceType
+        switch result.method {
+        case "cloned":
+            voiceType = .cloned
+        case "preset":
+            voiceType = .preset
+        default:
+            voiceType = .designed
+        }
+
+        // Write clone prompt to disk if present.
+        var clonePromptPath: String?
+        if let promptData = result.clonePromptData {
+            let promptURL = store.voicesDirectory.appendingPathComponent("\(result.name).cloneprompt")
+            try FileManager.default.createDirectory(
+                at: store.voicesDirectory,
+                withIntermediateDirectories: true
+            )
+            try promptData.write(to: promptURL, options: .atomic)
+        }
+
+        // For cloned voices without a clone prompt, store reference audio path.
+        if voiceType == .cloned && result.clonePromptData == nil {
+            // Write first reference audio to disk for later clone prompt extraction.
+            if let (filename, data) = result.referenceAudio.first {
+                let refPath = store.voicesDirectory.appendingPathComponent(filename)
+                try FileManager.default.createDirectory(
+                    at: store.voicesDirectory,
+                    withIntermediateDirectories: true
+                )
+                try data.write(to: refPath, options: .atomic)
+                clonePromptPath = refPath.path
+            }
+        }
+
+        // Copy the .vox file to the voices directory.
+        let destVoxURL = store.voicesDirectory.appendingPathComponent("\(result.name).vox")
+        try FileManager.default.createDirectory(
+            at: store.voicesDirectory,
+            withIntermediateDirectories: true
+        )
+        if FileManager.default.fileExists(atPath: destVoxURL.path) {
+            try FileManager.default.removeItem(at: destVoxURL)
+        }
+        try FileManager.default.copyItem(at: fileURL, to: destVoxURL)
+
+        let voice = StoredVoice(
+            name: result.name,
+            type: voiceType,
+            designDescription: result.description,
+            clonePromptPath: clonePromptPath,
+            createdAt: result.createdAt
+        )
+        try store.saveVoice(voice)
+
+        if result.clonePromptData != nil {
+            print("Voice \"\(result.name)\" imported (ready to use).")
+        } else {
+            print("Voice \"\(result.name)\" imported (clone prompt will generate on first use).")
+        }
     }
 }
 

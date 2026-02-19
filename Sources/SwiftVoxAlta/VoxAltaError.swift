@@ -30,6 +30,12 @@ public enum VoxAltaError: Error, LocalizedError, Sendable {
     /// Audio export or format conversion failed.
     case audioExportFailed(String)
 
+    /// Exporting a voice to .vox format failed.
+    case voxExportFailed(String)
+
+    /// Importing a voice from .vox format failed.
+    case voxImportFailed(String)
+
     public var errorDescription: String? {
         switch self {
         case .voiceDesignFailed(let detail):
@@ -46,6 +52,10 @@ public enum VoxAltaError: Error, LocalizedError, Sendable {
             return "Insufficient memory: \(available) bytes available, \(required) bytes required."
         case .audioExportFailed(let detail):
             return "Audio export failed: \(detail)"
+        case .voxExportFailed(let detail):
+            return "VOX export failed: \(detail)"
+        case .voxImportFailed(let detail):
+            return "VOX import failed: \(detail)"
         }
     }
 }

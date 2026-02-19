@@ -28,7 +28,7 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     // MARK: - Version
 
     /// Current version of the SwiftVoxAlta library
-    public static let version = "0.3.0"
+    public static let version = "0.5.0"
 
     // MARK: - VoiceProvider Metadata
 
@@ -61,15 +61,47 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     /// Thread-safe cache of loaded voice clone prompts.
     private let voiceCache: VoxAltaVoiceCache
 
+    /// The Base model variant to use for voice cloning audio generation.
+    private var baseModelRepo: Qwen3TTSModelRepo
+
+    /// The CustomVoice model variant to use for preset speaker generation.
+    private var customVoiceModelRepo: Qwen3TTSModelRepo
+
     // MARK: - Initialization
 
     /// Create a new VoxAlta voice provider.
     ///
-    /// - Parameter modelManager: The model manager to use for TTS model operations.
-    ///   Defaults to a new instance.
-    public init(modelManager: VoxAltaModelManager = VoxAltaModelManager()) {
+    /// - Parameters:
+    ///   - modelManager: The model manager to use for TTS model operations. Defaults to a new instance.
+    ///   - baseModelRepo: The Base model variant to use for voice cloning. Defaults to `.base1_7B` (3.4GB).
+    ///   - customVoiceModelRepo: The CustomVoice model variant for preset speakers. Defaults to `.customVoice1_7B` (3.4GB).
+    public init(
+        modelManager: VoxAltaModelManager = VoxAltaModelManager(),
+        baseModelRepo: Qwen3TTSModelRepo = .base1_7B,
+        customVoiceModelRepo: Qwen3TTSModelRepo = .customVoice1_7B
+    ) {
         self.modelManager = modelManager
         self.voiceCache = VoxAltaVoiceCache()
+        self.baseModelRepo = baseModelRepo
+        self.customVoiceModelRepo = customVoiceModelRepo
+    }
+
+    // MARK: - Model Configuration
+
+    /// Update the model repositories used for generation.
+    ///
+    /// This allows changing the model size after initialization, useful for
+    /// per-project model selection based on PROJECT.md configuration.
+    ///
+    /// - Parameters:
+    ///   - baseModelRepo: The Base model variant to use for voice cloning.
+    ///   - customVoiceModelRepo: The CustomVoice model variant for preset speakers.
+    public func setModelRepos(
+        baseModelRepo: Qwen3TTSModelRepo,
+        customVoiceModelRepo: Qwen3TTSModelRepo
+    ) {
+        self.baseModelRepo = baseModelRepo
+        self.customVoiceModelRepo = customVoiceModelRepo
     }
 
     // MARK: - VoiceProvider Protocol
@@ -120,9 +152,8 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
 
     /// Generate speech audio from text using a loaded voice.
     ///
-    /// The voice must have been previously loaded via `loadVoice(id:clonePromptData:)`.
-    /// Audio is generated using the Base model with the stored clone prompt for
-    /// consistent voice identity.
+    /// Convenience wrapper that creates a bare `GenerationContext` from the text
+    /// and delegates to `generateAudio(context:voiceId:languageCode:)`.
     ///
     /// - Parameters:
     ///   - text: The text to synthesize.
@@ -132,10 +163,28 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     /// - Throws: `VoxAltaError.voiceNotLoaded` if the voice is not in the cache,
     ///           or other errors from model loading and audio generation.
     public func generateAudio(text: String, voiceId: String, languageCode: String) async throws -> Data {
+        let context = GenerationContext(phrase: text)
+        return try await generateAudio(context: context, voiceId: voiceId, languageCode: languageCode)
+    }
+
+    /// Generate speech audio from a generation context using a loaded voice.
+    ///
+    /// The voice must have been previously loaded via `loadVoice(id:clonePromptData:)`.
+    /// Audio is generated using the Base model with the stored clone prompt for
+    /// consistent voice identity.
+    ///
+    /// - Parameters:
+    ///   - context: The generation context containing the phrase and optional metadata.
+    ///   - voiceId: The voice identifier (character name) to use.
+    ///   - languageCode: The language code for generation (e.g., "en").
+    /// - Returns: WAV format audio data (24kHz, 16-bit PCM, mono).
+    /// - Throws: `VoxAltaError.voiceNotLoaded` if the voice is not in the cache,
+    ///           or other errors from model loading and audio generation.
+    public func generateAudio(context: GenerationContext, voiceId: String, languageCode: String) async throws -> Data {
         // Route 1: CustomVoice preset speaker (fast path)
         if let speaker = presetSpeaker(for: voiceId) {
             return try await generateWithPresetSpeaker(
-                text: text,
+                text: context.phrase,
                 speakerName: speaker.mlxSpeaker,
                 language: languageCode
             )
@@ -146,6 +195,9 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
             throw VoxAltaError.voiceNotLoaded(voiceId)
         }
 
+        let dataHash = cached.clonePromptData.prefix(16).map { String(format: "%02x", $0) }.joined()
+        FileHandle.standardError.write(Data("[VoxAltaVoiceProvider] 🎤 Fetched voice '\(voiceId)' from cache (data hash: \(dataHash), size: \(cached.clonePromptData.count) bytes)\n".utf8))
+
         // Build a VoiceLock from the cached clone prompt data
         let voiceLock = VoiceLock(
             characterName: voiceId,
@@ -155,10 +207,11 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
 
         // Pass the cache to enable clone prompt caching
         return try await VoiceLockManager.generateAudio(
-            text: text,
+            context: context,
             voiceLock: voiceLock,
             language: languageCode,
             modelManager: modelManager,
+            modelRepo: baseModelRepo,
             cache: voiceCache
         )
     }
@@ -299,7 +352,7 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
         speakerName: String,
         language: String
     ) async throws -> Data {
-        let model = try await modelManager.loadModel(.customVoice1_7B)
+        let model = try await modelManager.loadModel(customVoiceModelRepo)
 
         guard let qwenModel = model as? Qwen3TTSModel else {
             throw VoxAltaError.modelNotAvailable(

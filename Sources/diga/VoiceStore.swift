@@ -100,10 +100,14 @@ struct VoiceStore: Sendable {
         voices.removeAll { $0.name == name }
         if voices.count < before {
             try writeIndex(voices)
-            // Also remove any associated clone prompt file.
+            // Also remove any associated clone prompt and .vox files.
             let promptURL = voicesDirectory.appendingPathComponent("\(name).cloneprompt")
             if FileManager.default.fileExists(atPath: promptURL.path) {
                 try FileManager.default.removeItem(at: promptURL)
+            }
+            let voxURL = voicesDirectory.appendingPathComponent("\(name).vox")
+            if FileManager.default.fileExists(atPath: voxURL.path) {
+                try FileManager.default.removeItem(at: voxURL)
             }
             return true
         }

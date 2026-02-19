@@ -112,7 +112,45 @@ public enum VoiceLockManager: Sendable {
         )
     }
 
-    // MARK: - Audio Generation from Lock
+    // MARK: - Audio Generation from Lock (Context Envelope)
+
+    /// Generate speech audio using a locked voice identity and a generation context.
+    ///
+    /// Logs the envelope size, then delegates to the text-based `generateAudio` using
+    /// the context's phrase. The metadata is available for future pipeline stages.
+    ///
+    /// - Parameters:
+    ///   - context: The generation context containing the phrase and optional metadata.
+    ///   - voiceLock: The voice lock containing the serialized clone prompt.
+    ///   - language: The language code for generation. Defaults to "en".
+    ///   - modelManager: The model manager used to load the Base model.
+    ///   - modelRepo: The Base model variant to use for generation. Defaults to `.base1_7B`.
+    ///   - cache: Optional voice cache for clone prompt caching.
+    /// - Returns: WAV format Data of the generated speech audio (24kHz, 16-bit PCM, mono).
+    /// - Throws: `VoxAltaError.cloningFailed` if generation fails,
+    ///           `VoxAltaError.modelNotAvailable` if the Base model cannot be loaded.
+    public static func generateAudio(
+        context: GenerationContext,
+        voiceLock: VoiceLock,
+        language: String = "en",
+        modelManager: VoxAltaModelManager,
+        modelRepo: Qwen3TTSModelRepo = .base1_7B,
+        cache: VoxAltaVoiceCache? = nil
+    ) async throws -> Data {
+        VoiceLockManagerLogger.log(
+            "Envelope for '\(voiceLock.characterName)': \(context.serializedSize) bytes, \(context.metadata.count) metadata key(s)"
+        )
+        return try await generateAudio(
+            text: context.phrase,
+            voiceLock: voiceLock,
+            language: language,
+            modelManager: modelManager,
+            modelRepo: modelRepo,
+            cache: cache
+        )
+    }
+
+    // MARK: - Audio Generation from Lock (Text)
 
     /// Generate speech audio using a locked voice identity.
     ///
@@ -155,14 +193,17 @@ public enum VoiceLockManager: Sendable {
 
         // Check cache for deserialized clone prompt first
         let clonePrompt: VoiceClonePrompt
+        let dataHash = voiceLock.clonePromptData.prefix(16).map { String(format: "%02x", $0) }.joined()
+        VoiceLockManagerLogger.log("🔍 Generating for '\(voiceLock.characterName)' (data hash: \(dataHash), size: \(voiceLock.clonePromptData.count) bytes)")
+
         if let cache = cache, let cached = await cache.getClonePrompt(id: voiceLock.characterName) {
             clonePrompt = cached
-            VoiceLockManagerLogger.log("Clone prompt cache hit for '\(voiceLock.characterName)'")
+            VoiceLockManagerLogger.log("✅ Clone prompt cache HIT for '\(voiceLock.characterName)' - reusing deserialized clone prompt")
         } else {
             // Cache miss - deserialize clone prompt
             do {
                 clonePrompt = try VoiceClonePrompt.deserialize(from: voiceLock.clonePromptData)
-                VoiceLockManagerLogger.log("Clone prompt cache miss for '\(voiceLock.characterName)' - deserialized")
+                VoiceLockManagerLogger.log("⚠️  Clone prompt cache MISS for '\(voiceLock.characterName)' - deserializing now")
             } catch {
                 throw VoxAltaError.cloningFailed(
                     "Failed to deserialize voice clone prompt for '\(voiceLock.characterName)': \(error.localizedDescription)"
@@ -172,7 +213,7 @@ public enum VoiceLockManager: Sendable {
             // Store in cache for next time
             if let cache = cache {
                 await cache.storeClonePrompt(id: voiceLock.characterName, clonePrompt: clonePrompt)
-                VoiceLockManagerLogger.log("Stored clone prompt in cache for '\(voiceLock.characterName)'")
+                VoiceLockManagerLogger.log("💾 Stored clone prompt in cache for '\(voiceLock.characterName)'")
             }
         }
 

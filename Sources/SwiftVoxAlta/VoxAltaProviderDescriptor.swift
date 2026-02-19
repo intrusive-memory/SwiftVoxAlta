@@ -30,8 +30,8 @@ public enum VoxAltaProviderDescriptor: Sendable {
         VoiceProviderDescriptor(
             id: "voxalta",
             displayName: "VoxAlta (On-Device)",
-            isEnabledByDefault: true,
-            requiresConfiguration: false,
+            isEnabledByDefault: false,
+            requiresConfiguration: true,
             makeProvider: { VoxAltaVoiceProvider(modelManager: modelManager) }
         )
     }
