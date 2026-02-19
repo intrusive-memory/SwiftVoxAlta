@@ -25,7 +25,7 @@ let package = Package(
         .package(url: "https://github.com/intrusive-memory/mlx-audio-swift.git", branch: "development"),
         .package(url: "https://github.com/intrusive-memory/SwiftAcervo.git", branch: "main"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
-        .package(path: "/Users/stovak/Projects/vox-format"),
+        .package(url: "https://github.com/intrusive-memory/vox-format.git", branch: "main"),
     ],
     targets: [
         .target(
