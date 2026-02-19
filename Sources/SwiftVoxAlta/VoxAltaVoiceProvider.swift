@@ -28,7 +28,7 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     // MARK: - Version
 
     /// Current version of the SwiftVoxAlta library
-    public static let version = "0.6.0"
+    public static let version = "0.5.0"
 
     // MARK: - VoiceProvider Metadata
 
@@ -62,10 +62,10 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     private let voiceCache: VoxAltaVoiceCache
 
     /// The Base model variant to use for voice cloning audio generation.
-    private let baseModelRepo: Qwen3TTSModelRepo
+    private var baseModelRepo: Qwen3TTSModelRepo
 
     /// The CustomVoice model variant to use for preset speaker generation.
-    private let customVoiceModelRepo: Qwen3TTSModelRepo
+    private var customVoiceModelRepo: Qwen3TTSModelRepo
 
     // MARK: - Initialization
 
@@ -82,6 +82,24 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     ) {
         self.modelManager = modelManager
         self.voiceCache = VoxAltaVoiceCache()
+        self.baseModelRepo = baseModelRepo
+        self.customVoiceModelRepo = customVoiceModelRepo
+    }
+
+    // MARK: - Model Configuration
+
+    /// Update the model repositories used for generation.
+    ///
+    /// This allows changing the model size after initialization, useful for
+    /// per-project model selection based on PROJECT.md configuration.
+    ///
+    /// - Parameters:
+    ///   - baseModelRepo: The Base model variant to use for voice cloning.
+    ///   - customVoiceModelRepo: The CustomVoice model variant for preset speakers.
+    public func setModelRepos(
+        baseModelRepo: Qwen3TTSModelRepo,
+        customVoiceModelRepo: Qwen3TTSModelRepo
+    ) {
         self.baseModelRepo = baseModelRepo
         self.customVoiceModelRepo = customVoiceModelRepo
     }
