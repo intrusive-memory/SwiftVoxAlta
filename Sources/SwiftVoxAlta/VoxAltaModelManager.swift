@@ -7,6 +7,7 @@
 //
 
 import Foundation
+@preconcurrency import MLX
 import MLXAudioTTS
 import SwiftAcervo
 
@@ -229,6 +230,13 @@ public actor VoxAltaModelManager {
     public func unloadModel() {
         cachedModel = nil
         _currentModelRepo = nil
+
+        // Synchronize the GPU stream to ensure all in-flight Metal compute
+        // from the previous model is complete, then release cached Metal buffers.
+        // Without this, loading a new model can crash in AGX::ComputeContext
+        // due to stale Metal command buffers from the previous model.
+        Stream.defaultStream(.gpu).synchronize()
+        Memory.clearCache()
     }
 
     // MARK: - Memory Validation
