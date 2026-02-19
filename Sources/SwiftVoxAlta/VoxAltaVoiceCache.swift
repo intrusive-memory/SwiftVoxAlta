@@ -50,6 +50,8 @@ public actor VoxAltaVoiceCache {
     ///   - data: The serialized clone prompt data.
     ///   - gender: Optional gender descriptor for the voice.
     public func store(id: String, data: Data, gender: String?) {
+        let dataHash = data.prefix(16).map { String(format: "%02x", $0) }.joined()
+        FileHandle.standardError.write(Data("[VoxAltaVoiceCache] 📥 Storing voice '\(id)' (data hash: \(dataHash), size: \(data.count) bytes)\n".utf8))
         voices[id] = CachedVoice(clonePromptData: data, gender: gender)
     }
 
@@ -71,7 +73,15 @@ public actor VoxAltaVoiceCache {
     /// - Parameter id: The voice identifier to look up.
     /// - Returns: The cached voice entry, or `nil` if not found.
     public func get(id: String) -> CachedVoice? {
-        voices[id]
+        let result = voices[id]
+        if result != nil {
+            let dataHash = result!.clonePromptData.prefix(16).map { String(format: "%02x", $0) }.joined()
+            FileHandle.standardError.write(Data("[VoxAltaVoiceCache] 🔍 Retrieved voice '\(id)' (data hash: \(dataHash))\n".utf8))
+        } else {
+            let cachedIds = voices.keys.sorted().joined(separator: ", ")
+            FileHandle.standardError.write(Data("[VoxAltaVoiceCache] ❌ Voice '\(id)' NOT FOUND in cache. Available: [\(cachedIds)]\n".utf8))
+        }
+        return result
     }
 
     /// Return all voice IDs currently in the cache.

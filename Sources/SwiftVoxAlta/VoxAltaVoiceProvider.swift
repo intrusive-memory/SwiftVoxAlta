@@ -163,6 +163,9 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
             throw VoxAltaError.voiceNotLoaded(voiceId)
         }
 
+        let dataHash = cached.clonePromptData.prefix(16).map { String(format: "%02x", $0) }.joined()
+        FileHandle.standardError.write(Data("[VoxAltaVoiceProvider] 🎤 Fetched voice '\(voiceId)' from cache (data hash: \(dataHash), size: \(cached.clonePromptData.count) bytes)\n".utf8))
+
         // Build a VoiceLock from the cached clone prompt data
         let voiceLock = VoiceLock(
             characterName: voiceId,

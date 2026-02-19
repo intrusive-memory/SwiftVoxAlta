@@ -193,14 +193,17 @@ public enum VoiceLockManager: Sendable {
 
         // Check cache for deserialized clone prompt first
         let clonePrompt: VoiceClonePrompt
+        let dataHash = voiceLock.clonePromptData.prefix(16).map { String(format: "%02x", $0) }.joined()
+        VoiceLockManagerLogger.log("🔍 Generating for '\(voiceLock.characterName)' (data hash: \(dataHash), size: \(voiceLock.clonePromptData.count) bytes)")
+
         if let cache = cache, let cached = await cache.getClonePrompt(id: voiceLock.characterName) {
             clonePrompt = cached
-            VoiceLockManagerLogger.log("Clone prompt cache hit for '\(voiceLock.characterName)'")
+            VoiceLockManagerLogger.log("✅ Clone prompt cache HIT for '\(voiceLock.characterName)' - reusing deserialized clone prompt")
         } else {
             // Cache miss - deserialize clone prompt
             do {
                 clonePrompt = try VoiceClonePrompt.deserialize(from: voiceLock.clonePromptData)
-                VoiceLockManagerLogger.log("Clone prompt cache miss for '\(voiceLock.characterName)' - deserialized")
+                VoiceLockManagerLogger.log("⚠️  Clone prompt cache MISS for '\(voiceLock.characterName)' - deserializing now")
             } catch {
                 throw VoxAltaError.cloningFailed(
                     "Failed to deserialize voice clone prompt for '\(voiceLock.characterName)': \(error.localizedDescription)"
@@ -210,7 +213,7 @@ public enum VoiceLockManager: Sendable {
             // Store in cache for next time
             if let cache = cache {
                 await cache.storeClonePrompt(id: voiceLock.characterName, clonePrompt: clonePrompt)
-                VoiceLockManagerLogger.log("Stored clone prompt in cache for '\(voiceLock.characterName)'")
+                VoiceLockManagerLogger.log("💾 Stored clone prompt in cache for '\(voiceLock.characterName)'")
             }
         }
 
