@@ -61,15 +61,29 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     /// Thread-safe cache of loaded voice clone prompts.
     private let voiceCache: VoxAltaVoiceCache
 
+    /// The Base model variant to use for voice cloning audio generation.
+    private let baseModelRepo: Qwen3TTSModelRepo
+
+    /// The CustomVoice model variant to use for preset speaker generation.
+    private let customVoiceModelRepo: Qwen3TTSModelRepo
+
     // MARK: - Initialization
 
     /// Create a new VoxAlta voice provider.
     ///
-    /// - Parameter modelManager: The model manager to use for TTS model operations.
-    ///   Defaults to a new instance.
-    public init(modelManager: VoxAltaModelManager = VoxAltaModelManager()) {
+    /// - Parameters:
+    ///   - modelManager: The model manager to use for TTS model operations. Defaults to a new instance.
+    ///   - baseModelRepo: The Base model variant to use for voice cloning. Defaults to `.base1_7B` (3.4GB).
+    ///   - customVoiceModelRepo: The CustomVoice model variant for preset speakers. Defaults to `.customVoice1_7B` (3.4GB).
+    public init(
+        modelManager: VoxAltaModelManager = VoxAltaModelManager(),
+        baseModelRepo: Qwen3TTSModelRepo = .base1_7B,
+        customVoiceModelRepo: Qwen3TTSModelRepo = .customVoice1_7B
+    ) {
         self.modelManager = modelManager
         self.voiceCache = VoxAltaVoiceCache()
+        self.baseModelRepo = baseModelRepo
+        self.customVoiceModelRepo = customVoiceModelRepo
     }
 
     // MARK: - VoiceProvider Protocol
@@ -179,6 +193,7 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
             voiceLock: voiceLock,
             language: languageCode,
             modelManager: modelManager,
+            modelRepo: baseModelRepo,
             cache: voiceCache
         )
     }
@@ -319,7 +334,7 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
         speakerName: String,
         language: String
     ) async throws -> Data {
-        let model = try await modelManager.loadModel(.customVoice1_7B)
+        let model = try await modelManager.loadModel(customVoiceModelRepo)
 
         guard let qwenModel = model as? Qwen3TTSModel else {
             throw VoxAltaError.modelNotAvailable(
