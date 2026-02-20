@@ -582,6 +582,21 @@ actor DigaEngine {
             let data = try Data(contentsOf: promptFile)
             cachedClonePromptData = data
             cachedVoiceName = voice.name
+
+            // Ensure the .vox file also has the clone prompt embedded.
+            // The .vox may have been created after the .cloneprompt was cached,
+            // so the clone prompt was never written into it.
+            let voxFile = voiceStore.voicesDirectory.appendingPathComponent("\(voice.name).vox")
+            if FileManager.default.fileExists(atPath: voxFile.path) {
+                do {
+                    try VoxExporter.updateClonePrompt(in: voxFile, clonePromptData: data)
+                } catch {
+                    FileHandle.standardError.write(
+                        Data("Warning: could not update .vox file with clone prompt: \(error.localizedDescription)\n".utf8)
+                    )
+                }
+            }
+
             return data
         }
 
