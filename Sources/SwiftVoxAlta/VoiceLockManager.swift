@@ -94,6 +94,10 @@ public enum VoiceLockManager: Sendable {
             )
         }
 
+        // Flush GPU state after speaker encoder pass
+        Stream.defaultStream(.gpu).synchronize()
+        Memory.clearCache()
+
         // Serialize clone prompt to Data
         let clonePromptData: Data
         do {
@@ -230,6 +234,12 @@ public enum VoiceLockManager: Sendable {
                 "Failed to generate audio for '\(voiceLock.characterName)': \(error.localizedDescription)"
             )
         }
+
+        // Flush GPU state so the next generation starts with a clean context.
+        // Without this, stale Metal buffers from the KV cache and intermediate
+        // activations can bleed into subsequent calls, causing inconsistent quality.
+        Stream.defaultStream(.gpu).synchronize()
+        Memory.clearCache()
 
         // Convert to WAV Data
         do {
