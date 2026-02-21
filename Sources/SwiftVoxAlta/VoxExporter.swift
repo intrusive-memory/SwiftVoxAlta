@@ -10,6 +10,41 @@ public enum VoxExporter: Sendable {
     /// The embeddings path within a `.vox` archive for engine-generated sample audio.
     public static let sampleAudioEmbeddingPath = "qwen3-tts/sample-audio.wav"
 
+    /// The default model identifier used for clone prompt embeddings.
+    static let defaultCloneModel = "Qwen/Qwen3-TTS-12Hz-1.7B-Base-bf16"
+
+    // MARK: - Embedding Entry Helpers
+
+    /// Build embedding entries for the given embeddings dictionary.
+    static func buildEmbeddingEntries(
+        hasClonePrompt: Bool,
+        hasSampleAudio: Bool
+    ) -> [String: VoxManifest.EmbeddingEntry]? {
+        var entries: [String: VoxManifest.EmbeddingEntry] = [:]
+
+        if hasClonePrompt {
+            entries["qwen3-tts-clone-prompt"] = VoxManifest.EmbeddingEntry(
+                model: defaultCloneModel,
+                engine: "qwen3-tts",
+                file: clonePromptEmbeddingPath,
+                format: "bin",
+                description: "Clone prompt for voice cloning"
+            )
+        }
+
+        if hasSampleAudio {
+            entries["qwen3-tts-sample-audio"] = VoxManifest.EmbeddingEntry(
+                model: defaultCloneModel,
+                engine: "qwen3-tts",
+                file: sampleAudioEmbeddingPath,
+                format: "wav",
+                description: "Engine-generated voice sample"
+            )
+        }
+
+        return entries.isEmpty ? nil : entries
+    }
+
     // MARK: - Manifest Building
 
     /// Build a `VoxManifest` from a `VoiceLock`.
@@ -25,7 +60,7 @@ public enum VoxExporter: Sendable {
         language: String = "en-US"
     ) -> VoxManifest {
         VoxManifest(
-            voxVersion: "0.1.0",
+            voxVersion: VoxFormat.currentVersion,
             id: UUID().uuidString.lowercased(),
             created: voiceLock.lockedAt,
             voice: VoxManifest.Voice(
@@ -78,7 +113,7 @@ public enum VoxExporter: Sendable {
             }
 
         return VoxManifest(
-            voxVersion: "0.1.0",
+            voxVersion: VoxFormat.currentVersion,
             id: UUID().uuidString.lowercased(),
             created: createdAt,
             voice: VoxManifest.Voice(
@@ -124,8 +159,15 @@ public enum VoxExporter: Sendable {
                 referenceAudio[refURL.lastPathComponent] = data
             }
 
+            // Populate embedding entries metadata.
+            var exportManifest = manifest
+            exportManifest.embeddingEntries = buildEmbeddingEntries(
+                hasClonePrompt: clonePromptData != nil,
+                hasSampleAudio: false
+            )
+
             let voxFile = VoxFile(
-                manifest: manifest,
+                manifest: exportManifest,
                 referenceAudio: referenceAudio,
                 embeddings: embeddings
             )
@@ -155,8 +197,15 @@ public enum VoxExporter: Sendable {
             var embeddings = existing.embeddings
             embeddings[clonePromptEmbeddingPath] = clonePromptData
 
+            // Rebuild embedding entries from the current state.
+            var manifest = existing.manifest
+            manifest.embeddingEntries = buildEmbeddingEntries(
+                hasClonePrompt: true,
+                hasSampleAudio: embeddings[sampleAudioEmbeddingPath] != nil
+            )
+
             let updated = VoxFile(
-                manifest: existing.manifest,
+                manifest: manifest,
                 referenceAudio: existing.referenceAudio,
                 embeddings: embeddings
             )
@@ -187,8 +236,15 @@ public enum VoxExporter: Sendable {
             var embeddings = existing.embeddings
             embeddings[sampleAudioEmbeddingPath] = sampleAudioData
 
+            // Rebuild embedding entries from the current state.
+            var manifest = existing.manifest
+            manifest.embeddingEntries = buildEmbeddingEntries(
+                hasClonePrompt: embeddings[clonePromptEmbeddingPath] != nil,
+                hasSampleAudio: true
+            )
+
             let updated = VoxFile(
-                manifest: existing.manifest,
+                manifest: manifest,
                 referenceAudio: existing.referenceAudio,
                 embeddings: embeddings
             )

@@ -80,12 +80,15 @@ public enum VoiceDesigner: Sendable {
     /// - Parameters:
     ///   - profile: The character profile to design a voice for.
     ///   - modelManager: The model manager used to load the VoiceDesign model.
+    ///   - sampleSentence: A character-appropriate sentence to synthesize. If nil,
+    ///     falls back to the static `sampleText`.
     /// - Returns: WAV audio Data of the generated voice candidate.
     /// - Throws: `VoxAltaError.voiceDesignFailed` if generation fails,
     ///           `VoxAltaError.modelNotAvailable` if the model cannot be loaded.
     public static func generateCandidate(
         profile: CharacterProfile,
-        modelManager: VoxAltaModelManager
+        modelManager: VoxAltaModelManager,
+        sampleSentence: String? = nil
     ) async throws -> Data {
         // Load VoiceDesign model
         let model = try await modelManager.loadModel(.voiceDesign1_7B)
@@ -110,7 +113,7 @@ public enum VoiceDesigner: Sendable {
         let audioArray: MLXArray
         do {
             audioArray = try await qwenModel.generate(
-                text: sampleText,
+                text: sampleSentence ?? sampleText,
                 voice: voiceDescription,
                 refAudio: nil,
                 refText: nil,
@@ -148,13 +151,16 @@ public enum VoiceDesigner: Sendable {
     ///   - profile: The character profile to design voices for.
     ///   - count: The number of candidates to generate. Defaults to 3.
     ///   - modelManager: The model manager used to load the VoiceDesign model.
+    ///   - sampleSentence: A character-appropriate sentence to synthesize. If nil,
+    ///     falls back to the static `sampleText`.
     /// - Returns: An array of WAV audio Data, one per candidate, in index order.
     /// - Throws: `VoxAltaError.voiceDesignFailed` if any generation fails,
     ///           `VoxAltaError.modelNotAvailable` if the model cannot be loaded.
     public static func generateCandidates(
         profile: CharacterProfile,
         count: Int = 3,
-        modelManager: VoxAltaModelManager
+        modelManager: VoxAltaModelManager,
+        sampleSentence: String? = nil
     ) async throws -> [Data] {
         let clock = ContinuousClock()
         let totalStart = clock.now
@@ -193,7 +199,7 @@ public enum VoiceDesigner: Sendable {
                     let audioArray: MLXArray
                     do {
                         audioArray = try await qwenModel.generate(
-                            text: sampleText,
+                            text: sampleSentence ?? sampleText,
                             voice: voiceDescription,
                             refAudio: nil,
                             refText: nil,

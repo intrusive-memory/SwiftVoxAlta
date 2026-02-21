@@ -30,9 +30,8 @@ private enum VoiceLockManagerLogger {
 /// voice reproduction.
 public enum VoiceLockManager: Sendable {
 
-    /// A sample reference text describing the candidate audio content.
-    /// Used when creating the voice clone prompt from the candidate audio.
-    static let referenceSampleText = VoiceDesigner.sampleText
+    /// Default reference text for clone prompt extraction when no custom sentence is provided.
+    static let defaultReferenceSampleText = VoiceDesigner.sampleText
 
     // MARK: - Lock Creation
 
@@ -49,6 +48,8 @@ public enum VoiceLockManager: Sendable {
     ///     (output from `VoiceDesigner.generateCandidate`).
     ///   - designInstruction: The voice description text used to generate the candidate.
     ///   - modelManager: The model manager used to load the Base model.
+    ///   - sampleSentence: The text that was spoken in the candidate audio. If nil,
+    ///     falls back to the default reference text.
     ///   - modelRepo: The Base model variant to use for cloning. Defaults to `.base1_7B`.
     /// - Returns: A `VoiceLock` containing the serialized clone prompt.
     /// - Throws: `VoxAltaError.cloningFailed` if clone prompt extraction fails,
@@ -58,6 +59,7 @@ public enum VoiceLockManager: Sendable {
         candidateAudio: Data,
         designInstruction: String,
         modelManager: VoxAltaModelManager,
+        sampleSentence: String? = nil,
         modelRepo: Qwen3TTSModelRepo = .base1_7B
     ) async throws -> VoiceLock {
         // Load Base model (supports voice cloning)
@@ -85,7 +87,7 @@ public enum VoiceLockManager: Sendable {
         do {
             clonePrompt = try qwenModel.createVoiceClonePrompt(
                 refAudio: refAudio,
-                refText: referenceSampleText,
+                refText: sampleSentence ?? defaultReferenceSampleText,
                 language: "en"
             )
         } catch {

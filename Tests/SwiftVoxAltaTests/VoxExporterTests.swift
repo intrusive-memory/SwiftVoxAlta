@@ -33,7 +33,7 @@ struct VoxExporterTests {
         #expect(manifest.provenance?.method == "designed")
         #expect(manifest.provenance?.engine == "qwen3-tts")
         #expect(manifest.created == lock.lockedAt)
-        #expect(manifest.voxVersion == "0.1.0")
+        #expect(manifest.voxVersion == VoxFormat.currentVersion)
         #expect(!manifest.id.isEmpty)
     }
 
@@ -106,6 +106,13 @@ struct VoxExporterTests {
         // Verify embeddings has clone prompt.
         let roundTripped = readBack.embeddings["qwen3-tts/clone-prompt.bin"]
         #expect(roundTripped == cloneData)
+
+        // Verify embedding entry metadata.
+        let entry = readBack.manifest.embeddingEntries?["qwen3-tts-clone-prompt"]
+        #expect(entry != nil)
+        #expect(entry?.engine == "qwen3-tts")
+        #expect(entry?.format == "bin")
+        #expect(entry?.file == "qwen3-tts/clone-prompt.bin")
     }
 
     @Test("export creates valid .vox without clone prompt")
@@ -128,6 +135,7 @@ struct VoxExporterTests {
         let reader = VoxReader()
         let readBack = try reader.read(from: voxURL)
         #expect(readBack.manifest.voice.name == "ManifestOnly")
+        #expect(readBack.manifest.embeddingEntries == nil)
     }
 
     @Test("export includes reference audio in archive")
@@ -183,6 +191,11 @@ struct VoxExporterTests {
         let readBack = try reader.read(from: voxURL)
         let roundTripped = readBack.embeddings[VoxExporter.sampleAudioEmbeddingPath]
         #expect(roundTripped == sampleData)
+
+        // Verify embedding entry metadata for sample audio.
+        let entry = readBack.manifest.embeddingEntries?["qwen3-tts-sample-audio"]
+        #expect(entry != nil)
+        #expect(entry?.format == "wav")
     }
 
     @Test("updateSampleAudio preserves existing clone prompt")
@@ -205,11 +218,15 @@ struct VoxExporterTests {
         let sampleData = Data(repeating: 0xCC, count: 128)
         try VoxExporter.updateSampleAudio(in: voxURL, sampleAudioData: sampleData)
 
-        // Both should be present.
+        // Both binaries should be present.
         let reader = VoxReader()
         let readBack = try reader.read(from: voxURL)
         #expect(readBack.embeddings["qwen3-tts/clone-prompt.bin"] == cloneData)
         #expect(readBack.embeddings[VoxExporter.sampleAudioEmbeddingPath] == sampleData)
+
+        // Both embedding entries should be present.
+        #expect(readBack.manifest.embeddingEntries?["qwen3-tts-clone-prompt"] != nil)
+        #expect(readBack.manifest.embeddingEntries?["qwen3-tts-sample-audio"] != nil)
     }
 
     @Test("updateClonePrompt adds prompt to existing .vox")
@@ -236,5 +253,10 @@ struct VoxExporterTests {
         let readBack = try reader.read(from: voxURL)
         let roundTripped = readBack.embeddings["qwen3-tts/clone-prompt.bin"]
         #expect(roundTripped == promptData)
+
+        // Verify embedding entry metadata.
+        let entry = readBack.manifest.embeddingEntries?["qwen3-tts-clone-prompt"]
+        #expect(entry != nil)
+        #expect(entry?.engine == "qwen3-tts")
     }
 }

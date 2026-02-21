@@ -422,15 +422,33 @@ actor DigaEngine {
                 voiceTraits: [],
                 summary: importResult.description
             )
+            // Generate a character-appropriate sample sentence
+            let sampleSentence: String?
+            do {
+                sampleSentence = try await SampleSentenceGenerator.generate(
+                    fromDescription: importResult.description,
+                    name: importResult.name
+                )
+                FileHandle.standardError.write(
+                    Data("Sample sentence: \"\(sampleSentence!)\"\n".utf8)
+                )
+            } catch {
+                FileHandle.standardError.write(
+                    Data("Could not generate sample sentence, using default.\n".utf8)
+                )
+                sampleSentence = nil
+            }
             let candidateAudio = try await VoiceDesigner.generateCandidate(
                 profile: profile,
-                modelManager: voxAltaModelManager
+                modelManager: voxAltaModelManager,
+                sampleSentence: sampleSentence
             )
             let lock = try await VoiceLockManager.createLock(
                 characterName: importResult.name,
                 candidateAudio: candidateAudio,
                 designInstruction: importResult.description,
                 modelManager: voxAltaModelManager,
+                sampleSentence: sampleSentence,
                 modelRepo: resolvedBaseModelRepo
             )
             clonePromptData = lock.clonePromptData
@@ -664,12 +682,30 @@ actor DigaEngine {
                 summary: description
             )
 
+            // Generate a character-appropriate sample sentence
+            let sampleSentence: String?
+            do {
+                sampleSentence = try await SampleSentenceGenerator.generate(
+                    fromDescription: description,
+                    name: voice.name
+                )
+                FileHandle.standardError.write(
+                    Data("Sample sentence: \"\(sampleSentence!)\"\n".utf8)
+                )
+            } catch {
+                FileHandle.standardError.write(
+                    Data("Could not generate sample sentence, using default.\n".utf8)
+                )
+                sampleSentence = nil
+            }
+
             // Generate a voice candidate using VoiceDesign model.
             let candidateAudio: Data
             do {
                 candidateAudio = try await VoiceDesigner.generateCandidate(
                     profile: profile,
-                    modelManager: voxAltaModelManager
+                    modelManager: voxAltaModelManager,
+                    sampleSentence: sampleSentence
                 )
             } catch {
                 throw DigaEngineError.voiceDesignFailed(
@@ -684,6 +720,7 @@ actor DigaEngine {
                     candidateAudio: candidateAudio,
                     designInstruction: description,
                     modelManager: voxAltaModelManager,
+                    sampleSentence: sampleSentence,
                     modelRepo: resolvedBaseModelRepo
                 )
                 clonePromptData = lock.clonePromptData
