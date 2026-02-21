@@ -21,6 +21,7 @@ struct VoxImporterTests {
         description: String = "A test voice for import validation.",
         method: String = "designed",
         clonePromptData: Data? = nil,
+        clonePromptModelRepo: Qwen3TTSModelRepo = .base1_7B,
         includeReference: Bool = false,
         in directory: URL
     ) throws -> URL {
@@ -45,6 +46,7 @@ struct VoxImporterTests {
         try VoxExporter.export(
             manifest: manifest,
             clonePromptData: clonePromptData,
+            clonePromptModelRepo: clonePromptModelRepo,
             referenceAudioURLs: refURLs,
             to: voxURL
         )
@@ -75,6 +77,7 @@ struct VoxImporterTests {
 
         let result = try VoxImporter.importVox(from: voxURL)
         #expect(result.clonePromptData == nil)
+        #expect(result.clonePromptsByModel.isEmpty)
     }
 
     @Test("importVox preserves metadata from manifest")
@@ -143,5 +146,104 @@ struct VoxImporterTests {
         #expect(throws: VoxAltaError.self) {
             try VoxImporter.importVox(from: fakeURL)
         }
+    }
+
+    // MARK: - Multi-Model Import Tests
+
+    @Test("importVox extracts both 0.6B and 1.7B clone prompts")
+    func importMultiModelClonePrompts() throws {
+        let tempDir = makeTempDir()
+        defer { cleanup(tempDir) }
+
+        // Create with 1.7B clone prompt.
+        let data1_7B = Data(repeating: 0xAA, count: 256)
+        let voxURL = try createTestVox(
+            name: "MultiImport",
+            clonePromptData: data1_7B,
+            clonePromptModelRepo: .base1_7B,
+            in: tempDir
+        )
+
+        // Add 0.6B clone prompt.
+        let data0_6B = Data(repeating: 0xBB, count: 128)
+        try VoxExporter.updateClonePrompt(
+            in: voxURL,
+            clonePromptData: data0_6B,
+            modelRepo: .base0_6B
+        )
+
+        let result = try VoxImporter.importVox(from: voxURL)
+
+        // Both should be in clonePromptsByModel.
+        #expect(result.clonePromptsByModel.count == 2)
+        #expect(result.clonePromptsByModel["qwen3-tts-1.7b"] == data1_7B)
+        #expect(result.clonePromptsByModel["qwen3-tts-0.6b"] == data0_6B)
+
+        // Backward-compatible property should prefer 1.7B.
+        #expect(result.clonePromptData == data1_7B)
+    }
+
+    @Test("importVox handles legacy single-path .vox files")
+    func importLegacySinglePath() throws {
+        let tempDir = makeTempDir()
+        defer { cleanup(tempDir) }
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+        // Manually create a legacy .vox with the old path "qwen3-tts/clone-prompt.bin"
+        let manifest = VoxExporter.buildManifest(
+            name: "LegacyVoice",
+            description: "A legacy voice with old-format clone prompt.",
+            voiceType: "designed"
+        )
+
+        let legacyData = Data(repeating: 0xCC, count: 100)
+        let embeddings: [String: Data] = [
+            "qwen3-tts/clone-prompt.bin": legacyData
+        ]
+
+        let voxFile = VoxFile(
+            manifest: manifest,
+            referenceAudio: [:],
+            embeddings: embeddings
+        )
+        let voxURL = tempDir.appendingPathComponent("legacy.vox")
+        let writer = VoxWriter()
+        try writer.write(voxFile, to: voxURL)
+
+        let result = try VoxImporter.importVox(from: voxURL)
+
+        // Legacy data should appear as 1.7B.
+        #expect(result.clonePromptsByModel["qwen3-tts-1.7b"] == legacyData)
+        #expect(result.clonePromptData == legacyData)
+    }
+
+    @Test("importVox model-specific query returns correct data")
+    func importModelSpecificQuery() throws {
+        let tempDir = makeTempDir()
+        defer { cleanup(tempDir) }
+
+        // Create with 1.7B.
+        let data1_7B = Data(repeating: 0xDD, count: 200)
+        let voxURL = try createTestVox(
+            name: "QueryTest",
+            clonePromptData: data1_7B,
+            clonePromptModelRepo: .base1_7B,
+            in: tempDir
+        )
+
+        // Add 0.6B.
+        let data0_6B = Data(repeating: 0xEE, count: 100)
+        try VoxExporter.updateClonePrompt(
+            in: voxURL,
+            clonePromptData: data0_6B,
+            modelRepo: .base0_6B
+        )
+
+        let result = try VoxImporter.importVox(from: voxURL)
+
+        // Query by model slug.
+        #expect(result.clonePromptData(for: "0.6b") == data0_6B)
+        #expect(result.clonePromptData(for: "1.7b") == data1_7B)
+        #expect(result.clonePromptData(for: "2.0b") == nil)
     }
 }

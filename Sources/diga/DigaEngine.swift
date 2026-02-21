@@ -200,11 +200,8 @@ actor DigaEngine {
     /// VoxAlta model manager for loading Qwen3-TTS models into memory.
     private let voxAltaModelManager: VoxAltaModelManager
 
-    /// Cached clone prompt data for the current voice (avoids re-reading from disk).
-    private var cachedClonePromptData: Data?
-
-    /// Name of the voice whose clone prompt is cached.
-    private var cachedVoiceName: String?
+    /// Cached clone prompt data keyed by "voiceName:modelSlug" (avoids re-reading from disk).
+    private var cachedClonePrompts: [String: Data] = [:]
 
     // MARK: - Initialization
 
@@ -233,7 +230,7 @@ actor DigaEngine {
     /// Otherwise defaults to `.base1_7B` because clone prompt extraction and
     /// clone-prompt-based generation require the Base model (not CustomVoice).
     /// Preset speaker paths bypass this and use CustomVoice directly.
-    private var resolvedBaseModelRepo: Qwen3TTSModelRepo {
+    var resolvedBaseModelRepo: Qwen3TTSModelRepo {
         guard let override = modelOverride else { return .base1_7B }
         if let match = Qwen3TTSModelRepo(rawValue: override) {
             return match
@@ -245,6 +242,11 @@ actor DigaEngine {
         }
         // Default to Base 1.7B for unknown overrides
         return .base1_7B
+    }
+
+    /// The model size slug for the currently resolved model (e.g. "0.6b" or "1.7b").
+    private var resolvedModelSlug: String {
+        VoxExporter.modelSizeSlug(for: resolvedBaseModelRepo)
     }
 
     // MARK: - Voice Resolution
@@ -372,8 +374,8 @@ actor DigaEngine {
     /// Synthesize speech directly from a `.vox` file without requiring import.
     ///
     /// The `.vox` file is read and its contents are used to drive synthesis:
-    /// - If a clone prompt is embedded, it is used directly.
-    /// - If reference audio is present (but no clone prompt), a clone prompt is extracted.
+    /// - If a clone prompt is embedded for the current model, it is used directly.
+    /// - If reference audio is present (but no matching clone prompt), a clone prompt is extracted.
     /// - If only a description is available, VoiceDesign generates a voice.
     ///
     /// - Parameters:
@@ -392,8 +394,12 @@ actor DigaEngine {
 
         let clonePromptData: Data
 
-        if let promptData = importResult.clonePromptData {
-            // Clone prompt embedded — use directly.
+        // Try model-specific clone prompt first, then any available.
+        if let promptData = importResult.clonePromptData(for: resolvedModelSlug) {
+            clonePromptData = promptData
+        } else if let promptData = importResult.clonePromptData {
+            // Fall back to any available clone prompt (may cause dimension mismatch,
+            // but better than regenerating).
             clonePromptData = promptData
         } else if let firstRefData = importResult.referenceAudio.values.first {
             // Reference audio available — extract clone prompt.
@@ -572,12 +578,13 @@ actor DigaEngine {
 
     // MARK: - Clone Prompt Management
 
-    /// Load or create a clone prompt for the given voice.
+    /// Load or create a clone prompt for the given voice and current model.
     ///
     /// Checks (in order):
-    /// 1. In-memory cache
-    /// 2. On-disk cache (`~/.diga/voices/<name>.cloneprompt`)
-    /// 3. Generate from scratch:
+    /// 1. In-memory cache (keyed by "voiceName:modelSlug")
+    /// 2. On-disk cache (`~/.diga/voices/<name>-<slug>.cloneprompt`)
+    /// 3. Legacy on-disk cache (`~/.diga/voices/<name>.cloneprompt`, treated as 1.7B only)
+    /// 4. Generate from scratch:
     ///    - Cloned voices: create clone prompt from reference audio file
     ///    - Built-in/designed voices: run VoiceDesign to generate reference clip,
     ///      then extract clone prompt from it
@@ -588,26 +595,30 @@ actor DigaEngine {
     /// - Returns: Serialized clone prompt data.
     /// - Throws: `DigaEngineError` if clone prompt creation fails.
     func loadOrCreateClonePrompt(for voice: StoredVoice) async throws -> Data {
+        let slug = resolvedModelSlug
+        let cacheKey = "\(voice.name):\(slug)"
+
         // 1. Check in-memory cache.
-        if let cached = cachedClonePromptData, cachedVoiceName == voice.name {
+        if let cached = cachedClonePrompts[cacheKey] {
             return cached
         }
 
-        // 2. Check on-disk cache.
-        let promptFile = voiceStore.voicesDirectory
-            .appendingPathComponent("\(voice.name).cloneprompt")
-        if FileManager.default.fileExists(atPath: promptFile.path) {
-            let data = try Data(contentsOf: promptFile)
-            cachedClonePromptData = data
-            cachedVoiceName = voice.name
+        // 2. Check model-specific on-disk cache.
+        let modelSpecificPromptFile = voiceStore.voicesDirectory
+            .appendingPathComponent("\(voice.name)-\(slug).cloneprompt")
+        if FileManager.default.fileExists(atPath: modelSpecificPromptFile.path) {
+            let data = try Data(contentsOf: modelSpecificPromptFile)
+            cachedClonePrompts[cacheKey] = data
 
-            // Ensure the .vox file also has the clone prompt embedded.
-            // The .vox may have been created after the .cloneprompt was cached,
-            // so the clone prompt was never written into it.
+            // Ensure the .vox file also has this model's clone prompt embedded.
             let voxFile = voiceStore.voicesDirectory.appendingPathComponent("\(voice.name).vox")
             if FileManager.default.fileExists(atPath: voxFile.path) {
                 do {
-                    try VoxExporter.updateClonePrompt(in: voxFile, clonePromptData: data)
+                    try VoxExporter.updateClonePrompt(
+                        in: voxFile,
+                        clonePromptData: data,
+                        modelRepo: resolvedBaseModelRepo
+                    )
                 } catch {
                     FileHandle.standardError.write(
                         Data("Warning: could not update .vox file with clone prompt: \(error.localizedDescription)\n".utf8)
@@ -618,7 +629,37 @@ actor DigaEngine {
             return data
         }
 
-        // 3. Generate clone prompt.
+        // 3. Check legacy on-disk cache (unsuffixed file, treated as 1.7B only).
+        let legacyPromptFile = voiceStore.voicesDirectory
+            .appendingPathComponent("\(voice.name).cloneprompt")
+        if FileManager.default.fileExists(atPath: legacyPromptFile.path),
+           slug == "1.7b" {
+            let data = try Data(contentsOf: legacyPromptFile)
+            cachedClonePrompts[cacheKey] = data
+
+            // Migrate: save a model-specific copy.
+            try? data.write(to: modelSpecificPromptFile, options: .atomic)
+
+            // Ensure the .vox file also has this model's clone prompt embedded.
+            let voxFile = voiceStore.voicesDirectory.appendingPathComponent("\(voice.name).vox")
+            if FileManager.default.fileExists(atPath: voxFile.path) {
+                do {
+                    try VoxExporter.updateClonePrompt(
+                        in: voxFile,
+                        clonePromptData: data,
+                        modelRepo: resolvedBaseModelRepo
+                    )
+                } catch {
+                    FileHandle.standardError.write(
+                        Data("Warning: could not update .vox file with clone prompt: \(error.localizedDescription)\n".utf8)
+                    )
+                }
+            }
+
+            return data
+        }
+
+        // 4. Generate clone prompt.
         let clonePromptData: Data
 
         if voice.type == .cloned, let refPath = voice.clonePromptPath {
@@ -738,13 +779,13 @@ actor DigaEngine {
             )
         }
 
-        // Save clone prompt to disk for future reuse.
+        // Save clone prompt to model-specific disk file for future reuse.
         do {
             try FileManager.default.createDirectory(
                 at: voiceStore.voicesDirectory,
                 withIntermediateDirectories: true
             )
-            try clonePromptData.write(to: promptFile, options: .atomic)
+            try clonePromptData.write(to: modelSpecificPromptFile, options: .atomic)
         } catch {
             // Non-fatal: synthesis still works, just won't be cached.
             FileHandle.standardError.write(
@@ -752,11 +793,15 @@ actor DigaEngine {
             )
         }
 
-        // Update .vox file with the clone prompt if one exists.
+        // Update .vox file with the model-specific clone prompt if one exists.
         let voxFile = voiceStore.voicesDirectory.appendingPathComponent("\(voice.name).vox")
         if FileManager.default.fileExists(atPath: voxFile.path) {
             do {
-                try VoxExporter.updateClonePrompt(in: voxFile, clonePromptData: clonePromptData)
+                try VoxExporter.updateClonePrompt(
+                    in: voxFile,
+                    clonePromptData: clonePromptData,
+                    modelRepo: resolvedBaseModelRepo
+                )
             } catch {
                 FileHandle.standardError.write(
                     Data("Warning: could not update .vox file with clone prompt: \(error.localizedDescription)\n".utf8)
@@ -765,8 +810,7 @@ actor DigaEngine {
         }
 
         // Cache in memory.
-        cachedClonePromptData = clonePromptData
-        cachedVoiceName = voice.name
+        cachedClonePrompts[cacheKey] = clonePromptData
 
         return clonePromptData
     }
@@ -827,9 +871,12 @@ actor DigaEngine {
         // 4. Write clone prompt and sample audio into the .vox file.
         let voxFile = voiceStore.voicesDirectory.appendingPathComponent("\(voice.name).vox")
         if FileManager.default.fileExists(atPath: voxFile.path) {
-            // Embed clone prompt explicitly — do not rely on loadOrCreateClonePrompt's
-            // side-effect, which may silently fail and leave the .vox incomplete.
-            try VoxExporter.updateClonePrompt(in: voxFile, clonePromptData: clonePromptData)
+            // Embed clone prompt with model-specific path.
+            try VoxExporter.updateClonePrompt(
+                in: voxFile,
+                clonePromptData: clonePromptData,
+                modelRepo: resolvedBaseModelRepo
+            )
             try VoxExporter.updateSampleAudio(in: voxFile, sampleAudioData: sampleWAV)
             FileHandle.standardError.write(
                 Data("Clone prompt and sample audio saved to \(voice.name).vox\n".utf8)

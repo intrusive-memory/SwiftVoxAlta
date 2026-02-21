@@ -4,31 +4,59 @@ import Foundation
 /// Static methods for exporting VoxAlta voices to the `.vox` portable container format.
 public enum VoxExporter: Sendable {
 
-    /// The embeddings path within a `.vox` archive for Qwen3-TTS clone prompts.
-    static let clonePromptEmbeddingPath = "qwen3-tts/clone-prompt.bin"
+    /// Legacy embeddings path for Qwen3-TTS clone prompts (pre-multi-model).
+    /// Used as a fallback when reading old `.vox` files.
+    static let legacyClonePromptEmbeddingPath = "qwen3-tts/clone-prompt.bin"
 
     /// The embeddings path within a `.vox` archive for engine-generated sample audio.
     public static let sampleAudioEmbeddingPath = "qwen3-tts/sample-audio.wav"
 
-    /// The default model identifier used for clone prompt embeddings.
+    /// The default model identifier used for clone prompt embeddings (legacy).
     static let defaultCloneModel = "Qwen/Qwen3-TTS-12Hz-1.7B-Base-bf16"
+
+    // MARK: - Model-Specific Path Helpers
+
+    /// Returns a short slug for the given model repo (e.g. "0.6b" or "1.7b").
+    public static func modelSizeSlug(for repo: Qwen3TTSModelRepo) -> String {
+        switch repo {
+        case .base0_6B, .customVoice0_6B:
+            return "0.6b"
+        case .base1_7B, .base1_7B_8bit, .base1_7B_4bit,
+             .customVoice1_7B, .voiceDesign1_7B:
+            return "1.7b"
+        }
+    }
+
+    /// Returns the model-specific embedding file path for a clone prompt.
+    /// e.g. `"qwen3-tts/0.6b/clone-prompt.bin"`
+    public static func clonePromptEmbeddingPath(for repo: Qwen3TTSModelRepo) -> String {
+        "qwen3-tts/\(modelSizeSlug(for: repo))/clone-prompt.bin"
+    }
+
+    /// Returns the model-specific embedding entry key for a clone prompt.
+    /// e.g. `"qwen3-tts-0.6b"`
+    public static func clonePromptEntryKey(for repo: Qwen3TTSModelRepo) -> String {
+        "qwen3-tts-\(modelSizeSlug(for: repo))"
+    }
 
     // MARK: - Embedding Entry Helpers
 
-    /// Build embedding entries for the given embeddings dictionary.
+    /// Build embedding entries for the given state, merging with any existing entries.
     static func buildEmbeddingEntries(
-        hasClonePrompt: Bool,
-        hasSampleAudio: Bool
+        clonePromptModelRepo: Qwen3TTSModelRepo? = nil,
+        hasSampleAudio: Bool,
+        existingEntries: [String: VoxManifest.EmbeddingEntry]? = nil
     ) -> [String: VoxManifest.EmbeddingEntry]? {
-        var entries: [String: VoxManifest.EmbeddingEntry] = [:]
+        var entries = existingEntries ?? [:]
 
-        if hasClonePrompt {
-            entries["qwen3-tts-clone-prompt"] = VoxManifest.EmbeddingEntry(
-                model: defaultCloneModel,
+        if let repo = clonePromptModelRepo {
+            let key = clonePromptEntryKey(for: repo)
+            entries[key] = VoxManifest.EmbeddingEntry(
+                model: repo.rawValue,
                 engine: "qwen3-tts",
-                file: clonePromptEmbeddingPath,
+                file: clonePromptEmbeddingPath(for: repo),
                 format: "bin",
-                description: "Clone prompt for voice cloning"
+                description: "Clone prompt for voice cloning (\(modelSizeSlug(for: repo)))"
             )
         }
 
@@ -136,12 +164,15 @@ public enum VoxExporter: Sendable {
     /// - Parameters:
     ///   - manifest: The voice manifest.
     ///   - clonePromptData: Optional clone prompt binary data.
+    ///   - clonePromptModelRepo: The model repo the clone prompt was generated with.
+    ///     Defaults to `.base1_7B` for backward compatibility.
     ///   - referenceAudioURLs: URLs to reference audio files to include.
     ///   - to: Destination URL for the `.vox` file.
     /// - Throws: `VoxAltaError.voxExportFailed` on failure.
     public static func export(
         manifest: VoxManifest,
         clonePromptData: Data? = nil,
+        clonePromptModelRepo: Qwen3TTSModelRepo = .base1_7B,
         referenceAudioURLs: [URL] = [],
         to destination: URL
     ) throws {
@@ -149,7 +180,7 @@ public enum VoxExporter: Sendable {
             // Build embeddings dictionary.
             var embeddings: [String: Data] = [:]
             if let promptData = clonePromptData {
-                embeddings[clonePromptEmbeddingPath] = promptData
+                embeddings[clonePromptEmbeddingPath(for: clonePromptModelRepo)] = promptData
             }
 
             // Read reference audio files into memory.
@@ -162,7 +193,7 @@ public enum VoxExporter: Sendable {
             // Populate embedding entries metadata.
             var exportManifest = manifest
             exportManifest.embeddingEntries = buildEmbeddingEntries(
-                hasClonePrompt: clonePromptData != nil,
+                clonePromptModelRepo: clonePromptData != nil ? clonePromptModelRepo : nil,
                 hasSampleAudio: false
             )
 
@@ -179,29 +210,37 @@ public enum VoxExporter: Sendable {
         }
     }
 
-    /// Update (or add) the clone prompt in an existing `.vox` archive.
+    /// Update (or add) a model-specific clone prompt in an existing `.vox` archive.
     ///
-    /// Reads the existing `.vox`, extracts its manifest and reference audio,
-    /// then re-writes it with the clone prompt embedded.
+    /// Reads the existing `.vox`, merges the new clone prompt with any existing
+    /// embeddings (preserving other models' clone prompts and sample audio),
+    /// then re-writes the archive.
     ///
     /// - Parameters:
     ///   - voxURL: Path to the existing `.vox` file.
     ///   - clonePromptData: The clone prompt binary data to embed.
+    ///   - modelRepo: The model repo the clone prompt was generated with.
+    ///     Defaults to `.base1_7B` for backward compatibility.
     /// - Throws: `VoxAltaError.voxExportFailed` on failure.
-    public static func updateClonePrompt(in voxURL: URL, clonePromptData: Data) throws {
+    public static func updateClonePrompt(
+        in voxURL: URL,
+        clonePromptData: Data,
+        modelRepo: Qwen3TTSModelRepo = .base1_7B
+    ) throws {
         do {
             let reader = VoxReader()
             let existing = try reader.read(from: voxURL)
 
             // Merge new clone prompt into existing embeddings.
             var embeddings = existing.embeddings
-            embeddings[clonePromptEmbeddingPath] = clonePromptData
+            embeddings[clonePromptEmbeddingPath(for: modelRepo)] = clonePromptData
 
-            // Rebuild embedding entries from the current state.
+            // Rebuild embedding entries, merging with existing ones.
             var manifest = existing.manifest
             manifest.embeddingEntries = buildEmbeddingEntries(
-                hasClonePrompt: true,
-                hasSampleAudio: embeddings[sampleAudioEmbeddingPath] != nil
+                clonePromptModelRepo: modelRepo,
+                hasSampleAudio: embeddings[sampleAudioEmbeddingPath] != nil,
+                existingEntries: existing.manifest.embeddingEntries
             )
 
             let updated = VoxFile(
@@ -221,8 +260,8 @@ public enum VoxExporter: Sendable {
 
     /// Update (or add) the sample audio in an existing `.vox` archive.
     ///
-    /// Reads the existing `.vox`, extracts its manifest, reference audio, and embeddings,
-    /// then re-writes it with the sample audio WAV data embedded.
+    /// Reads the existing `.vox`, merges the sample audio with existing embeddings
+    /// (preserving clone prompt entries), then re-writes the archive.
     ///
     /// - Parameters:
     ///   - voxURL: Path to the existing `.vox` file.
@@ -236,12 +275,17 @@ public enum VoxExporter: Sendable {
             var embeddings = existing.embeddings
             embeddings[sampleAudioEmbeddingPath] = sampleAudioData
 
-            // Rebuild embedding entries from the current state.
+            // Rebuild sample audio entry, merging with all existing entries.
             var manifest = existing.manifest
-            manifest.embeddingEntries = buildEmbeddingEntries(
-                hasClonePrompt: embeddings[clonePromptEmbeddingPath] != nil,
-                hasSampleAudio: true
+            var entries = existing.manifest.embeddingEntries ?? [:]
+            entries["qwen3-tts-sample-audio"] = VoxManifest.EmbeddingEntry(
+                model: defaultCloneModel,
+                engine: "qwen3-tts",
+                file: sampleAudioEmbeddingPath,
+                format: "wav",
+                description: "Engine-generated voice sample"
             )
+            manifest.embeddingEntries = entries
 
             let updated = VoxFile(
                 manifest: manifest,

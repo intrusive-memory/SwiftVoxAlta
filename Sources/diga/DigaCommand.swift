@@ -373,14 +373,17 @@ struct DigaCommand: AsyncParsableCommand {
             voiceType = .designed
         }
 
-        // Write clone prompt to disk if present.
+        // Write all clone prompts to disk with model-specific suffixes.
         var clonePromptPath: String?
-        if let promptData = result.clonePromptData {
-            let promptURL = store.voicesDirectory.appendingPathComponent("\(result.name).cloneprompt")
-            try FileManager.default.createDirectory(
-                at: store.voicesDirectory,
-                withIntermediateDirectories: true
-            )
+        try FileManager.default.createDirectory(
+            at: store.voicesDirectory,
+            withIntermediateDirectories: true
+        )
+        for (key, promptData) in result.clonePromptsByModel {
+            // Extract slug from key (e.g. "qwen3-tts-0.6b" -> "0.6b")
+            let slug = key.replacingOccurrences(of: "qwen3-tts-", with: "")
+            let promptURL = store.voicesDirectory
+                .appendingPathComponent("\(result.name)-\(slug).cloneprompt")
             try promptData.write(to: promptURL, options: .atomic)
         }
 
