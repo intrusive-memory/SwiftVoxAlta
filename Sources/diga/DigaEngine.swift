@@ -787,19 +787,16 @@ actor DigaEngine {
             )
         }
 
-        // 4. Write sample audio into the .vox file.
+        // 4. Write clone prompt and sample audio into the .vox file.
         let voxFile = voiceStore.voicesDirectory.appendingPathComponent("\(voice.name).vox")
         if FileManager.default.fileExists(atPath: voxFile.path) {
-            do {
-                try VoxExporter.updateSampleAudio(in: voxFile, sampleAudioData: sampleWAV)
-                FileHandle.standardError.write(
-                    Data("Sample audio saved to \(voice.name).vox\n".utf8)
-                )
-            } catch {
-                FileHandle.standardError.write(
-                    Data("Warning: could not update .vox with sample audio: \(error.localizedDescription)\n".utf8)
-                )
-            }
+            // Embed clone prompt explicitly — do not rely on loadOrCreateClonePrompt's
+            // side-effect, which may silently fail and leave the .vox incomplete.
+            try VoxExporter.updateClonePrompt(in: voxFile, clonePromptData: clonePromptData)
+            try VoxExporter.updateSampleAudio(in: voxFile, sampleAudioData: sampleWAV)
+            FileHandle.standardError.write(
+                Data("Clone prompt and sample audio saved to \(voice.name).vox\n".utf8)
+            )
         }
     }
 }

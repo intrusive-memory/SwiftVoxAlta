@@ -292,13 +292,7 @@ struct DigaCommand: AsyncParsableCommand {
         // Generate clone prompt, synthesize pangram sample, play it, and embed in .vox.
         let resolvedModel = try resolveModelFlag()
         let engine = DigaEngine(voiceStore: store, modelOverride: resolvedModel)
-        do {
-            try await engine.generateSampleAndUpdateVox(voice: voice)
-        } catch {
-            FileHandle.standardError.write(
-                Data("Warning: sample generation failed: \(error.localizedDescription)\n".utf8)
-            )
-        }
+        try await engine.generateSampleAndUpdateVox(voice: voice)
     }
 
     // MARK: - --clone
@@ -353,13 +347,7 @@ struct DigaCommand: AsyncParsableCommand {
         // Generate clone prompt, synthesize pangram sample, play it, and embed in .vox.
         let resolvedModel = try resolveModelFlag()
         let engine = DigaEngine(voiceStore: store, modelOverride: resolvedModel)
-        do {
-            try await engine.generateSampleAndUpdateVox(voice: voice)
-        } catch {
-            FileHandle.standardError.write(
-                Data("Warning: sample generation failed: \(error.localizedDescription)\n".utf8)
-            )
-        }
+        try await engine.generateSampleAndUpdateVox(voice: voice)
     }
 
     // MARK: - --import-vox
