@@ -415,6 +415,175 @@ let audio = try await VoiceLockManager.generateAudio(
 // voiceLock.clonePromptData -> SwiftData @Model character.voiceLockData
 ```
 
+## Voice Generation Data Flow
+
+This section documents the complete data flow for voice creation, clone prompt resolution, and synthesis in the `diga` CLI engine.
+
+### Voice Creation Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        VOICE CREATION                               │
+├─────────────────────────────┬───────────────────────────────────────┤
+│     --design "desc" name    │       --clone ref.wav name            │
+│                             │                                       │
+│  ┌────────────────────┐     │                                       │
+│  │ SampleSentenceGen  │     │                                       │
+│  │ (SwiftBruja LLM)   │     │                                       │
+│  │ → sample sentence   │     │                                       │
+│  └────────┬───────────┘     │                                       │
+│           ▼                 │                                       │
+│  ┌────────────────────┐     │                                       │
+│  │ VoiceDesigner       │     │                                       │
+│  │ VoiceDesign 1.7B    │     │                                       │
+│  │ model loaded        │     │                                       │
+│  │ → candidate WAV     │     │  ┌──────────────────┐                │
+│  └────────┬───────────┘     │  │ Read ref audio    │                │
+│           ▼                 │  │ from disk          │                │
+│  ┌────────────────────┐     │  │ → reference WAV    │                │
+│  │ Model switch:       │     │  └────────┬─────────┘                │
+│  │ unload VoiceDesign  │     │           │                           │
+│  │ load Base 1.7B      │     │           │                           │
+│  └────────┬───────────┘     │           │                           │
+│           ▼                 │           ▼                           │
+│  ┌──────────────────────────────────────────────┐                   │
+│  │         VoiceLockManager.createLock()         │                   │
+│  │                                               │                   │
+│  │  WAV Data → wavDataToMLXArray → MLXArray      │                   │
+│  │       ▼                                       │                   │
+│  │  Qwen3TTSModel.createVoiceClonePrompt()       │                   │
+│  │  (Base model speaker encoder)                 │                   │
+│  │       ▼                                       │                   │
+│  │  VoiceClonePrompt.serialize() → binary Data   │                   │
+│  │       ▼                                       │                   │
+│  │  Return VoiceLock {                           │                   │
+│  │    characterName, clonePromptData,            │                   │
+│  │    designInstruction, lockedAt                │                   │
+│  │  }                                            │                   │
+│  └──────────────────┬───────────────────────────┘                   │
+│                     │                                                │
+│                     ▼                                                │
+│  ┌──────────────────────────────────────────────┐                   │
+│  │              DATA PERSISTENCE                 │                   │
+│  │                                               │                   │
+│  │  Memory: cachedClonePrompts["name:1.7b"]      │                   │
+│  │  Disk:   ~/.diga/voices/name-1.7b.cloneprompt │                   │
+│  │  .vox:   qwen3-tts/clone-prompt.bin           │                   │
+│  └──────────────────┬───────────────────────────┘                   │
+│                     ▼                                                │
+│  ┌──────────────────────────────────────────────┐                   │
+│  │       generateSampleAndUpdateVox()            │                   │
+│  │                                               │                   │
+│  │  VoiceLockManager.generateAudio()             │                   │
+│  │    text: phoneme pangram                      │                   │
+│  │    clone prompt → deserialized                │                   │
+│  │    Base model: generateWithClonePrompt()      │                   │
+│  │       ▼                                       │                   │
+│  │  Sample WAV → speakers (AudioPlayback)        │                   │
+│  │  Sample WAV → .vox (qwen3-tts/sample-audio)   │                   │
+│  └──────────────────────────────────────────────┘                   │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Key difference**: The `--design` path loads two models sequentially (VoiceDesign 1.7B for candidate generation, then Base 1.7B for clone prompt extraction). The `--clone` path only loads Base 1.7B.
+
+### Clone Prompt Resolution
+
+When synthesizing with an existing voice (`diga "Hello" -v alice`), `DigaEngine.loadOrCreateClonePrompt()` checks five sources in order:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    CLONE PROMPT RESOLUTION                           │
+│                  loadOrCreateClonePrompt()                           │
+│                                                                     │
+│  1. Memory cache: cachedClonePrompts["alice:1.7b"]  ── HIT? → use  │
+│                                                          │          │
+│  2. Disk cache: alice-1.7b.cloneprompt              ── HIT? → use  │
+│                                                          │          │
+│  3. Legacy disk: alice.cloneprompt (1.7b only)      ── HIT? → use  │
+│                                                          │          │
+│  4. On-demand extraction from .vox:                      │          │
+│     Import alice.vox                                     │          │
+│     Look for sample audio OR reference audio             │          │
+│     Extract clone prompt via createLock()            ── HIT? → use  │
+│                                                          │          │
+│  5. Generate from scratch (full design/clone pipeline)              │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+Step 4 is the key optimization for model switching: when switching from 1.7B to 0.6B, the `.vox` file's model-agnostic source audio allows clone prompt re-extraction without re-running VoiceDesign.
+
+### Synthesis Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        SYNTHESIS                                    │
+│                                                                     │
+│  Text → TextChunker.chunk() → ["sentence 1", "sentence 2", ...]    │
+│                                                                     │
+│  For each chunk:                                                    │
+│    VoiceLockManager.generateAudio()                                 │
+│      clone prompt → VoiceClonePrompt.deserialize()                  │
+│      Qwen3TTSModel.generateWithClonePrompt(text, prompt)            │
+│      → MLXArray → mlxArrayToWAVData → WAV segment                  │
+│                                                                     │
+│  WAVConcatenator.concatenate(segments) → final WAV                  │
+│                                                                     │
+│  Output:                                                            │
+│    -o file.wav → AudioFileWriter (wav/aiff/m4a)                     │
+│    (default)   → AudioPlayback (speakers)                           │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Disk Layout
+
+```
+~/.diga/voices/
+├── index.json                    ← Voice registry (JSON array of StoredVoice)
+├── alice-1.7b.cloneprompt        ← Serialized speaker embedding (~5-10KB)
+├── alice.vox                     ← Portable container (ZIP)
+│   ├── manifest.json             │  name, description, provenance
+│   ├── reference/                │  (empty for designed voices)
+│   └── qwen3-tts/
+│       ├── clone-prompt.bin      │  Same data as .cloneprompt file
+│       └── sample-audio.wav      │  Pangram sample for preview
+├── bob-1.7b.cloneprompt          ← Cloned voice
+└── bob.vox
+    ├── manifest.json
+    ├── reference/
+    │   └── speaker.wav           ← Original reference audio preserved
+    └── qwen3-tts/
+        ├── clone-prompt.bin
+        └── sample-audio.wav
+
+~/Library/SharedModels/           ← Model weights (shared via Acervo)
+├── mlx-community_Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16/  (~4.2GB)
+├── mlx-community_Qwen3-TTS-12Hz-1.7B-Base-bf16/         (~4.3GB)
+├── mlx-community_Qwen3-TTS-12Hz-0.6B-Base-bf16/         (~2.4GB)
+└── mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16/  (presets)
+```
+
+### Data Artifacts Summary
+
+| Stage | Artifact | Location | Format |
+|-------|----------|----------|--------|
+| Voice Registration | StoredVoice | `~/.diga/voices/index.json` | JSON |
+| Initial Export | Empty .vox | `~/.diga/voices/{name}.vox` | ZIP |
+| Design Generation | Candidate Audio | Memory only | WAV Data |
+| Clone Prompt Extraction | Serialized embedding | Memory + Disk + .vox | Binary |
+| Disk Cache | Clone Prompt Files | `~/.diga/voices/{name}-{slug}.cloneprompt` | Binary |
+| Sample Audio | Pangram WAV | Embedded in .vox + played | WAV |
+| Models | TTS Model Weights | `~/Library/SharedModels/` | safetensors |
+
+### Preset Speaker Flow (Built-in Voices)
+
+Preset speakers (ryan, aiden, vivian, etc.) bypass the entire clone prompt pipeline:
+
+- **No clone prompt** -- speaker name passed directly to the CustomVoice model
+- **No disk caching** -- preset embeddings live inside the model weights
+- **Different model** -- uses `CustomVoice1_7B` instead of `Base1_7B`
+- Calls `Qwen3TTSModel.generate(text:voice:)` with the speaker name directly
+
 ## VoxFormat (.vox) Integration
 
 VoxAlta uses the [vox-format](https://github.com/intrusive-memory/vox-format) library for portable voice identity files. A `.vox` file is a ZIP archive containing a manifest, optional reference audio, and engine-specific embeddings.
