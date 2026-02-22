@@ -4,21 +4,22 @@
 
 # SwiftVoxAlta
 
-A thin VoiceProvider library for [SwiftHablare](https://github.com/intrusive-memory/SwiftHablare) that provides on-device Qwen3-TTS voice design and cloning capabilities via [mlx-audio-swift](https://github.com/intrusive-memory/mlx-audio-swift).
+A thin VoiceProvider library for [SwiftHablare](https://github.com/intrusive-memory/SwiftHablare) that provides on-device Qwen3-TTS voice synthesis via [mlx-audio-swift](https://github.com/intrusive-memory/mlx-audio-swift).
 
 ## Overview
 
-VoxAlta ingests structured screenplay data from [SwiftCompartido](https://github.com/intrusive-memory/SwiftCompartido), analyzes characters using [SwiftBruja](https://github.com/intrusive-memory/SwiftBruja) (LLM inference), designs voices with Qwen3-TTS VoiceDesign, locks voice identities via clone prompts, and renders dialogue audio -- all on-device using Apple Silicon.
+VoxAlta loads voice identities from `.vox` files, resolves clone prompts, and renders speech audio -- all on-device using Apple Silicon. Voice creation (design, clone, character analysis) is handled separately by SwiftEchada (`echada cast`).
 
 ### What VoxAlta Provides
 
 - **VoiceProvider implementation** -- text + voiceId -> audio Data (Qwen3-TTS Base model cloning)
-- **Voice design API** -- character evidence -> CharacterProfile -> voice candidates -> locked voice
 - **VoiceProviderDescriptor** -- for auto-registration with SwiftHablare's registry
+- **VoxImporter/VoxExporter** -- portable `.vox` voice identity files (container-first API)
 - **`diga` CLI** -- drop-in replacement for `/usr/bin/say` with neural text-to-speech
 
 ### What VoxAlta Does NOT Provide
 
+- Voice creation/design (SwiftEchada / `echada cast`)
 - Fountain parsing (SwiftCompartido)
 - Voice selection UI (app layer)
 - Audio storage/persistence (Produciesta / SwiftData)
@@ -34,11 +35,9 @@ VoxAlta ingests structured screenplay data from [SwiftCompartido](https://github
 
 SwiftVoxAlta automatically detects and leverages **M5 Neural Accelerators** (Apple M5/M5 Pro/M5 Max/M5 Ultra chips, 2025+) for significant TTS performance improvements:
 
-- **4× faster inference** on macOS 26.2+ with M5 chips
+- **4x faster inference** on macOS 26.2+ with M5 chips
 - **Zero code changes required** - MLX auto-detects Neural Accelerators at runtime
 - **Automatic fallback** - Works seamlessly on M1/M2/M3/M4 without Neural Accelerators
-
-When a model is loaded on M5 hardware, VoxAlta logs: `Neural Accelerators detected (M5 Pro) - MLX will auto-accelerate TTS inference (4× speedup on macOS 26.2+)`
 
 ## Installation
 
@@ -53,7 +52,7 @@ brew install diga
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/intrusive-memory/SwiftVoxAlta.git", from: "0.5.0")
+    .package(url: "https://github.com/intrusive-memory/SwiftVoxAlta.git", from: "0.7.0")
 ]
 ```
 
@@ -67,11 +66,9 @@ Then add the library target to your dependency list:
 
 - **[diga CLI Reference](docs/CLI.md)** -- CLI usage, voice management, model selection, .vox files
 - **[Building & Testing](docs/BUILDING.md)** -- Build from source, Makefile targets, test suites, CI behavior
-- **[VoiceDesign Pipeline](docs/VOICE_DESIGN_PIPELINE.md)** -- Character voice design workflow, API examples, model requirements
 - **[Migration from v0.2.x](docs/MIGRATION.md)** -- Breaking changes in v0.3.0
 - **[Produciesta Integration](docs/PRODUCIESTA_INTEGRATION.md)** -- Voice provider setup for Produciesta
 - **[Available Voices](docs/AVAILABLE_VOICES.md)** -- CustomVoice preset speakers
-- **[CI Dependency Chain](docs/CI_DEPENDENCY_CHAIN.md)** -- Cross-repo CI/CD architecture
 
 ## Produciesta Integration
 
@@ -109,8 +106,6 @@ For detailed integration instructions, see **[Produciesta Integration Guide](doc
 ## Dependencies
 
 - [SwiftHablare](https://github.com/intrusive-memory/SwiftHablare) -- VoiceProvider protocol
-- [SwiftCompartido](https://github.com/intrusive-memory/SwiftCompartido) -- Input types (GuionElementModel, ElementType)
-- [SwiftBruja](https://github.com/intrusive-memory/SwiftBruja) -- LLM inference for character analysis
 - [mlx-audio-swift](https://github.com/intrusive-memory/mlx-audio-swift) -- Qwen3-TTS inference
 - [SwiftAcervo](https://github.com/intrusive-memory/SwiftAcervo) -- Shared model management and caching
 - [vox-format](https://github.com/intrusive-memory/vox-format) -- Portable `.vox` voice identity file format
