@@ -12,14 +12,6 @@ import Testing
 @Suite("VoxAltaError Tests")
 struct VoxAltaErrorTests {
 
-    @Test("voiceDesignFailed has non-empty errorDescription")
-    func voiceDesignFailed() {
-        let error = VoxAltaError.voiceDesignFailed("generation timed out")
-        #expect(error.errorDescription != nil)
-        #expect(!error.errorDescription!.isEmpty)
-        #expect(error.errorDescription!.contains("generation timed out"))
-    }
-
     @Test("cloningFailed has non-empty errorDescription")
     func cloningFailed() {
         let error = VoxAltaError.cloningFailed("reference audio too short")
@@ -42,14 +34,6 @@ struct VoxAltaErrorTests {
         #expect(error.errorDescription != nil)
         #expect(!error.errorDescription!.isEmpty)
         #expect(error.errorDescription!.contains("ELENA"))
-    }
-
-    @Test("profileAnalysisFailed has non-empty errorDescription")
-    func profileAnalysisFailed() {
-        let error = VoxAltaError.profileAnalysisFailed("LLM returned invalid JSON")
-        #expect(error.errorDescription != nil)
-        #expect(!error.errorDescription!.isEmpty)
-        #expect(error.errorDescription!.contains("LLM returned invalid JSON"))
     }
 
     @Test("insufficientMemory has non-empty errorDescription with correct values")
@@ -88,18 +72,16 @@ struct VoxAltaErrorTests {
     @Test("All error cases conform to Error protocol")
     func allCasesAreErrors() {
         let errors: [any Error] = [
-            VoxAltaError.voiceDesignFailed("test"),
             VoxAltaError.cloningFailed("test"),
             VoxAltaError.modelNotAvailable("test"),
             VoxAltaError.voiceNotLoaded("test"),
-            VoxAltaError.profileAnalysisFailed("test"),
             VoxAltaError.insufficientMemory(available: 100, required: 200),
             VoxAltaError.audioExportFailed("test"),
             VoxAltaError.voxExportFailed("test"),
             VoxAltaError.voxImportFailed("test"),
         ]
 
-        #expect(errors.count == 9)
+        #expect(errors.count == 7)
         for error in errors {
             #expect(error is VoxAltaError)
             let voxError = error as! VoxAltaError

@@ -58,7 +58,6 @@ make test              # ~15-60 seconds, includes integration tests
 
 **See [AGENTS.md](AGENTS.md) for:**
 - Complete API documentation and usage examples
-- Voice design pipeline and character analysis
 - CLI commands and voice management
 - Architecture patterns and design decisions
 - Integration guides for SwiftHablare/Produciesta

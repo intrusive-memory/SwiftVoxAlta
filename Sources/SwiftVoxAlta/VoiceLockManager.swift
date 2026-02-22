@@ -30,9 +30,8 @@ private enum VoiceLockManagerLogger {
 /// voice reproduction.
 public enum VoiceLockManager: Sendable {
 
-    /// A sample reference text describing the candidate audio content.
-    /// Used when creating the voice clone prompt from the candidate audio.
-    static let referenceSampleText = VoiceDesigner.sampleText
+    /// Default reference text for clone prompt extraction when no custom sentence is provided.
+    static let defaultReferenceSampleText = "Hello, this is a voice sample for testing purposes."
 
     // MARK: - Lock Creation
 
@@ -45,10 +44,11 @@ public enum VoiceLockManager: Sendable {
     ///
     /// - Parameters:
     ///   - characterName: The character name to associate with this voice lock.
-    ///   - candidateAudio: WAV format Data of the selected voice candidate
-    ///     (output from `VoiceDesigner.generateCandidate`).
+    ///   - candidateAudio: WAV format Data of the selected voice candidate.
     ///   - designInstruction: The voice description text used to generate the candidate.
     ///   - modelManager: The model manager used to load the Base model.
+    ///   - sampleSentence: The text that was spoken in the candidate audio. If nil,
+    ///     falls back to the default reference text.
     ///   - modelRepo: The Base model variant to use for cloning. Defaults to `.base1_7B`.
     /// - Returns: A `VoiceLock` containing the serialized clone prompt.
     /// - Throws: `VoxAltaError.cloningFailed` if clone prompt extraction fails,
@@ -58,6 +58,7 @@ public enum VoiceLockManager: Sendable {
         candidateAudio: Data,
         designInstruction: String,
         modelManager: VoxAltaModelManager,
+        sampleSentence: String? = nil,
         modelRepo: Qwen3TTSModelRepo = .base1_7B
     ) async throws -> VoiceLock {
         // Load Base model (supports voice cloning)
@@ -85,7 +86,7 @@ public enum VoiceLockManager: Sendable {
         do {
             clonePrompt = try qwenModel.createVoiceClonePrompt(
                 refAudio: refAudio,
-                refText: referenceSampleText,
+                refText: sampleSentence ?? defaultReferenceSampleText,
                 language: "en"
             )
         } catch {
@@ -93,6 +94,10 @@ public enum VoiceLockManager: Sendable {
                 "Failed to create voice clone prompt for '\(characterName)': \(error.localizedDescription)"
             )
         }
+
+        // Flush GPU state after speaker encoder pass
+        Stream.defaultStream(.gpu).synchronize()
+        Memory.clearCache()
 
         // Serialize clone prompt to Data
         let clonePromptData: Data
@@ -230,6 +235,12 @@ public enum VoiceLockManager: Sendable {
                 "Failed to generate audio for '\(voiceLock.characterName)': \(error.localizedDescription)"
             )
         }
+
+        // Flush GPU state so the next generation starts with a clean context.
+        // Without this, stale Metal buffers from the KV cache and intermediate
+        // activations can bleed into subsequent calls, causing inconsistent quality.
+        Stream.defaultStream(.gpu).synchronize()
+        Memory.clearCache()
 
         // Convert to WAV Data
         do {

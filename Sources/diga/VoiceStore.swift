@@ -101,9 +101,17 @@ struct VoiceStore: Sendable {
         if voices.count < before {
             try writeIndex(voices)
             // Also remove any associated clone prompt and .vox files.
-            let promptURL = voicesDirectory.appendingPathComponent("\(name).cloneprompt")
-            if FileManager.default.fileExists(atPath: promptURL.path) {
-                try FileManager.default.removeItem(at: promptURL)
+            // Remove legacy unsuffixed clone prompt.
+            let legacyPromptURL = voicesDirectory.appendingPathComponent("\(name).cloneprompt")
+            if FileManager.default.fileExists(atPath: legacyPromptURL.path) {
+                try FileManager.default.removeItem(at: legacyPromptURL)
+            }
+            // Remove model-specific clone prompts.
+            for slug in ["0.6b", "1.7b"] {
+                let modelPromptURL = voicesDirectory.appendingPathComponent("\(name)-\(slug).cloneprompt")
+                if FileManager.default.fileExists(atPath: modelPromptURL.path) {
+                    try FileManager.default.removeItem(at: modelPromptURL)
+                }
             }
             let voxURL = voicesDirectory.appendingPathComponent("\(name).vox")
             if FileManager.default.fileExists(atPath: voxURL.path) {

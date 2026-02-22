@@ -20,8 +20,6 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/intrusive-memory/SwiftHablare.git", branch: "development"),
-        .package(url: "https://github.com/intrusive-memory/SwiftCompartido.git", branch: "development"),
-        .package(url: "https://github.com/intrusive-memory/SwiftBruja.git", branch: "main"),
         .package(url: "https://github.com/intrusive-memory/mlx-audio-swift.git", branch: "development"),
         .package(url: "https://github.com/intrusive-memory/SwiftAcervo.git", branch: "main"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
@@ -32,8 +30,6 @@ let package = Package(
             name: "SwiftVoxAlta",
             dependencies: [
                 .product(name: "SwiftHablare", package: "SwiftHablare"),
-                .product(name: "SwiftCompartido", package: "SwiftCompartido"),
-                .product(name: "SwiftBruja", package: "SwiftBruja"),
                 .product(name: "MLXAudioTTS", package: "mlx-audio-swift"),
                 .product(name: "SwiftAcervo", package: "SwiftAcervo"),
                 .product(name: "VoxFormat", package: "vox-format"),
@@ -58,7 +54,6 @@ let package = Package(
             name: "SwiftVoxAltaTests",
             dependencies: [
                 "SwiftVoxAlta",
-                .product(name: "SwiftCompartido", package: "SwiftCompartido"),
                 .product(name: "SwiftAcervo", package: "SwiftAcervo"),
                 .product(name: "VoxFormat", package: "vox-format"),
             ],

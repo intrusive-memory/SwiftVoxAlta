@@ -70,26 +70,22 @@ struct DigaVoxIntegrationTests {
 
     // MARK: - Export Round-Trip
 
-    @Test("Export and import round-trips voice metadata")
-    func exportImportRoundTrip() throws {
+    @Test("Update and import round-trips clone prompt data")
+    func updateImportRoundTrip() throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("vox-roundtrip-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: tempDir) }
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
-        let manifest = VoxExporter.buildManifest(
-            name: "RoundTrip",
-            description: "A voice for testing export and import.",
-            voiceType: "designed"
-        )
-        let promptData = Data(repeating: 0x42, count: 100)
+        // Create a .vox file using container-first API.
+        let vox = VoxFile(name: "RoundTrip", description: "A voice for testing export and import.")
+        vox.manifest.provenance = VoxManifest.Provenance(method: "designed", engine: "qwen3-tts")
         let voxURL = tempDir.appendingPathComponent("roundtrip.vox")
+        try vox.write(to: voxURL)
 
-        try VoxExporter.export(
-            manifest: manifest,
-            clonePromptData: promptData,
-            to: voxURL
-        )
+        // Add a clone prompt via the update API.
+        let promptData = Data(repeating: 0x42, count: 100)
+        try VoxExporter.updateClonePrompt(in: voxURL, clonePromptData: promptData)
 
         let result = try VoxImporter.importVox(from: voxURL)
         #expect(result.name == "RoundTrip")

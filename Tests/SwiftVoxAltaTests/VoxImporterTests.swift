@@ -15,7 +15,7 @@ struct VoxImporterTests {
         try? FileManager.default.removeItem(at: url)
     }
 
-    /// Helper: create a .vox file with optional clone prompt for testing.
+    /// Helper: create a .vox file with optional clone prompt using container-first API.
     private func createTestVox(
         name: String = "ImportTest",
         description: String = "A test voice for import validation.",
@@ -26,28 +26,27 @@ struct VoxImporterTests {
     ) throws -> URL {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
-        var refURLs: [URL] = []
-        var refPaths: [String] = []
-        if includeReference {
-            let refURL = directory.appendingPathComponent("ref-audio.wav")
-            try Data(repeating: 0x00, count: 44).write(to: refURL)
-            refURLs.append(refURL)
-            refPaths.append(refURL.path)
+        let vox = VoxFile(name: name, description: description)
+        vox.manifest.provenance = VoxManifest.Provenance(method: method, engine: "qwen3-tts")
+
+        if let promptData = clonePromptData {
+            try vox.add(promptData, at: VoxExporter.clonePromptPath(for: .base1_7B), metadata: [
+                "model": Qwen3TTSModelRepo.base1_7B.rawValue,
+                "engine": "qwen3-tts",
+                "format": "bin",
+            ])
         }
 
-        let manifest = VoxExporter.buildManifest(
-            name: name,
-            description: description,
-            voiceType: method,
-            referenceAudioPaths: refPaths
-        )
+        if includeReference {
+            let refData = Data(repeating: 0x00, count: 44)
+            try vox.add(refData, at: "reference/ref-audio.wav", metadata: [
+                "transcript": "",
+                "language": "en-US",
+            ])
+        }
+
         let voxURL = directory.appendingPathComponent("\(name).vox")
-        try VoxExporter.export(
-            manifest: manifest,
-            clonePromptData: clonePromptData,
-            referenceAudioURLs: refURLs,
-            to: voxURL
-        )
+        try vox.write(to: voxURL)
         return voxURL
     }
 
@@ -119,6 +118,30 @@ struct VoxImporterTests {
 
         let result = try VoxImporter.importVox(from: voxURL)
         #expect(result.sampleAudioData == nil)
+    }
+
+    @Test("importVox extracts reference audio")
+    func importWithReferenceAudio() throws {
+        let tempDir = makeTempDir()
+        defer { cleanup(tempDir) }
+
+        let voxURL = try createTestVox(includeReference: true, in: tempDir)
+
+        let result = try VoxImporter.importVox(from: voxURL)
+        #expect(!result.referenceAudio.isEmpty)
+        #expect(result.referenceAudio["ref-audio.wav"] != nil)
+    }
+
+    @Test("importVox includes supportedModels")
+    func importReportsSupportedModels() throws {
+        let tempDir = makeTempDir()
+        defer { cleanup(tempDir) }
+
+        let promptData = Data(repeating: 0xAB, count: 32)
+        let voxURL = try createTestVox(clonePromptData: promptData, in: tempDir)
+
+        let result = try VoxImporter.importVox(from: voxURL)
+        #expect(!result.supportedModels.isEmpty)
     }
 
     @Test("importVox throws for invalid file")

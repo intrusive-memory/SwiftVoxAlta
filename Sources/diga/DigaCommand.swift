@@ -1,7 +1,6 @@
 import ArgumentParser
 import Foundation
 import SwiftVoxAlta
-import VoxFormat
 
 @main
 struct DigaCommand: AsyncParsableCommand {
@@ -15,12 +14,6 @@ struct DigaCommand: AsyncParsableCommand {
 
     @Flag(name: .long, help: "List all available voices and exit.")
     var voices: Bool = false
-
-    @Option(name: .long, help: "Create a new voice from a text description: --design \"description\" <name>")
-    var design: String?
-
-    @Option(name: .long, help: "Clone a voice from a reference audio file: --clone reference.wav <name>")
-    var clone: String?
 
     @Option(name: .long, help: "Import a voice from a .vox file: --import-vox voice.vox")
     var importVox: String?
@@ -48,7 +41,7 @@ struct DigaCommand: AsyncParsableCommand {
 
     // MARK: - Positional Arguments
 
-    @Argument(help: "Voice name (used with --design or --clone), or text to speak.")
+    @Argument(help: "Text to speak.")
     var positionalArgs: [String] = []
 
     // MARK: - Run
@@ -62,16 +55,6 @@ struct DigaCommand: AsyncParsableCommand {
 
         if voices {
             try runListVoices()
-            return
-        }
-
-        if let description = design {
-            try await runDesignVoice(description: description)
-            return
-        }
-
-        if let referencePath = clone {
-            try await runCloneVoice(referencePath: referencePath)
             return
         }
 
@@ -233,7 +216,7 @@ struct DigaCommand: AsyncParsableCommand {
         let customVoices = try store.listVoices().filter { $0.type != .builtin }
 
         if customVoices.isEmpty {
-            print("  (none \u{2014} use --design or --clone to create)")
+            print("  (none \u{2014} use `echada cast` to create, then --import-vox)")
         } else {
             for voice in customVoices {
                 let description: String
@@ -249,116 +232,6 @@ struct DigaCommand: AsyncParsableCommand {
                 }
                 print("  \(voice.name)\t\(description)")
             }
-        }
-    }
-
-    // MARK: - --design
-
-    /// Creates a new voice from a text description and saves it to the VoiceStore.
-    private func runDesignVoice(description: String) async throws {
-        guard let voiceName = positionalArgs.first else {
-            throw ValidationError("A voice name is required: --design \"description\" <name>")
-        }
-
-        let voice = StoredVoice(
-            name: voiceName,
-            type: .designed,
-            designDescription: description,
-            clonePromptPath: nil,
-            createdAt: Date()
-        )
-
-        let store = VoiceStore()
-        try store.saveVoice(voice)
-
-        // Auto-export .vox file (non-fatal on failure).
-        do {
-            let manifest = VoxExporter.buildManifest(
-                name: voiceName,
-                description: description,
-                voiceType: "designed",
-                createdAt: voice.createdAt
-            )
-            let voxURL = store.voicesDirectory.appendingPathComponent("\(voiceName).vox")
-            try VoxExporter.export(manifest: manifest, to: voxURL)
-        } catch {
-            FileHandle.standardError.write(
-                Data("Warning: could not export .vox file: \(error.localizedDescription)\n".utf8)
-            )
-        }
-
-        print("Voice \"\(voiceName)\" created.")
-
-        // Generate clone prompt, synthesize pangram sample, play it, and embed in .vox.
-        let resolvedModel = try resolveModelFlag()
-        let engine = DigaEngine(voiceStore: store, modelOverride: resolvedModel)
-        do {
-            try await engine.generateSampleAndUpdateVox(voice: voice)
-        } catch {
-            FileHandle.standardError.write(
-                Data("Warning: sample generation failed: \(error.localizedDescription)\n".utf8)
-            )
-        }
-    }
-
-    // MARK: - --clone
-
-    /// Clones a voice from a reference audio file and saves it to the VoiceStore.
-    private func runCloneVoice(referencePath: String) async throws {
-        guard let voiceName = positionalArgs.first else {
-            throw ValidationError("A voice name is required: --clone reference.wav <name>")
-        }
-
-        // Validate the reference audio file exists and is readable.
-        let fileURL = URL(fileURLWithPath: referencePath)
-        guard FileManager.default.isReadableFile(atPath: fileURL.path) else {
-            throw ValidationError("Reference audio file not found or not readable: \(referencePath)")
-        }
-
-        let voice = StoredVoice(
-            name: voiceName,
-            type: .cloned,
-            designDescription: nil,
-            clonePromptPath: referencePath,
-            createdAt: Date()
-        )
-
-        let store = VoiceStore()
-        try store.saveVoice(voice)
-
-        // Auto-export .vox file with reference audio (non-fatal on failure).
-        do {
-            let manifest = VoxExporter.buildManifest(
-                name: voiceName,
-                description: nil,
-                voiceType: "cloned",
-                createdAt: voice.createdAt,
-                referenceAudioPaths: [referencePath]
-            )
-            let voxURL = store.voicesDirectory.appendingPathComponent("\(voiceName).vox")
-            try VoxExporter.export(
-                manifest: manifest,
-                referenceAudioURLs: [fileURL],
-                to: voxURL
-            )
-        } catch {
-            FileHandle.standardError.write(
-                Data("Warning: could not export .vox file: \(error.localizedDescription)\n".utf8)
-            )
-        }
-
-        let filename = fileURL.lastPathComponent
-        print("Voice \"\(voiceName)\" cloned from \(filename)")
-
-        // Generate clone prompt, synthesize pangram sample, play it, and embed in .vox.
-        let resolvedModel = try resolveModelFlag()
-        let engine = DigaEngine(voiceStore: store, modelOverride: resolvedModel)
-        do {
-            try await engine.generateSampleAndUpdateVox(voice: voice)
-        } catch {
-            FileHandle.standardError.write(
-                Data("Warning: sample generation failed: \(error.localizedDescription)\n".utf8)
-            )
         }
     }
 

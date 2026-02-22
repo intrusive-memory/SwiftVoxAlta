@@ -9,7 +9,7 @@ public struct VoxImportResult: Sendable {
     public let description: String
     /// Provenance method ("designed", "cloned", "preset").
     public let method: String?
-    /// Clone prompt binary data, if present in the archive.
+    /// Clone prompt binary data for the queried model, if present in the archive.
     public let clonePromptData: Data?
     /// Engine-generated sample audio WAV data, if present in the archive.
     public let sampleAudioData: Data?
@@ -19,6 +19,8 @@ public struct VoxImportResult: Sendable {
     public let createdAt: Date
     /// The full manifest for advanced use.
     public let manifest: VoxManifest
+    /// Model identifiers this voice has embeddings for.
+    public let supportedModels: [String]
 }
 
 /// Static methods for importing `.vox` voice identity files into VoxAlta.
@@ -26,19 +28,34 @@ public enum VoxImporter: Sendable {
 
     /// Import a `.vox` archive and extract its voice identity data.
     ///
-    /// - Parameter url: Path to the `.vox` file.
+    /// Uses the container-first `VoxFile(contentsOf:)` API. Clone prompt resolution
+    /// is model-aware: the default query `"1.7b"` matches any 1.7B embedding, and
+    /// falls back to the first available embedding if no match is found.
+    ///
+    /// - Parameters:
+    ///   - url: Path to the `.vox` file.
+    ///   - modelQuery: Model query string (e.g., `"0.6b"`, `"1.7b"`). Defaults to `"1.7b"`.
     /// - Returns: A `VoxImportResult` with extracted metadata and binary data.
     /// - Throws: `VoxAltaError.voxImportFailed` on failure.
-    public static func importVox(from url: URL) throws -> VoxImportResult {
+    public static func importVox(from url: URL, modelQuery: String = "1.7b") throws -> VoxImportResult {
         do {
-            let reader = VoxReader()
-            let voxFile = try reader.read(from: url)
+            let voxFile = try VoxFile(contentsOf: url)
 
-            // Extract clone prompt from embeddings if present.
-            let clonePromptData = voxFile.embeddings[VoxExporter.clonePromptEmbeddingPath]
+            // Model-aware clone prompt lookup, with fallback to first available.
+            let clonePromptData = voxFile.embeddingData(for: modelQuery)
+                ?? voxFile.entries(under: "embeddings/").first?.data
 
-            // Extract sample audio from embeddings if present.
-            let sampleAudioData = voxFile.embeddings[VoxExporter.sampleAudioEmbeddingPath]
+            // Look for sample audio in embeddings.
+            let sampleAudioData = voxFile["embeddings/qwen3-tts/sample-audio.wav"]?.data
+
+            // Collect reference audio entries.
+            var referenceAudio: [String: Data] = [:]
+            for entry in voxFile.entries(under: "reference/") {
+                let filename = String(entry.path.dropFirst("reference/".count))
+                if !filename.isEmpty {
+                    referenceAudio[filename] = entry.data
+                }
+            }
 
             return VoxImportResult(
                 name: voxFile.manifest.voice.name,
@@ -46,9 +63,10 @@ public enum VoxImporter: Sendable {
                 method: voxFile.manifest.provenance?.method,
                 clonePromptData: clonePromptData,
                 sampleAudioData: sampleAudioData,
-                referenceAudio: voxFile.referenceAudio,
+                referenceAudio: referenceAudio,
                 createdAt: voxFile.manifest.created,
-                manifest: voxFile.manifest
+                manifest: voxFile.manifest,
+                supportedModels: voxFile.supportedModels
             )
         } catch let error as VoxAltaError {
             throw error
