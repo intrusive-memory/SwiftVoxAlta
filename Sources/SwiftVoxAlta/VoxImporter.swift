@@ -9,8 +9,8 @@ public struct VoxImportResult: Sendable {
     public let description: String
     /// Provenance method ("designed", "cloned", "preset").
     public let method: String?
-    /// Clone prompt data keyed by model entry key (e.g. "qwen3-tts-0.6b", "qwen3-tts-1.7b").
-    public let clonePromptsByModel: [String: Data]
+    /// Clone prompt binary data for the queried model, if present in the archive.
+    public let clonePromptData: Data?
     /// Engine-generated sample audio WAV data, if present in the archive.
     public let sampleAudioData: Data?
     /// Reference audio data keyed by filename, extracted from the archive.
@@ -19,28 +19,8 @@ public struct VoxImportResult: Sendable {
     public let createdAt: Date
     /// The full manifest for advanced use.
     public let manifest: VoxManifest
-
-    /// Returns the first available clone prompt data for backward compatibility.
-    /// Prefers 1.7B over 0.6B if both exist.
-    public var clonePromptData: Data? {
-        clonePromptsByModel["qwen3-tts-1.7b"]
-            ?? clonePromptsByModel["qwen3-tts-0.6b"]
-            ?? clonePromptsByModel.values.first
-    }
-
-    /// Returns clone prompt data for a specific model size using substring matching.
-    ///
-    /// - Parameter modelQuery: A substring to match against entry keys (e.g. "0.6b", "1.7b").
-    /// - Returns: The clone prompt data for the matched model, or nil.
-    public func clonePromptData(for modelQuery: String) -> Data? {
-        let query = modelQuery.lowercased()
-        for (key, data) in clonePromptsByModel {
-            if key.lowercased().contains(query) {
-                return data
-            }
-        }
-        return nil
-    }
+    /// Model identifiers this voice has embeddings for.
+    public let supportedModels: [String]
 }
 
 /// Static methods for importing `.vox` voice identity files into VoxAlta.
@@ -48,49 +28,45 @@ public enum VoxImporter: Sendable {
 
     /// Import a `.vox` archive and extract its voice identity data.
     ///
-    /// - Parameter url: Path to the `.vox` file.
+    /// Uses the container-first `VoxFile(contentsOf:)` API. Clone prompt resolution
+    /// is model-aware: the default query `"1.7b"` matches any 1.7B embedding, and
+    /// falls back to the first available embedding if no match is found.
+    ///
+    /// - Parameters:
+    ///   - url: Path to the `.vox` file.
+    ///   - modelQuery: Model query string (e.g., `"0.6b"`, `"1.7b"`). Defaults to `"1.7b"`.
     /// - Returns: A `VoxImportResult` with extracted metadata and binary data.
     /// - Throws: `VoxAltaError.voxImportFailed` on failure.
-    public static func importVox(from url: URL) throws -> VoxImportResult {
+    public static func importVox(from url: URL, modelQuery: String = "1.7b") throws -> VoxImportResult {
         do {
-            let reader = VoxReader()
-            let voxFile = try reader.read(from: url)
+            let voxFile = try VoxFile(contentsOf: url)
 
-            // Build clone prompts dictionary from embedding entries.
-            var clonePromptsByModel: [String: Data] = [:]
+            // Model-aware clone prompt lookup, with fallback to first available.
+            let clonePromptData = voxFile.embeddingData(for: modelQuery)
+                ?? voxFile.entries(under: "embeddings/").first?.data
 
-            if let entries = voxFile.manifest.embeddingEntries {
-                for (key, entry) in entries {
-                    // Match clone prompt entries (keys like "qwen3-tts-0.6b", "qwen3-tts-1.7b",
-                    // or legacy "qwen3-tts-clone-prompt").
-                    if entry.format == "bin",
-                       entry.engine == "qwen3-tts",
-                       let data = voxFile.embeddings[entry.file] {
-                        clonePromptsByModel[key] = data
-                    }
+            // Look for sample audio in embeddings.
+            let sampleAudioData = voxFile["embeddings/qwen3-tts/sample-audio.wav"]?.data
+
+            // Collect reference audio entries.
+            var referenceAudio: [String: Data] = [:]
+            for entry in voxFile.entries(under: "reference/") {
+                let filename = String(entry.path.dropFirst("reference/".count))
+                if !filename.isEmpty {
+                    referenceAudio[filename] = entry.data
                 }
             }
-
-            // Legacy fallback: if no entries matched but the legacy path has data,
-            // treat it as a 1.7B clone prompt.
-            if clonePromptsByModel.isEmpty {
-                if let legacyData = voxFile.embeddings[VoxExporter.legacyClonePromptEmbeddingPath] {
-                    clonePromptsByModel["qwen3-tts-1.7b"] = legacyData
-                }
-            }
-
-            // Extract sample audio from embeddings if present.
-            let sampleAudioData = voxFile.embeddings[VoxExporter.sampleAudioEmbeddingPath]
 
             return VoxImportResult(
                 name: voxFile.manifest.voice.name,
                 description: voxFile.manifest.voice.description,
                 method: voxFile.manifest.provenance?.method,
-                clonePromptsByModel: clonePromptsByModel,
+                clonePromptData: clonePromptData,
                 sampleAudioData: sampleAudioData,
-                referenceAudio: voxFile.referenceAudio,
+                referenceAudio: referenceAudio,
                 createdAt: voxFile.manifest.created,
-                manifest: voxFile.manifest
+                manifest: voxFile.manifest,
+                supportedModels: voxFile.supportedModels
             )
         } catch let error as VoxAltaError {
             throw error

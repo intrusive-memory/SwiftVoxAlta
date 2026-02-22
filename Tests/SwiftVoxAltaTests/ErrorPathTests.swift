@@ -8,7 +8,6 @@
 
 import Foundation
 import Testing
-import SwiftCompartido
 @preconcurrency import MLX
 @testable import SwiftVoxAlta
 
@@ -121,72 +120,6 @@ struct VoiceLockManagerErrorPathTests {
         } catch {
             // Other errors also acceptable
         }
-    }
-}
-
-// MARK: - CharacterEvidenceExtractor Error Paths
-
-@Suite("Error Paths - CharacterEvidenceExtractor")
-struct EvidenceExtractorErrorPathTests {
-
-    @Test("Empty input returns empty dictionary")
-    func emptyInputReturnsEmpty() {
-        let evidence = CharacterEvidenceExtractor.extract(from: [])
-        #expect(evidence.isEmpty)
-    }
-
-    @Test("Input with no character elements returns empty dictionary")
-    func noCharacterElementsReturnsEmpty() {
-        let elements: [GuionElement] = [
-            GuionElement(elementType: .sceneHeading, elementText: "INT. OFFICE - DAY"),
-            GuionElement(elementType: .action, elementText: "The room is empty."),
-            GuionElement(elementType: .transition, elementText: "CUT TO:"),
-        ]
-
-        let evidence = CharacterEvidenceExtractor.extract(from: elements)
-        #expect(evidence.isEmpty)
-    }
-
-    @Test("Orphaned dialogue without preceding character element is ignored")
-    func orphanedDialogueIgnored() {
-        let elements: [GuionElement] = [
-            GuionElement(elementType: .sceneHeading, elementText: "INT. OFFICE - DAY"),
-            // Dialogue without a preceding character element
-            GuionElement(elementType: .dialogue, elementText: "Who said this?"),
-        ]
-
-        let evidence = CharacterEvidenceExtractor.extract(from: elements)
-        #expect(evidence.isEmpty, "Orphaned dialogue should not create evidence entries")
-    }
-}
-
-// MARK: - ParentheticalMapper Error Paths
-
-@Suite("Error Paths - ParentheticalMapper")
-struct ParentheticalMapperErrorPathTests {
-
-    @Test("Empty string returns nil")
-    func emptyString() {
-        let result = ParentheticalMapper.mapToInstruct("")
-        #expect(result == nil)
-    }
-
-    @Test("Empty parentheses returns nil")
-    func emptyParentheses() {
-        let result = ParentheticalMapper.mapToInstruct("()")
-        #expect(result == nil)
-    }
-
-    @Test("Whitespace-only string returns nil")
-    func whitespaceOnly() {
-        let result = ParentheticalMapper.mapToInstruct("   ")
-        #expect(result == nil)
-    }
-
-    @Test("Unknown parenthetical returns nil from static mapper")
-    func unknownParenthetical() {
-        let result = ParentheticalMapper.mapToInstruct("(doing a backflip)")
-        #expect(result == nil)
     }
 }
 

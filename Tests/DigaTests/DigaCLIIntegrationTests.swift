@@ -224,25 +224,7 @@ struct CLICombinedFlagTests {
         #expect(command.positionalArgs.isEmpty)
     }
 
-    // --- Test 20: --design parses with description and name ---
-
-    @Test("--design parses with description and positional name")
-    func designFlagParsesCorrectly() throws {
-        let command = try DigaCommand.parse(["--design", "warm female voice", "myvoice"])
-        #expect(command.design == "warm female voice")
-        #expect(command.positionalArgs == ["myvoice"])
-    }
-
-    // --- Test 21: --clone parses with reference path and name ---
-
-    @Test("--clone parses with reference path and positional name")
-    func cloneFlagParsesCorrectly() throws {
-        let command = try DigaCommand.parse(["--clone", "/tmp/ref.wav", "clonedvoice"])
-        #expect(command.clone == "/tmp/ref.wav")
-        #expect(command.positionalArgs == ["clonedvoice"])
-    }
-
-    // --- Test 22: --file-format flag works with -o ---
+    // --- Test 20: --file-format flag works with -o ---
 
     @Test("--file-format flag composes with -o flag")
     func fileFormatComposesWithOutput() throws {

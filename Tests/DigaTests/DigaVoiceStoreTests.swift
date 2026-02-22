@@ -338,7 +338,7 @@ struct CLIVoiceListingTests {
             output += "  \(voice.name)\t\(description)\n"
         }
         output += "\nCustom:\n"
-        output += "  (none \u{2014} use --design or --clone to create)\n"
+        output += "  (none \u{2014} use `echada cast` to create, then --import-vox)\n"
 
         #expect(output.contains("Built-in:"))
         #expect(output.contains("ryan"))

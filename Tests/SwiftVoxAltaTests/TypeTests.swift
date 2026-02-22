@@ -2,7 +2,7 @@
 //  TypeTests.swift
 //  SwiftVoxAltaTests
 //
-//  Tests Codable round-trips for CharacterProfile, CharacterEvidence, VoiceLock, VoxAltaConfig.
+//  Tests Codable round-trips for VoiceLock and VoxAltaConfig.
 //
 
 import Foundation
@@ -11,75 +11,6 @@ import Testing
 
 @Suite("Type Codable Round-Trip Tests")
 struct TypeTests {
-
-    // MARK: - CharacterProfile
-
-    @Test("CharacterProfile round-trips through JSON encoding and decoding")
-    func characterProfileCodable() throws {
-        let profile = CharacterProfile(
-            name: "ELENA",
-            gender: .female,
-            ageRange: "30s",
-            description: "A confident journalist with a warm but direct manner of speaking.",
-            voiceTraits: ["warm", "confident", "slightly husky"],
-            summary: "A female journalist in her 30s with a warm, confident, slightly husky voice."
-        )
-
-        let data = try JSONEncoder().encode(profile)
-        let decoded = try JSONDecoder().decode(CharacterProfile.self, from: data)
-
-        #expect(decoded.name == profile.name)
-        #expect(decoded.gender == profile.gender)
-        #expect(decoded.ageRange == profile.ageRange)
-        #expect(decoded.description == profile.description)
-        #expect(decoded.voiceTraits == profile.voiceTraits)
-        #expect(decoded.summary == profile.summary)
-    }
-
-    @Test("All Gender cases round-trip through Codable")
-    func genderCodable() throws {
-        for gender in [Gender.male, .female, .nonBinary, .unknown] {
-            let data = try JSONEncoder().encode(gender)
-            let decoded = try JSONDecoder().decode(Gender.self, from: data)
-            #expect(decoded == gender)
-        }
-    }
-
-    // MARK: - CharacterEvidence
-
-    @Test("CharacterEvidence round-trips through JSON encoding and decoding")
-    func characterEvidenceCodable() throws {
-        let evidence = CharacterEvidence(
-            characterName: "MARCUS",
-            dialogueLines: ["Hello there.", "I have a plan.", "Trust me on this."],
-            parentheticals: ["(whispering)", "(to himself)"],
-            sceneHeadings: ["INT. OFFICE - DAY", "EXT. PARK - NIGHT"],
-            actionMentions: ["Marcus enters the room.", "He reaches for the phone."]
-        )
-
-        let data = try JSONEncoder().encode(evidence)
-        let decoded = try JSONDecoder().decode(CharacterEvidence.self, from: data)
-
-        #expect(decoded.characterName == evidence.characterName)
-        #expect(decoded.dialogueLines == evidence.dialogueLines)
-        #expect(decoded.parentheticals == evidence.parentheticals)
-        #expect(decoded.sceneHeadings == evidence.sceneHeadings)
-        #expect(decoded.actionMentions == evidence.actionMentions)
-    }
-
-    @Test("CharacterEvidence with empty arrays round-trips correctly")
-    func characterEvidenceEmptyCodable() throws {
-        let evidence = CharacterEvidence(characterName: "GHOST")
-
-        let data = try JSONEncoder().encode(evidence)
-        let decoded = try JSONDecoder().decode(CharacterEvidence.self, from: data)
-
-        #expect(decoded.characterName == "GHOST")
-        #expect(decoded.dialogueLines.isEmpty)
-        #expect(decoded.parentheticals.isEmpty)
-        #expect(decoded.sceneHeadings.isEmpty)
-        #expect(decoded.actionMentions.isEmpty)
-    }
 
     // MARK: - VoiceLock
 

@@ -27,7 +27,7 @@ enum DigaEngineError: Error, LocalizedError, Sendable {
     var errorDescription: String? {
         switch self {
         case .voiceNotFound(let name):
-            return "Voice '\(name)' not found. Use --voices to list available voices, or --design / --clone to create one."
+            return "Voice '\(name)' not found. Use --voices to list available voices, or --import-vox to import a .vox file."
         case .voiceDesignFailed(let detail):
             return "Voice design failed: \(detail)"
         case .synthesisFailed(let detail):
@@ -246,7 +246,13 @@ actor DigaEngine {
 
     /// The model size slug for the currently resolved model (e.g. "0.6b" or "1.7b").
     private var resolvedModelSlug: String {
-        VoxExporter.modelSizeSlug(for: resolvedBaseModelRepo)
+        switch resolvedBaseModelRepo {
+        case .base0_6B, .customVoice0_6B:
+            return "0.6b"
+        case .base1_7B, .base1_7B_8bit, .base1_7B_4bit,
+             .customVoice1_7B, .voiceDesign1_7B:
+            return "1.7b"
+        }
     }
 
     // MARK: - Voice Resolution
@@ -394,12 +400,8 @@ actor DigaEngine {
 
         let clonePromptData: Data
 
-        // Try model-specific clone prompt first, then any available.
-        if let promptData = importResult.clonePromptData(for: resolvedModelSlug) {
-            clonePromptData = promptData
-        } else if let promptData = importResult.clonePromptData {
-            // Fall back to any available clone prompt (may cause dimension mismatch,
-            // but better than regenerating).
+        // Use clone prompt from .vox if present.
+        if let promptData = importResult.clonePromptData {
             clonePromptData = promptData
         } else if let firstRefData = importResult.referenceAudio.values.first {
             // Reference audio available — extract clone prompt.
@@ -416,48 +418,10 @@ actor DigaEngine {
             )
             clonePromptData = lock.clonePromptData
         } else {
-            // No clone prompt or reference audio — use VoiceDesign.
-            FileHandle.standardError.write(
-                Data("Generating voice from description (first use)...\n".utf8)
+            // No clone prompt or reference audio available.
+            throw DigaEngineError.synthesisFailed(
+                "No clone prompt or reference audio found in .vox file. Use `echada cast` to create a voice with embeddings."
             )
-            let profile = CharacterProfile(
-                name: importResult.name,
-                gender: .unknown,
-                ageRange: "",
-                description: importResult.description,
-                voiceTraits: [],
-                summary: importResult.description
-            )
-            // Generate a character-appropriate sample sentence
-            let sampleSentence: String?
-            do {
-                sampleSentence = try await SampleSentenceGenerator.generate(
-                    fromDescription: importResult.description,
-                    name: importResult.name
-                )
-                FileHandle.standardError.write(
-                    Data("Sample sentence: \"\(sampleSentence!)\"\n".utf8)
-                )
-            } catch {
-                FileHandle.standardError.write(
-                    Data("Could not generate sample sentence, using default.\n".utf8)
-                )
-                sampleSentence = nil
-            }
-            let candidateAudio = try await VoiceDesigner.generateCandidate(
-                profile: profile,
-                modelManager: voxAltaModelManager,
-                sampleSentence: sampleSentence
-            )
-            let lock = try await VoiceLockManager.createLock(
-                characterName: importResult.name,
-                candidateAudio: candidateAudio,
-                designInstruction: importResult.description,
-                modelManager: voxAltaModelManager,
-                sampleSentence: sampleSentence,
-                modelRepo: resolvedBaseModelRepo
-            )
-            clonePromptData = lock.clonePromptData
         }
 
         let voiceLock = VoiceLock(
@@ -616,8 +580,7 @@ actor DigaEngine {
                 do {
                     try VoxExporter.updateClonePrompt(
                         in: voxFile,
-                        clonePromptData: data,
-                        modelRepo: resolvedBaseModelRepo
+                        clonePromptData: data
                     )
                 } catch {
                     FileHandle.standardError.write(
@@ -646,8 +609,7 @@ actor DigaEngine {
                 do {
                     try VoxExporter.updateClonePrompt(
                         in: voxFile,
-                        clonePromptData: data,
-                        modelRepo: resolvedBaseModelRepo
+                        clonePromptData: data
                     )
                 } catch {
                     FileHandle.standardError.write(
@@ -659,228 +621,58 @@ actor DigaEngine {
             return data
         }
 
-        // 4. Generate clone prompt.
-        let clonePromptData: Data
+        // 4. On-demand re-extraction: check if a .vox file has source audio we can
+        //    extract a clone prompt from (avoids full regeneration when switching models).
+        let voxFileForExtraction = voiceStore.voicesDirectory
+            .appendingPathComponent("\(voice.name).vox")
+        if FileManager.default.fileExists(atPath: voxFileForExtraction.path) {
+            do {
+                let importResult = try VoxImporter.importVox(from: voxFileForExtraction)
 
-        if voice.type == .cloned, let refPath = voice.clonePromptPath {
-            // Cloned voice: create clone prompt from reference audio.
-            let refURL: URL
-            if refPath.hasPrefix("/") || refPath.hasPrefix("~") {
-                refURL = URL(fileURLWithPath: refPath)
-            } else {
-                refURL = voiceStore.voicesDirectory.appendingPathComponent(refPath)
-            }
+                // Prefer sample audio (engine-generated, known good quality),
+                // then fall back to reference audio.
+                let sourceAudio: Data? = importResult.sampleAudioData
+                    ?? importResult.referenceAudio.values.first
 
-            // Auto-generate reference audio if it doesn't exist
-            if !FileManager.default.fileExists(atPath: refURL.path) {
-                FileHandle.standardError.write(
-                    Data("Generating reference audio for '\(voice.name)' (first use)...\n".utf8)
-                )
-                do {
-                    try ReferenceAudioGenerator.generate(
-                        voiceName: voice.name,
-                        outputPath: refURL
+                if let audio = sourceAudio {
+                    FileHandle.standardError.write(
+                        Data("Extracting clone prompt from .vox source audio for \(slug) model...\n".utf8)
                     )
-                } catch {
-                    throw DigaEngineError.voiceDesignFailed(
-                        "Failed to generate reference audio for '\(voice.name)': \(error.localizedDescription)"
+                    let lock = try await VoiceLockManager.createLock(
+                        characterName: voice.name,
+                        candidateAudio: audio,
+                        designInstruction: voice.designDescription ?? "",
+                        modelManager: voxAltaModelManager,
+                        modelRepo: resolvedBaseModelRepo
                     )
+                    let extractedData = lock.clonePromptData
+
+                    // Cache to disk and memory.
+                    do {
+                        try FileManager.default.createDirectory(
+                            at: voiceStore.voicesDirectory,
+                            withIntermediateDirectories: true
+                        )
+                        try extractedData.write(to: modelSpecificPromptFile, options: .atomic)
+                    } catch {
+                        FileHandle.standardError.write(
+                            Data("Warning: could not cache extracted clone prompt: \(error.localizedDescription)\n".utf8)
+                        )
+                    }
+                    cachedClonePrompts[cacheKey] = extractedData
+                    return extractedData
                 }
-            }
-
-            FileHandle.standardError.write(
-                Data("Creating voice clone from reference audio...\n".utf8)
-            )
-
-            let refData = try Data(contentsOf: refURL)
-            do {
-                let lock = try await VoiceLockManager.createLock(
-                    characterName: voice.name,
-                    candidateAudio: refData,
-                    designInstruction: "",
-                    modelManager: voxAltaModelManager,
-                    modelRepo: resolvedBaseModelRepo
-                )
-                clonePromptData = lock.clonePromptData
             } catch {
-                throw DigaEngineError.voiceDesignFailed(
-                    "Failed to create clone prompt from reference audio: \(error.localizedDescription)"
-                )
-            }
-
-        } else if let description = voice.designDescription {
-            // Built-in or designed voice: generate via VoiceDesign model.
-            FileHandle.standardError.write(
-                Data("Generating voice '\(voice.name)' (first use, this may take a moment)...\n".utf8)
-            )
-
-            let profile = CharacterProfile(
-                name: voice.name,
-                gender: .unknown,
-                ageRange: "",
-                description: description,
-                voiceTraits: [],
-                summary: description
-            )
-
-            // Generate a character-appropriate sample sentence
-            let sampleSentence: String?
-            do {
-                sampleSentence = try await SampleSentenceGenerator.generate(
-                    fromDescription: description,
-                    name: voice.name
-                )
+                // Non-fatal: fall through to full generation.
                 FileHandle.standardError.write(
-                    Data("Sample sentence: \"\(sampleSentence!)\"\n".utf8)
-                )
-            } catch {
-                FileHandle.standardError.write(
-                    Data("Could not generate sample sentence, using default.\n".utf8)
-                )
-                sampleSentence = nil
-            }
-
-            // Generate a voice candidate using VoiceDesign model.
-            let candidateAudio: Data
-            do {
-                candidateAudio = try await VoiceDesigner.generateCandidate(
-                    profile: profile,
-                    modelManager: voxAltaModelManager,
-                    sampleSentence: sampleSentence
-                )
-            } catch {
-                throw DigaEngineError.voiceDesignFailed(
-                    "Failed to generate voice candidate for '\(voice.name)': \(error.localizedDescription)"
-                )
-            }
-
-            // Extract clone prompt from the candidate audio.
-            do {
-                let lock = try await VoiceLockManager.createLock(
-                    characterName: voice.name,
-                    candidateAudio: candidateAudio,
-                    designInstruction: description,
-                    modelManager: voxAltaModelManager,
-                    sampleSentence: sampleSentence,
-                    modelRepo: resolvedBaseModelRepo
-                )
-                clonePromptData = lock.clonePromptData
-            } catch {
-                throw DigaEngineError.voiceDesignFailed(
-                    "Failed to extract clone prompt for '\(voice.name)': \(error.localizedDescription)"
-                )
-            }
-
-            FileHandle.standardError.write(Data("Voice generated and cached.\n".utf8))
-
-        } else {
-            throw DigaEngineError.voiceDesignFailed(
-                "Voice '\(voice.name)' has no design description or reference audio."
-            )
-        }
-
-        // Save clone prompt to model-specific disk file for future reuse.
-        do {
-            try FileManager.default.createDirectory(
-                at: voiceStore.voicesDirectory,
-                withIntermediateDirectories: true
-            )
-            try clonePromptData.write(to: modelSpecificPromptFile, options: .atomic)
-        } catch {
-            // Non-fatal: synthesis still works, just won't be cached.
-            FileHandle.standardError.write(
-                Data("Warning: could not cache clone prompt to disk: \(error.localizedDescription)\n".utf8)
-            )
-        }
-
-        // Update .vox file with the model-specific clone prompt if one exists.
-        let voxFile = voiceStore.voicesDirectory.appendingPathComponent("\(voice.name).vox")
-        if FileManager.default.fileExists(atPath: voxFile.path) {
-            do {
-                try VoxExporter.updateClonePrompt(
-                    in: voxFile,
-                    clonePromptData: clonePromptData,
-                    modelRepo: resolvedBaseModelRepo
-                )
-            } catch {
-                FileHandle.standardError.write(
-                    Data("Warning: could not update .vox file with clone prompt: \(error.localizedDescription)\n".utf8)
+                    Data("Warning: could not extract clone prompt from .vox: \(error.localizedDescription)\n".utf8)
                 )
             }
         }
 
-        // Cache in memory.
-        cachedClonePrompts[cacheKey] = clonePromptData
-
-        return clonePromptData
-    }
-
-    // MARK: - Sample Audio Generation
-
-    /// Generate a sample audio clip for a voice, play it through speakers,
-    /// and embed it into the voice's `.vox` file.
-    ///
-    /// This method:
-    /// 1. Loads or creates the clone prompt for the voice
-    /// 2. Synthesizes a phoneme pangram using that voice
-    /// 3. Plays the generated audio through speakers
-    /// 4. Writes the sample audio into the `.vox` file as an embedding
-    ///
-    /// - Parameter voice: The stored voice to generate a sample for.
-    /// - Throws: `DigaEngineError` if synthesis or playback fails.
-    func generateSampleAndUpdateVox(voice: StoredVoice) async throws {
-        // 1. Load or create clone prompt.
-        let clonePromptData = try await loadOrCreateClonePrompt(for: voice)
-
-        // 2. Build a VoiceLock and synthesize the pangram.
-        let voiceLock = VoiceLock(
-            characterName: voice.name,
-            clonePromptData: clonePromptData,
-            designInstruction: voice.designDescription ?? ""
+        // 5. No cached clone prompt found anywhere — voice creation must be done externally.
+        throw DigaEngineError.voiceDesignFailed(
+            "No clone prompt found for '\(voice.name)'. Use `echada cast` to create one, then --import-vox."
         )
-
-        FileHandle.standardError.write(
-            Data("Generating voice sample...\n".utf8)
-        )
-
-        let context = GenerationContext(phrase: VoiceDesigner.phonemePangram)
-        let sampleWAV: Data
-        do {
-            sampleWAV = try await VoiceLockManager.generateAudio(
-                context: context,
-                voiceLock: voiceLock,
-                language: "en",
-                modelManager: voxAltaModelManager,
-                modelRepo: resolvedBaseModelRepo
-            )
-        } catch {
-            throw DigaEngineError.synthesisFailed(
-                "Failed to generate voice sample: \(error.localizedDescription)"
-            )
-        }
-
-        // 3. Play the sample through speakers.
-        do {
-            try await AudioPlayback.play(wavData: sampleWAV)
-        } catch {
-            FileHandle.standardError.write(
-                Data("Warning: could not play sample audio: \(error.localizedDescription)\n".utf8)
-            )
-        }
-
-        // 4. Write clone prompt and sample audio into the .vox file.
-        let voxFile = voiceStore.voicesDirectory.appendingPathComponent("\(voice.name).vox")
-        if FileManager.default.fileExists(atPath: voxFile.path) {
-            // Embed clone prompt with model-specific path.
-            try VoxExporter.updateClonePrompt(
-                in: voxFile,
-                clonePromptData: clonePromptData,
-                modelRepo: resolvedBaseModelRepo
-            )
-            try VoxExporter.updateSampleAudio(in: voxFile, sampleAudioData: sampleWAV)
-            FileHandle.standardError.write(
-                Data("Clone prompt and sample audio saved to \(voice.name).vox\n".utf8)
-            )
-        }
     }
 }

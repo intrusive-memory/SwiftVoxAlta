@@ -31,7 +31,7 @@ private enum VoiceLockManagerLogger {
 public enum VoiceLockManager: Sendable {
 
     /// Default reference text for clone prompt extraction when no custom sentence is provided.
-    static let defaultReferenceSampleText = VoiceDesigner.sampleText
+    static let defaultReferenceSampleText = "Hello, this is a voice sample for testing purposes."
 
     // MARK: - Lock Creation
 
@@ -44,8 +44,7 @@ public enum VoiceLockManager: Sendable {
     ///
     /// - Parameters:
     ///   - characterName: The character name to associate with this voice lock.
-    ///   - candidateAudio: WAV format Data of the selected voice candidate
-    ///     (output from `VoiceDesigner.generateCandidate`).
+    ///   - candidateAudio: WAV format Data of the selected voice candidate.
     ///   - designInstruction: The voice description text used to generate the candidate.
     ///   - modelManager: The model manager used to load the Base model.
     ///   - sampleSentence: The text that was spoken in the candidate audio. If nil,
