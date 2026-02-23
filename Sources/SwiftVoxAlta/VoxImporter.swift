@@ -7,7 +7,7 @@ public struct VoxImportResult: Sendable {
     public let name: String
     /// Voice description.
     public let description: String
-    /// Provenance method ("designed", "cloned", "preset").
+    /// Provenance method ("designed", "synthesized", "cloned", "preset", "hybrid").
     public let method: String?
     /// Clone prompt binary data for the queried model, if present in the archive.
     public let clonePromptData: Data?
