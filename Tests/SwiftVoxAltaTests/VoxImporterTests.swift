@@ -20,6 +20,8 @@ struct VoxImporterTests {
         name: String = "ImportTest",
         description: String = "A test voice for import validation.",
         method: String = "designed",
+        consent: String? = nil,
+        source: [String]? = nil,
         clonePromptData: Data? = nil,
         includeReference: Bool = false,
         in directory: URL
@@ -27,7 +29,12 @@ struct VoxImporterTests {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
         let vox = VoxFile(name: name, description: description)
-        vox.manifest.provenance = VoxManifest.Provenance(method: method, engine: "qwen3-tts")
+        vox.manifest.provenance = VoxManifest.Provenance(
+            method: method,
+            engine: "qwen3-tts",
+            consent: consent,
+            source: source
+        )
 
         if let promptData = clonePromptData {
             try vox.add(promptData, at: VoxExporter.clonePromptPath(for: .base1_7B), metadata: [
@@ -85,6 +92,9 @@ struct VoxImporterTests {
             name: "MetadataVoice",
             description: "A detailed voice description for testing.",
             method: "cloned",
+            consent: "self",
+            source: ["reference/ref-audio.wav"],
+            includeReference: true,
             in: tempDir
         )
 
@@ -142,6 +152,22 @@ struct VoxImporterTests {
 
         let result = try VoxImporter.importVox(from: voxURL)
         #expect(!result.supportedModels.isEmpty)
+    }
+
+    @Test("importVox recognizes synthesized method")
+    func importSynthesizedMethod() throws {
+        let tempDir = makeTempDir()
+        defer { cleanup(tempDir) }
+
+        let voxURL = try createTestVox(
+            name: "SynthesizedVoice",
+            description: "A synthesized voice from model generation.",
+            method: "synthesized",
+            in: tempDir
+        )
+
+        let result = try VoxImporter.importVox(from: voxURL)
+        #expect(result.method == "synthesized")
     }
 
     @Test("importVox throws for invalid file")

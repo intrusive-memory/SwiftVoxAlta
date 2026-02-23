@@ -254,6 +254,8 @@ struct DigaCommand: AsyncParsableCommand {
             voiceType = .cloned
         case "preset":
             voiceType = .preset
+        case "synthesized":
+            voiceType = .designed
         default:
             voiceType = .designed
         }
