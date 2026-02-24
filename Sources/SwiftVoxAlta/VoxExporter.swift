@@ -26,8 +26,11 @@ public enum VoxExporter: Sendable {
         "embeddings/qwen3-tts/\(modelSizeSlug(for: repo))/clone-prompt.bin"
     }
 
-    /// Returns the embedding archive path for sample audio.
-    public static let sampleAudioPath = "embeddings/qwen3-tts/sample-audio.wav"
+    /// Returns the model-specific embedding archive path for sample audio.
+    /// e.g. `"embeddings/qwen3-tts/0.6b/sample-audio.wav"`
+    public static func sampleAudioPath(for repo: Qwen3TTSModelRepo) -> String {
+        "embeddings/qwen3-tts/\(modelSizeSlug(for: repo))/sample-audio.wav"
+    }
 
     // MARK: - Update Operations
 
@@ -65,21 +68,26 @@ public enum VoxExporter: Sendable {
 
     /// Update (or add) the sample audio in an existing `.vox` archive.
     ///
-    /// Opens the existing `.vox`, adds the sample audio WAV data, and writes back.
-    /// Other entries are preserved.
+    /// Opens the existing `.vox`, adds the sample audio WAV data at the model-specific path,
+    /// and writes back. Other entries (including other models' sample audio) are preserved.
     ///
     /// - Parameters:
     ///   - voxURL: Path to the existing `.vox` file.
     ///   - sampleAudioData: The WAV audio data to embed as a voice sample.
+    ///   - modelRepo: The model repo the sample was generated with.
     /// - Throws: `VoxAltaError.voxExportFailed` on failure.
-    public static func updateSampleAudio(in voxURL: URL, sampleAudioData: Data) throws {
+    public static func updateSampleAudio(
+        in voxURL: URL,
+        sampleAudioData: Data,
+        modelRepo: Qwen3TTSModelRepo = .base1_7B
+    ) throws {
         do {
             let vox = try VoxFile(contentsOf: voxURL)
-            try vox.add(sampleAudioData, at: sampleAudioPath, metadata: [
-                "model": defaultCloneModel,
+            try vox.add(sampleAudioData, at: sampleAudioPath(for: modelRepo), metadata: [
+                "model": modelRepo.rawValue,
                 "engine": "qwen3-tts",
                 "format": "wav",
-                "description": "Engine-generated voice sample",
+                "description": "Engine-generated voice sample (\(modelSizeSlug(for: modelRepo)))",
             ])
             try vox.write(to: voxURL)
         } catch let error as VoxAltaError {

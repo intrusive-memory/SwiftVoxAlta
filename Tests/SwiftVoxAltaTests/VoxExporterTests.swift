@@ -36,9 +36,16 @@ struct VoxExporterTests {
         #expect(VoxExporter.modelSizeSlug(for: .voiceDesign1_7B) == "1.7b")
     }
 
-    @Test("sampleAudioPath is correct")
-    func sampleAudioPath() {
-        #expect(VoxExporter.sampleAudioPath == "embeddings/qwen3-tts/sample-audio.wav")
+    @Test("sampleAudioPath returns model-specific path for 1.7B")
+    func sampleAudioPath1_7B() {
+        let path = VoxExporter.sampleAudioPath(for: .base1_7B)
+        #expect(path == "embeddings/qwen3-tts/1.7b/sample-audio.wav")
+    }
+
+    @Test("sampleAudioPath returns model-specific path for 0.6B")
+    func sampleAudioPath0_6B() {
+        let path = VoxExporter.sampleAudioPath(for: .base0_6B)
+        #expect(path == "embeddings/qwen3-tts/0.6b/sample-audio.wav")
     }
 
     // MARK: - Update Operations
@@ -81,7 +88,7 @@ struct VoxExporterTests {
 
         // Verify the sample audio is now present.
         let readBack = try VoxFile(contentsOf: voxURL)
-        let roundTripped = readBack[VoxExporter.sampleAudioPath]?.data
+        let roundTripped = readBack[VoxExporter.sampleAudioPath(for: .base1_7B)]?.data
         #expect(roundTripped == sampleData)
     }
 
@@ -109,7 +116,7 @@ struct VoxExporterTests {
         // Both binaries should be present.
         let readBack = try VoxFile(contentsOf: voxURL)
         #expect(readBack[VoxExporter.clonePromptPath(for: .base1_7B)]?.data == cloneData)
-        #expect(readBack[VoxExporter.sampleAudioPath]?.data == sampleData)
+        #expect(readBack[VoxExporter.sampleAudioPath(for: .base1_7B)]?.data == sampleData)
     }
 
     @Test("updateClonePrompt for different models preserves both")
