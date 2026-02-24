@@ -84,6 +84,7 @@ public enum VoxExporter: Sendable {
         do {
             let vox = try VoxFile(contentsOf: voxURL)
             try vox.add(sampleAudioData, at: sampleAudioPath(for: modelRepo), metadata: [
+                "key": "qwen3-tts-\(modelSizeSlug(for: modelRepo))-sample-audio",
                 "model": modelRepo.rawValue,
                 "engine": "qwen3-tts",
                 "format": "wav",

@@ -45,8 +45,8 @@ public enum VoxImporter: Sendable {
             let clonePromptData = voxFile.embeddingData(for: modelQuery)
                 ?? voxFile.entries(under: "embeddings/").first?.data
 
-            // Look for sample audio in embeddings.
-            let sampleAudioData = voxFile["embeddings/qwen3-tts/sample-audio.wav"]?.data
+            // Model-aware sample audio lookup, with legacy fallback.
+            let sampleAudioData = voxFile.sampleAudioData(for: modelQuery)
 
             // Collect reference audio entries.
             var referenceAudio: [String: Data] = [:]
