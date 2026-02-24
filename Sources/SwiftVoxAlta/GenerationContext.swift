@@ -79,6 +79,19 @@ public struct GenerationContext: Codable, Sendable {
         self.metadata = normalized
     }
 
+    /// The instruct hint extracted from metadata, if present.
+    ///
+    /// Callers populate `metadata["instruct"]` with a natural-language performance
+    /// direction (e.g., "Speak softly, sotto voce") derived from screenplay
+    /// parentheticals. This accessor provides convenient typed access for the
+    /// TTS generation pipeline.
+    public var instruct: String? {
+        if case .string(let value) = metadata["instruct"] {
+            return value
+        }
+        return nil
+    }
+
     /// JSON-encoded byte count, useful for logging envelope sizes.
     public var serializedSize: Int {
         (try? JSONEncoder().encode(self).count) ?? 0

@@ -124,6 +124,32 @@ struct GenerationContextTests {
         #expect(GenerationContext.toSnakeCase("") == "")
     }
 
+    // MARK: - Instruct Accessor
+
+    @Test("instruct returns string value from metadata")
+    func instructFromMetadata() {
+        let context = GenerationContext(
+            phrase: "I never thought it would end like this.",
+            metadata: ["instruct": .string("Speak softly, sotto voce")]
+        )
+        #expect(context.instruct == "Speak softly, sotto voce")
+    }
+
+    @Test("instruct returns nil when not present")
+    func instructNilWhenMissing() {
+        let context = GenerationContext(phrase: "Hello world")
+        #expect(context.instruct == nil)
+    }
+
+    @Test("instruct returns nil for non-string metadata value")
+    func instructNilForNonString() {
+        let context = GenerationContext(
+            phrase: "test",
+            metadata: ["instruct": .bool(true)]
+        )
+        #expect(context.instruct == nil)
+    }
+
     // MARK: - Serialized Size
 
     @Test("serializedSize is positive for non-trivial context")

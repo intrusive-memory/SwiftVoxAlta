@@ -168,7 +168,8 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
             return try await generateWithPresetSpeaker(
                 text: context.phrase,
                 speakerName: speaker.mlxSpeaker,
-                language: languageCode
+                language: languageCode,
+                instruct: context.instruct
             )
         }
 
@@ -328,11 +329,13 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     ///   - text: The text to synthesize.
     ///   - speakerName: The preset speaker ID (e.g., "ryan").
     ///   - language: The language code for generation.
+    ///   - instruct: Optional performance direction for the TTS model.
     /// - Returns: WAV format audio data (24kHz, 16-bit PCM, mono).
     private func generateWithPresetSpeaker(
         text: String,
         speakerName: String,
-        language: String
+        language: String,
+        instruct: String? = nil
     ) async throws -> Data {
         let model = try await modelManager.loadModel(customVoiceModelRepo)
 
@@ -348,6 +351,7 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
             refAudio: nil,
             refText: nil,
             language: language,
+            instruct: instruct,
             generationParameters: GenerateParameters()
         )
 

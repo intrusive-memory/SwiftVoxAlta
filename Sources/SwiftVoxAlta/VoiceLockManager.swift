@@ -121,8 +121,9 @@ public enum VoiceLockManager: Sendable {
 
     /// Generate speech audio using a locked voice identity and a generation context.
     ///
-    /// Logs the envelope size, then delegates to the text-based `generateAudio` using
-    /// the context's phrase. The metadata is available for future pipeline stages.
+    /// Logs the envelope size, extracts the `instruct` hint from metadata (if present),
+    /// and delegates to the text-based `generateAudio`. The instruct hint is forwarded
+    /// to Qwen3-TTS as a performance direction (e.g., "Speak softly, sotto voce").
     ///
     /// - Parameters:
     ///   - context: The generation context containing the phrase and optional metadata.
@@ -145,10 +146,14 @@ public enum VoiceLockManager: Sendable {
         VoiceLockManagerLogger.log(
             "Envelope for '\(voiceLock.characterName)': \(context.serializedSize) bytes, \(context.metadata.count) metadata key(s)"
         )
+        if let instruct = context.instruct {
+            VoiceLockManagerLogger.log("Instruct hint for '\(voiceLock.characterName)': \(instruct)")
+        }
         return try await generateAudio(
             text: context.phrase,
             voiceLock: voiceLock,
             language: language,
+            instruct: context.instruct,
             modelManager: modelManager,
             modelRepo: modelRepo,
             cache: cache
@@ -171,6 +176,8 @@ public enum VoiceLockManager: Sendable {
     ///   - text: The text to synthesize.
     ///   - voiceLock: The voice lock containing the serialized clone prompt.
     ///   - language: The language code for generation. Defaults to "en".
+    ///   - instruct: Optional performance direction for the TTS model (e.g., "Speak softly").
+    ///     Forwarded to Qwen3-TTS as the `instruct` parameter to influence vocal delivery.
     ///   - modelManager: The model manager used to load the Base model.
     ///   - modelRepo: The Base model variant to use for generation. Defaults to `.base1_7B`.
     ///   - cache: Optional voice cache for clone prompt caching. If provided, reduces
@@ -182,6 +189,7 @@ public enum VoiceLockManager: Sendable {
         text: String,
         voiceLock: VoiceLock,
         language: String = "en",
+        instruct: String? = nil,
         modelManager: VoxAltaModelManager,
         modelRepo: Qwen3TTSModelRepo = .base1_7B,
         cache: VoxAltaVoiceCache? = nil
@@ -228,7 +236,8 @@ public enum VoiceLockManager: Sendable {
             audioArray = try qwenModel.generateWithClonePrompt(
                 text: text,
                 clonePrompt: clonePrompt,
-                language: language
+                language: language,
+                instruct: instruct
             )
         } catch {
             throw VoxAltaError.cloningFailed(

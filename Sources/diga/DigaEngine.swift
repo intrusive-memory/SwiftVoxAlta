@@ -474,6 +474,7 @@ actor DigaEngine {
     ///   - voiceName: The user-facing voice name (for logging).
     ///   - modelManager: The model manager used to load the CustomVoice model.
     ///   - modelRepo: The CustomVoice model variant to use. Defaults to `.customVoice1_7B`.
+    ///   - instruct: Optional performance direction for the TTS model.
     /// - Returns: WAV format audio Data.
     /// - Throws: `DigaEngineError` if model loading or synthesis fails.
     nonisolated private func synthesizeWithPresetSpeaker(
@@ -481,7 +482,8 @@ actor DigaEngine {
         speakerName: String,
         voiceName: String,
         modelManager: VoxAltaModelManager,
-        modelRepo: Qwen3TTSModelRepo
+        modelRepo: Qwen3TTSModelRepo,
+        instruct: String? = nil
     ) async throws -> Data {
         // 1. Chunk text.
         let chunks = TextChunker.chunk(text)
@@ -516,6 +518,7 @@ actor DigaEngine {
                     refAudio: nil,
                     refText: nil,
                     language: "en",
+                    instruct: instruct,
                     generationParameters: GenerateParameters()
                 )
                 sampleRate = qwenModel.sampleRate
