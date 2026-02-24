@@ -41,9 +41,8 @@ public enum VoxImporter: Sendable {
         do {
             let voxFile = try VoxFile(contentsOf: url)
 
-            // Model-aware clone prompt lookup, with fallback to first available.
-            let clonePromptData = voxFile.embeddingData(for: modelQuery)
-                ?? voxFile.entries(under: "embeddings/").first?.data
+            // Model-aware clone prompt lookup (excludes sample audio entries).
+            let clonePromptData = voxFile.clonePromptData(for: modelQuery)
 
             // Model-aware sample audio lookup, with legacy fallback.
             let sampleAudioData = voxFile.sampleAudioData(for: modelQuery)

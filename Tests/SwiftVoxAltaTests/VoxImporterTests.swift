@@ -185,6 +185,75 @@ struct VoxImporterTests {
         }
     }
 
+    // MARK: - Multi-Model Disambiguation Regression Tests
+
+    /// Regression test: when a .vox has both clone prompts AND sample audio for
+    /// multiple models, importVox must return the clone prompt — not the sample
+    /// audio WAV data. Prior to the fix, embeddingData(for:) used substring
+    /// matching that could non-deterministically return sample audio instead.
+    @Test("importVox returns clone prompt, not sample audio, for multi-model .vox")
+    func importMultiModelReturnsClonePromptNotSampleAudio() throws {
+        let tempDir = makeTempDir()
+        defer { cleanup(tempDir) }
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+        let clonePrompt06b = Data([0xC0, 0x06, 0xBB])
+        let sampleAudio06b = Data([0x52, 0x49, 0x46, 0x46, 0x00, 0x06])  // RIFF header
+        let clonePrompt17b = Data([0xC1, 0x07, 0xBB])
+        let sampleAudio17b = Data([0x52, 0x49, 0x46, 0x46, 0x00, 0x17])  // RIFF header
+
+        let vox = VoxFile(name: "MultiModel", description: "A multi-model test voice for disambiguation.")
+        vox.manifest.provenance = VoxManifest.Provenance(method: "synthesized", engine: "qwen3-tts")
+
+        // Add both models' clone prompts and sample audio
+        try VoxExporter.addClonePrompt(to: vox, data: clonePrompt06b, modelRepo: .base0_6B)
+        try VoxExporter.addSampleAudio(to: vox, data: sampleAudio06b, modelRepo: .base0_6B)
+        try VoxExporter.addClonePrompt(to: vox, data: clonePrompt17b, modelRepo: .base1_7B)
+        try VoxExporter.addSampleAudio(to: vox, data: sampleAudio17b, modelRepo: .base1_7B)
+
+        let voxURL = tempDir.appendingPathComponent("multi-model.vox")
+        try vox.write(to: voxURL)
+
+        // Import with default 1.7b query
+        let result = try VoxImporter.importVox(from: voxURL, modelQuery: "1.7b")
+        #expect(result.clonePromptData == clonePrompt17b,
+            "clonePromptData must be the 1.7b clone prompt, not sample audio")
+        #expect(result.sampleAudioData == sampleAudio17b,
+            "sampleAudioData must be the 1.7b sample audio")
+
+        // Import with 0.6b query
+        let result06b = try VoxImporter.importVox(from: voxURL, modelQuery: "0.6b")
+        #expect(result06b.clonePromptData == clonePrompt06b,
+            "clonePromptData must be the 0.6b clone prompt, not sample audio")
+        #expect(result06b.sampleAudioData == sampleAudio06b,
+            "sampleAudioData must be the 0.6b sample audio")
+    }
+
+    /// Stress test: run the multi-model import many times to catch non-deterministic
+    /// dictionary ordering bugs.
+    @Test("importVox clone prompt disambiguation is deterministic across iterations")
+    func importMultiModelDeterministic() throws {
+        let tempDir = makeTempDir()
+        defer { cleanup(tempDir) }
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+        let clonePromptData = Data([0xDE, 0xAD])
+        let sampleAudioData = Data([0x52, 0x49, 0x46, 0x46, 0xBE, 0xEF])
+
+        let vox = VoxFile(name: "StressTest", description: "A voice for determinism stress testing.")
+        try VoxExporter.addClonePrompt(to: vox, data: clonePromptData, modelRepo: .base1_7B)
+        try VoxExporter.addSampleAudio(to: vox, data: sampleAudioData, modelRepo: .base1_7B)
+
+        let voxURL = tempDir.appendingPathComponent("stress.vox")
+        try vox.write(to: voxURL)
+
+        for _ in 0..<50 {
+            let result = try VoxImporter.importVox(from: voxURL)
+            #expect(result.clonePromptData == clonePromptData,
+                "clonePromptData must always be the clone prompt, never sample audio")
+        }
+    }
+
     @Test("importVox throws for nonexistent file")
     func importNonexistentFile() throws {
         let fakeURL = URL(fileURLWithPath: "/tmp/nonexistent-\(UUID().uuidString).vox")
