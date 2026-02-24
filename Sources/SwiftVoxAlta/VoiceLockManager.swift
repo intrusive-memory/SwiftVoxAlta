@@ -230,6 +230,19 @@ public enum VoiceLockManager: Sendable {
             }
         }
 
+        // Generation parameters
+        let temperature: Float = 0.9
+        let topP: Float = 1.0
+        let repetitionPenalty: Float = 1.5
+        let maxTokens: Int = 16384  // Increased from default 4096 to support longer phrases
+
+        // Log generation parameters
+        VoiceLockManagerLogger.log("🎛️  Generation params: temp=\(temperature), topP=\(topP), repPenalty=\(repetitionPenalty), maxTokens=\(maxTokens)")
+        if let instruct = instruct {
+            VoiceLockManagerLogger.log("📝 Instruct: \"\(instruct)\"")
+        }
+        VoiceLockManagerLogger.log("🗣️  Text (\(text.count) chars): \"\(text.prefix(100))\(text.count > 100 ? "..." : "")\"")
+
         // Generate audio with clone prompt
         let audioArray: MLXArray
         do {
@@ -237,7 +250,11 @@ public enum VoiceLockManager: Sendable {
                 text: text,
                 clonePrompt: clonePrompt,
                 language: language,
-                instruct: instruct
+                instruct: instruct,
+                temperature: temperature,
+                topP: topP,
+                repetitionPenalty: repetitionPenalty,
+                maxTokens: maxTokens
             )
         } catch {
             throw VoxAltaError.cloningFailed(
