@@ -387,7 +387,7 @@ actor DigaEngine {
         let voxURL = URL(fileURLWithPath: voxPath)
         let importResult: VoxImportResult
         do {
-            importResult = try VoxImporter.importVox(from: voxURL)
+            importResult = try VoxImporter.importVox(from: voxURL, modelQuery: resolvedModelSlug)
         } catch {
             throw DigaEngineError.synthesisFailed("Failed to read .vox file: \(error.localizedDescription)")
         }
