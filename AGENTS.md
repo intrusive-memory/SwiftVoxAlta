@@ -77,7 +77,7 @@ SwiftVoxAlta/
 │   ├── SwiftVoxAltaTests/             # Library tests
 │   └── DigaTests/                     # CLI tests
 ├── Formula/
-│   └── diga.rb                        # Reference Homebrew formula
+│   └── diga.rb                        # Reference Homebrew formula (auto-updated by release workflow)
 ├── Makefile                           # Build targets (xcodebuild wrapper)
 ├── Package.swift
 ├── AGENTS.md                          # This file
@@ -99,7 +99,7 @@ SwiftVoxAlta/
 | **GenerationContext** | TTS generation context envelope (phrase, metadata) |
 | **VoxExporter** | Update clone prompts and sample audio in `.vox` archives |
 | **VoxImporter** | Import `.vox` archives and extract voice identity data |
-| **VoxAltaConfig** | Configuration (model IDs, candidate count, output format) |
+| **VoxAltaConfig** | Configuration (design/render/analysis model IDs, candidate count, output format) |
 | **VoxAltaProviderDescriptor** | Factory for SwiftHablare registry registration |
 | **`diga` CLI** | Drop-in `say` replacement with neural TTS |
 
@@ -129,7 +129,7 @@ This fork enables:
 
 `VoiceLockManager` is an enum namespace providing voice lock creation and audio generation from locked voices.
 
-### `createLock(characterName:candidateAudio:designInstruction:modelManager:modelRepo:)`
+### `createLock(characterName:candidateAudio:designInstruction:modelManager:sampleSentence:modelRepo:)`
 
 Create a VoiceLock from candidate audio by extracting a voice clone prompt using the Base model.
 
@@ -139,19 +139,36 @@ public static func createLock(
     candidateAudio: Data,
     designInstruction: String,
     modelManager: VoxAltaModelManager,
+    sampleSentence: String? = nil,
     modelRepo: Qwen3TTSModelRepo = .base1_7B
 ) async throws -> VoiceLock
 ```
 
 ### `generateAudio(context:voiceLock:language:modelManager:modelRepo:cache:)`
 
-Generate speech audio using a locked voice identity.
+Generate speech audio using a locked voice identity (GenerationContext envelope).
 
 ```swift
 public static func generateAudio(
     context: GenerationContext,
     voiceLock: VoiceLock,
     language: String = "en",
+    modelManager: VoxAltaModelManager,
+    modelRepo: Qwen3TTSModelRepo = .base1_7B,
+    cache: VoxAltaVoiceCache? = nil
+) async throws -> Data
+```
+
+### `generateAudio(text:voiceLock:language:instruct:modelManager:modelRepo:cache:)`
+
+Generate speech audio using a locked voice identity (plain text).
+
+```swift
+public static func generateAudio(
+    text: String,
+    voiceLock: VoiceLock,
+    language: String = "en",
+    instruct: String? = nil,
     modelManager: VoxAltaModelManager,
     modelRepo: Qwen3TTSModelRepo = .base1_7B,
     cache: VoxAltaVoiceCache? = nil
@@ -168,17 +185,22 @@ VoxAlta uses the [vox-format](https://github.com/intrusive-memory/vox-format) li
 
 ### VoxExporter
 
-Update clone prompts and sample audio in existing `.vox` archives:
+Add or update clone prompts and sample audio in `.vox` archives:
 
 ```swift
-// Update clone prompt in existing .vox
-try VoxExporter.updateClonePrompt(in: voxURL, clonePromptData: promptData)
+// Add clone prompt to a VoxFile instance (container-first API)
+try VoxExporter.addClonePrompt(to: voxFile, data: promptData, modelRepo: .base1_7B)
 
-// Update sample audio in existing .vox
-try VoxExporter.updateSampleAudio(in: voxURL, sampleAudioData: wavData)
+// Add sample audio to a VoxFile instance
+try VoxExporter.addSampleAudio(to: voxFile, data: wavData, modelRepo: .base1_7B)
 
-// Path helpers
-let path = VoxExporter.clonePromptPath(for: .base1_7B)  // "embeddings/qwen3-tts/1.7b/clone-prompt.bin"
+// Update clone prompt in existing .vox file on disk
+try VoxExporter.updateClonePrompt(in: voxURL, clonePromptData: promptData, modelRepo: .base1_7B)
+
+// Update sample audio in existing .vox file on disk
+try VoxExporter.updateSampleAudio(in: voxURL, sampleAudioData: wavData, modelRepo: .base1_7B)
+
+// Slug helper
 let slug = VoxExporter.modelSizeSlug(for: .base0_6B)    // "0.6b"
 ```
 
@@ -187,20 +209,23 @@ let slug = VoxExporter.modelSizeSlug(for: .base0_6B)    // "0.6b"
 Import `.vox` archives:
 
 ```swift
-let result = try VoxImporter.importVox(from: voxURL)
+let result = try VoxImporter.importVox(from: voxURL, modelQuery: "1.7b")
 // result.name, result.description, result.method
 // result.clonePromptData (model-aware lookup with fallback)
 // result.sampleAudioData
 // result.referenceAudio (keyed by filename)
 // result.supportedModels (e.g. ["1.7b", "0.6b"])
+// result.createdAt, result.manifest
 ```
+
+The `modelQuery` parameter defaults to `Qwen3TTSModelRepo.base1_7B.slug` (`"1.7b"`) and controls which model-specific clone prompt is extracted.
 
 ### Embedding Paths
 
 | Path | Purpose |
 |------|---------|
 | `embeddings/qwen3-tts/{size}/clone-prompt.bin` | Model-specific clone prompt (e.g. `1.7b/`, `0.6b/`) |
-| `embeddings/qwen3-tts/sample-audio.wav` | Engine-generated voice sample |
+| `embeddings/qwen3-tts/{size}/sample-audio.wav` | Model-specific engine-generated voice sample |
 
 ### CLI Usage
 
@@ -329,7 +354,42 @@ VoxAltaVoiceProvider implements SwiftHablare's VoiceProvider protocol with dual-
 
 All 9 preset speakers are fully multilingual with English as their primary language. `fetchVoices(languageCode: "en")` returns all 9 preset speakers.
 
-### API Usage
+### Full API Surface
+
+```swift
+public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
+    public static let version = "0.7.0"
+
+    // VoiceProvider protocol properties
+    public let providerId = "voxalta"
+    public let displayName = "VoxAlta (On-Device)"
+    public let requiresAPIKey = false
+    public let mimeType = "audio/wav"
+    public var defaultVoiceId: String? { nil }
+
+    public init(
+        modelManager: VoxAltaModelManager = VoxAltaModelManager(),
+        baseModelRepo: Qwen3TTSModelRepo = .base1_7B,
+        customVoiceModelRepo: Qwen3TTSModelRepo = .customVoice1_7B
+    )
+
+    // VoiceProvider protocol methods
+    public func isConfigured() async -> Bool
+    public func fetchVoices(languageCode: String) async throws -> [Voice]
+    public func generateAudio(text: String, voiceId: String, languageCode: String) async throws -> Data
+    public func generateAudio(context: GenerationContext, voiceId: String, languageCode: String) async throws -> Data
+    public func generateProcessedAudio(text: String, voiceId: String, languageCode: String) async throws -> ProcessedAudio
+    public func estimateDuration(text: String, voiceId: String) async -> TimeInterval
+    public func isVoiceAvailable(voiceId: String) async -> Bool
+
+    // VoxAlta-specific methods
+    public func loadVoice(id: String, clonePromptData: Data, gender: String? = nil) async
+    public func unloadVoice(id: String) async
+    public func unloadAllVoices() async
+}
+```
+
+### Usage Example
 
 ```swift
 import SwiftVoxAlta
@@ -417,10 +477,19 @@ To create custom voices, use `echada cast` (from SwiftEchada), then import with 
 
 ## Qwen3-TTS Models
 
-| Model | Repo ID | Size | Use Case |
-|-------|---------|------|----------|
-| Base 1.7B | `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16` | ~4.3 GB | Voice cloning (recommended) |
-| Base 0.6B | `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16` | ~2.4 GB | Voice cloning (lighter, <16GB RAM) |
+All models are defined in `Qwen3TTSModelRepo` (in `VoxAltaModelManager.swift`):
+
+| Case | Repo ID | Size | Use Case |
+|------|---------|------|----------|
+| `base1_7B` | `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16` | ~4.3 GB | Voice cloning (recommended) |
+| `base0_6B` | `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16` | ~2.4 GB | Voice cloning (lighter, <16GB RAM) |
+| `base1_7B_8bit` | `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit` | ~1.7 GB | Reduced memory, minor quality loss |
+| `base1_7B_4bit` | `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-4bit` | ~850 MB | Smallest footprint (NOT recommended for production) |
+| `customVoice1_7B` | `mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16` | ~4.3 GB | 9 preset speakers (no clone prompt needed) |
+| `customVoice0_6B` | `mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-bf16` | ~2.4 GB | Lighter preset speakers |
+| `voiceDesign1_7B` | `mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16` | ~4.2 GB | Novel voice generation from text descriptions |
+
+**Slug system**: All variants of the same parameter count share a slug (`"0.6b"` or `"1.7b"`). Use `Qwen3TTSModelRepo(slug:)` to resolve a slug to the default Base model.
 
 - Models are auto-downloaded on first use from HuggingFace
 - Cached at `~/Library/SharedModels/` (via SwiftAcervo), shared across the intrusive-memory ecosystem
@@ -469,7 +538,7 @@ if generation.hasNeuralAccelerators {
 ## Development Workflow
 
 - **Branch**: `development` -> PR -> `main`
-- **CI Required**: Build + tests must pass before merge
+- **CI Required**: Unit tests must pass before merge (integration tests disabled on CI due to Metal compiler limitations on GitHub Actions runners)
 - **Never commit directly to `main`**
 - **Platforms**: macOS 26+, iOS 26+ only (Apple Silicon required)
 - **NEVER add `@available` attributes** for older platforms
@@ -484,9 +553,9 @@ if generation.hasNeuralAccelerators {
 
 ## Testing
 
-- **Library tests** (`SwiftVoxAltaTests/`): VoiceProvider, model manager, voice cache, error paths, audio conversion, voice lock, VoxImporter/VoxExporter, Acervo integration
-- **CLI tests** (`DigaTests/`): CLI integration, audio file writer, audio playback, engine, model manager, voice store, version, release checks
-- **175 tests** across 39 suites (library + CLI)
+- **Library tests** (`SwiftVoxAltaTests/`, 13 files): VoiceProvider, model manager, voice cache, error paths, audio conversion, voice lock, VoxImporter/VoxExporter, generation context, consistency, type tests
+- **CLI tests** (`DigaTests/`, 11 files): CLI integration, audio file writer, audio playback, engine, model manager, voice store, version, release, vox integration, dual model
+- **~328 tests** across 24 test files (uses Swift Testing `@Test` macro)
 
 ## Important Notes
 
