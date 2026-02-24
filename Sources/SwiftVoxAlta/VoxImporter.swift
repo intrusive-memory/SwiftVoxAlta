@@ -34,10 +34,10 @@ public enum VoxImporter: Sendable {
     ///
     /// - Parameters:
     ///   - url: Path to the `.vox` file.
-    ///   - modelQuery: Model query string (e.g., `"0.6b"`, `"1.7b"`). Defaults to `"1.7b"`.
+    ///   - modelQuery: Model query string (e.g., `"0.6b"`, `"1.7b"`). Defaults to `.base1_7B.slug`.
     /// - Returns: A `VoxImportResult` with extracted metadata and binary data.
     /// - Throws: `VoxAltaError.voxImportFailed` on failure.
-    public static func importVox(from url: URL, modelQuery: String = "1.7b") throws -> VoxImportResult {
+    public static func importVox(from url: URL, modelQuery: String = Qwen3TTSModelRepo.base1_7B.slug) throws -> VoxImportResult {
         do {
             let voxFile = try VoxFile(contentsOf: url)
 

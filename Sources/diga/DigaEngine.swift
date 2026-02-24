@@ -246,13 +246,7 @@ actor DigaEngine {
 
     /// The model size slug for the currently resolved model (e.g. "0.6b" or "1.7b").
     private var resolvedModelSlug: String {
-        switch resolvedBaseModelRepo {
-        case .base0_6B, .customVoice0_6B:
-            return "0.6b"
-        case .base1_7B, .base1_7B_8bit, .base1_7B_4bit,
-             .customVoice1_7B, .voiceDesign1_7B:
-            return "1.7b"
-        }
+        resolvedBaseModelRepo.slug
     }
 
     // MARK: - Voice Resolution
@@ -599,7 +593,7 @@ actor DigaEngine {
         let legacyPromptFile = voiceStore.voicesDirectory
             .appendingPathComponent("\(voice.name).cloneprompt")
         if FileManager.default.fileExists(atPath: legacyPromptFile.path),
-           slug == "1.7b" {
+           slug == Qwen3TTSModelRepo.base1_7B.slug {
             let data = try Data(contentsOf: legacyPromptFile)
             cachedClonePrompts[cacheKey] = data
 

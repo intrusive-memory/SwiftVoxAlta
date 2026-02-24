@@ -11,13 +11,7 @@ public enum VoxExporter: Sendable {
 
     /// Returns a short slug for the given model repo (e.g. "0.6b" or "1.7b").
     public static func modelSizeSlug(for repo: Qwen3TTSModelRepo) -> String {
-        switch repo {
-        case .base0_6B, .customVoice0_6B:
-            return "0.6b"
-        case .base1_7B, .base1_7B_8bit, .base1_7B_4bit,
-             .customVoice1_7B, .voiceDesign1_7B:
-            return "1.7b"
-        }
+        repo.slug
     }
 
     /// Returns the model-specific embedding archive path for a clone prompt.

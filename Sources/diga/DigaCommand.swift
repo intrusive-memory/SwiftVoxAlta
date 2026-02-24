@@ -136,19 +136,15 @@ struct DigaCommand: AsyncParsableCommand {
     private func resolveModelFlag() throws -> String? {
         guard let modelValue = model else { return nil }
 
-        switch modelValue.lowercased() {
-        case "0.6b":
-            return TTSModelID.small
-        case "1.7b":
-            return TTSModelID.large
-        default:
-            // Accept any string that looks like a HuggingFace model ID (contains /).
-            if modelValue.contains("/") {
-                return modelValue
-            }
-            // Invalid shorthand — not "0.6b", "1.7b", or a HF model ID.
+        if let repo = Qwen3TTSModelRepo(slug: modelValue) {
+            return repo.rawValue
+        } else if modelValue.contains("/") {
+            // Accept any string that looks like a HuggingFace model ID.
+            return modelValue
+        } else {
+            let slugs = Qwen3TTSModelRepo.supportedSlugs.sorted().joined(separator: "', '")
             throw ValidationError(
-                "Invalid model: '\(modelValue)'. Use '0.6b', '1.7b', or a HuggingFace model ID (org/repo)."
+                "Invalid model: '\(modelValue)'. Use '\(slugs)', or a HuggingFace model ID (org/repo)."
             )
         }
     }
