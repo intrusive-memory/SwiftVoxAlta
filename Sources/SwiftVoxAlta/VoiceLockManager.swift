@@ -231,8 +231,8 @@ public enum VoiceLockManager: Sendable {
         }
 
         // Generation parameters
-        let temperature: Float = 0.9
-        let topP: Float = 1.0
+        let temperature: Float = 0.6
+        let topP: Float = 0.6
         let repetitionPenalty: Float = 1.5
         let maxTokens: Int = 16384  // Increased from default 4096 to support longer phrases
 
