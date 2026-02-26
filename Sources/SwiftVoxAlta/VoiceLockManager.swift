@@ -132,6 +132,7 @@ public enum VoiceLockManager: Sendable {
     ///   - modelManager: The model manager used to load the Base model.
     ///   - modelRepo: The Base model variant to use for generation. Defaults to `.base1_7B`.
     ///   - cache: Optional voice cache for clone prompt caching.
+    ///   - settings: Generation parameters controlling sampling behavior.
     /// - Returns: WAV format Data of the generated speech audio (24kHz, 16-bit PCM, mono).
     /// - Throws: `VoxAltaError.cloningFailed` if generation fails,
     ///           `VoxAltaError.modelNotAvailable` if the Base model cannot be loaded.
@@ -141,7 +142,8 @@ public enum VoiceLockManager: Sendable {
         language: String = "en",
         modelManager: VoxAltaModelManager,
         modelRepo: Qwen3TTSModelRepo = .base1_7B,
-        cache: VoxAltaVoiceCache? = nil
+        cache: VoxAltaVoiceCache? = nil,
+        settings: GenerationSettings = .default
     ) async throws -> Data {
         VoiceLockManagerLogger.log(
             "Envelope for '\(voiceLock.characterName)': \(context.serializedSize) bytes, \(context.metadata.count) metadata key(s)"
@@ -156,7 +158,8 @@ public enum VoiceLockManager: Sendable {
             instruct: context.instruct,
             modelManager: modelManager,
             modelRepo: modelRepo,
-            cache: cache
+            cache: cache,
+            settings: settings
         )
     }
 
@@ -182,6 +185,7 @@ public enum VoiceLockManager: Sendable {
     ///   - modelRepo: The Base model variant to use for generation. Defaults to `.base1_7B`.
     ///   - cache: Optional voice cache for clone prompt caching. If provided, reduces
     ///            deserialization overhead on repeated calls.
+    ///   - settings: Generation parameters controlling sampling behavior.
     /// - Returns: WAV format Data of the generated speech audio (24kHz, 16-bit PCM, mono).
     /// - Throws: `VoxAltaError.cloningFailed` if generation fails,
     ///           `VoxAltaError.modelNotAvailable` if the Base model cannot be loaded.
@@ -192,7 +196,8 @@ public enum VoiceLockManager: Sendable {
         instruct: String? = nil,
         modelManager: VoxAltaModelManager,
         modelRepo: Qwen3TTSModelRepo = .base1_7B,
-        cache: VoxAltaVoiceCache? = nil
+        cache: VoxAltaVoiceCache? = nil,
+        settings: GenerationSettings = .default
     ) async throws -> Data {
         // Load Base model
         let model = try await modelManager.loadModel(modelRepo)
@@ -230,14 +235,8 @@ public enum VoiceLockManager: Sendable {
             }
         }
 
-        // Generation parameters
-        let temperature: Float = 0.9
-        let topP: Float = 0.95
-        let repetitionPenalty: Float = 1.5
-        let maxTokens: Int = 16384  // Increased from default 4096 to support longer phrases
-
         // Log generation parameters
-        VoiceLockManagerLogger.log("🎛️  Generation params: temp=\(temperature), topP=\(topP), repPenalty=\(repetitionPenalty), maxTokens=\(maxTokens)")
+        VoiceLockManagerLogger.log("🎛️  Generation params: temp=\(settings.temperature), topP=\(settings.topP), repPenalty=\(settings.repetitionPenalty), maxTokens=\(settings.maxTokens)")
         if let instruct = instruct {
             VoiceLockManagerLogger.log("📝 Instruct: \"\(instruct)\"")
         }
@@ -251,10 +250,10 @@ public enum VoiceLockManager: Sendable {
                 clonePrompt: clonePrompt,
                 language: language,
                 instruct: instruct,
-                temperature: temperature,
-                topP: topP,
-                repetitionPenalty: repetitionPenalty,
-                maxTokens: maxTokens
+                temperature: settings.temperature,
+                topP: settings.topP,
+                repetitionPenalty: settings.repetitionPenalty,
+                maxTokens: settings.maxTokens
             )
         } catch {
             throw VoxAltaError.cloningFailed(

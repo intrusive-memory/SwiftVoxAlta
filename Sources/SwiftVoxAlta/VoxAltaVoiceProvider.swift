@@ -67,6 +67,9 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     /// The CustomVoice model variant to use for preset speaker generation.
     private let customVoiceModelRepo: Qwen3TTSModelRepo
 
+    /// Generation parameters controlling sampling behavior for audio synthesis.
+    public let generationSettings: GenerationSettings
+
     // MARK: - Initialization
 
     /// Create a new VoxAlta voice provider.
@@ -75,15 +78,18 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     ///   - modelManager: The model manager to use for TTS model operations. Defaults to a new instance.
     ///   - baseModelRepo: The Base model variant to use for voice cloning. Defaults to `.base1_7B` (3.4GB).
     ///   - customVoiceModelRepo: The CustomVoice model variant for preset speakers. Defaults to `.customVoice1_7B` (3.4GB).
+    ///   - generationSettings: Sampling parameters for audio generation. Defaults to `.default`.
     public init(
         modelManager: VoxAltaModelManager = VoxAltaModelManager(),
         baseModelRepo: Qwen3TTSModelRepo = .base1_7B,
-        customVoiceModelRepo: Qwen3TTSModelRepo = .customVoice1_7B
+        customVoiceModelRepo: Qwen3TTSModelRepo = .customVoice1_7B,
+        generationSettings: GenerationSettings = .default
     ) {
         self.modelManager = modelManager
         self.voiceCache = VoxAltaVoiceCache()
         self.baseModelRepo = baseModelRepo
         self.customVoiceModelRepo = customVoiceModelRepo
+        self.generationSettings = generationSettings
     }
 
     // MARK: - VoiceProvider Protocol
@@ -195,7 +201,8 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
             language: languageCode,
             modelManager: modelManager,
             modelRepo: baseModelRepo,
-            cache: voiceCache
+            cache: voiceCache,
+            settings: generationSettings
         )
     }
 

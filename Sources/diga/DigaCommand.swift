@@ -259,12 +259,23 @@ struct DigaCommand: AsyncParsableCommand {
         // Write clone prompt to disk if present.
         var clonePromptPath: String?
         if let promptData = result.clonePromptData {
-            let promptURL = store.voicesDirectory.appendingPathComponent("\(result.name).cloneprompt")
             try FileManager.default.createDirectory(
                 at: store.voicesDirectory,
                 withIntermediateDirectories: true
             )
-            try promptData.write(to: promptURL, options: .atomic)
+
+            // Clear stale model-specific clone prompt caches before writing fresh data.
+            for slug in Qwen3TTSModelRepo.supportedSlugs.sorted() {
+                let staleURL = store.voicesDirectory.appendingPathComponent("\(result.name)-\(slug).cloneprompt")
+                try? FileManager.default.removeItem(at: staleURL)
+            }
+
+            // Write to both legacy (unsuffixed) and default model-specific paths.
+            let legacyURL = store.voicesDirectory.appendingPathComponent("\(result.name).cloneprompt")
+            try promptData.write(to: legacyURL, options: .atomic)
+
+            let modelURL = store.voicesDirectory.appendingPathComponent("\(result.name)-1.7b.cloneprompt")
+            try promptData.write(to: modelURL, options: .atomic)
         }
 
         // For cloned voices without a clone prompt, store reference audio path.
