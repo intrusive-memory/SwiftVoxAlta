@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This file provides comprehensive documentation for AI agents working with the SwiftVoxAlta codebase.
+Documentation for AI agents working with the SwiftVoxAlta codebase.
 
 **Current Version**: 0.7.0
 
@@ -8,41 +8,76 @@ This file provides comprehensive documentation for AI agents working with the Sw
 
 ## Project Overview
 
-SwiftVoxAlta is a VoiceProvider library for SwiftHablare that provides on-device voice synthesis using Qwen3-TTS via mlx-audio-swift.
+SwiftVoxAlta is a **speech synthesis** library. It consumes `.vox` voice identity files and renders text to audio using Qwen3-TTS on Apple Silicon. It does **not** create, design, or clone voices.
 
-**Purpose**: Load voice identities from `.vox` files, resolve clone prompts, and render speech audio -- all on-device using Apple Silicon.
+### Voice Creation vs Voice Synthesis (Critical Distinction)
 
-**Voice creation** (design, clone, character analysis) is handled by SwiftEchada (`echada cast`). VoxAlta is purely "load a .vox file, get the clone prompt, synthesize speech."
+| Concern | Handled By | NOT Handled By |
+|---------|-----------|----------------|
+| Designing a voice from a text description | **SwiftEchada** (`echada cast`) | VoxAlta |
+| Cloning a voice from reference audio | **SwiftEchada** (`echada cast`) | VoxAlta |
+| Character analysis from screenplays | **SwiftEchada** | VoxAlta |
+| Packaging voice identity into `.vox` files | **SwiftEchada** | VoxAlta |
+| **Consuming `.vox` files for speech synthesis** | **VoxAlta** | SwiftEchada |
+| **Rendering text to audio (WAV)** | **VoxAlta** | SwiftEchada |
+| **Preset speaker generation (9 built-in voices)** | **VoxAlta** | SwiftEchada |
 
-## What VoxAlta Provides
+The pipeline is: `echada cast` creates a `.vox` file -> `diga --import-vox voice.vox` imports it -> `diga -v voice "text"` synthesizes speech.
 
-- **VoiceProvider implementation** -- text + voiceId -> audio Data (Qwen3-TTS base model cloning)
-- **VoiceProviderDescriptor** -- auto-registration with SwiftHablare's provider registry
-- **VoxImporter/VoxExporter** -- import/export `.vox` voice identity files (container-first API)
+### What VoxAlta Provides
+
+- **Speech synthesis** -- text + voiceId -> WAV audio Data (24kHz, 16-bit PCM, mono)
+- **VoiceProvider for SwiftHablare** -- plug-and-play integration with the voice provider registry
+- **`.vox` file consumption** -- import `.vox` archives created by SwiftEchada, extract clone prompts
+- **9 preset speakers** -- built-in CustomVoice speakers that work without any `.vox` file
+- **GenerationSettings** -- tunable sampling parameters (temperature, topP, repetitionPenalty, maxTokens)
 - **CLI tool (`diga`)** -- drop-in replacement for `/usr/bin/say` with neural TTS
 
-## What VoxAlta Does NOT Provide
+### What VoxAlta Does NOT Provide
 
-- Voice creation/design (SwiftEchada / `echada cast`)
+- **Voice creation of any kind** -- no voice design, no voice cloning, no character analysis. Use SwiftEchada (`echada cast`) for all voice creation, which produces `.vox` files for VoxAlta to consume.
 - Fountain parsing (SwiftCompartido)
 - Voice selection UI (app layer)
 - Audio storage/persistence (Produciesta / SwiftData)
-- Streaming playback (SwiftHablare / app layer)
+- Parallel generation (single GPU thread per generation; hardware limitation)
 
-## Installation
+---
 
-### Homebrew (recommended for CLI)
+## Build and Test
+
+**CRITICAL**: Use `xcodebuild` or the Makefile. Metal shaders required by Qwen3-TTS do not compile with `swift build`.
+
+### Makefile Targets
 
 ```bash
-brew tap intrusive-memory/tap
-brew install diga
+make build           # Development build (xcodebuild debug)
+make install         # Debug build + copy binary and Metal bundle to ./bin
+make release         # Release build + copy to ./bin
+make test            # Run all tests (unit + integration)
+make test-unit       # Fast unit tests only (~5-10 seconds, no binary required)
+make test-integration # Binary integration tests (requires binary + cached voices)
+make resolve         # Resolve SPM dependencies
+make clean           # Clean build artifacts + DerivedData
+make setup-voices    # One-time: download CustomVoice model (~3.4GB)
+make help            # Show all targets
 ```
 
-### Swift Package Manager (for library integration)
+### Direct xcodebuild
 
-```swift
-.package(url: "https://github.com/intrusive-memory/SwiftVoxAlta.git", from: "0.7.0")
+```bash
+xcodebuild build -scheme SwiftVoxAlta -destination 'platform=macOS,arch=arm64'
+xcodebuild build -scheme diga -destination 'platform=macOS,arch=arm64'
+xcodebuild test -scheme SwiftVoxAlta-Package -destination 'platform=macOS,arch=arm64'
 ```
+
+### Platform Requirements
+
+- **macOS 26.0+** / **iOS 26.0+** (Apple Silicon only)
+- **Swift 6.2+** / **Xcode 26+**
+- **NEVER** add `@available` attributes for older platforms
+- CI runner: `macos-26`
+
+---
 
 ## Project Structure
 
@@ -50,311 +85,75 @@ brew install diga
 SwiftVoxAlta/
 ├── Sources/
 │   ├── SwiftVoxAlta/                  # Library target
-│   │   ├── AppleSiliconInfo.swift     # Apple Silicon generation detection (M1-M5)
-│   │   ├── AudioConversion.swift      # WAV format utilities
-│   │   ├── GenerationContext.swift    # TTS generation context envelope
-│   │   ├── VoiceLock.swift            # Locked voice identity type
+│   │   ├── AppleSiliconInfo.swift     # M1-M5 generation detection (21 cases)
+│   │   ├── AudioConversion.swift      # MLXArray <-> WAV Data conversion
+│   │   ├── GenerationContext.swift    # TTS generation envelope (phrase + metadata)
+│   │   ├── GenerationSettings.swift   # Sampling parameters (temperature, topP, etc.)
+│   │   ├── VoiceLock.swift            # Locked voice identity (clone prompt + metadata)
 │   │   ├── VoiceLockManager.swift     # Audio generation from locked voices
 │   │   ├── VoxAltaConfig.swift        # Configuration (model IDs, output format)
-│   │   ├── VoxAltaError.swift         # Error types
+│   │   ├── VoxAltaError.swift         # Error types (7 cases)
 │   │   ├── VoxAltaModelManager.swift  # Qwen3-TTS model lifecycle (actor)
-│   │   ├── VoxAltaProviderDescriptor.swift  # SwiftHablare registration
-│   │   ├── VoxAltaVoiceCache.swift    # Thread-safe voice cache (actor)
+│   │   ├── VoxAltaProviderDescriptor.swift  # SwiftHablare registration factory
+│   │   ├── VoxAltaVoiceCache.swift    # Thread-safe voice + clone prompt cache (actor)
 │   │   ├── VoxAltaVoiceProvider.swift # VoiceProvider protocol implementation
-│   │   ├── VoxExporter.swift          # Update clone prompts/sample audio in .vox files
-│   │   └── VoxImporter.swift          # Import .vox voice identity files
+│   │   ├── VoxExporter.swift          # Add/update clone prompts and sample audio in .vox
+│   │   └── VoxImporter.swift          # Import .vox archives, extract voice identity data
 │   └── diga/                          # CLI executable target
 │       ├── AudioFileWriter.swift      # WAV/AIFF/M4A file output
-│       ├── AudioPlayback.swift        # Speaker playback via AVAudioPlayer
-│       ├── BuiltinVoices.swift        # Built-in voice presets
-│       ├── DigaCommand.swift          # CLI entry point and argument parsing
-│       ├── DigaEngine.swift           # Synthesis engine (text -> WAV data)
-│       ├── DigaModelManager.swift     # Model download and cache management
-│       ├── TextChunker.swift          # Split long text for chunked synthesis
+│       ├── AudioPlayback.swift        # Speaker playback + streaming chunked playback
+│       ├── BuiltinVoices.swift        # 9 built-in CustomVoice preset speakers
+│       ├── DigaCommand.swift          # CLI entry point (@main, ArgumentParser)
+│       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
+│       ├── DigaModelManager.swift     # Model download and RAM-based auto-selection
+│       ├── TextChunker.swift          # Sentence-boundary chunking (NLTokenizer)
 │       ├── Version.swift              # Version constant (0.7.0)
-│       └── VoiceStore.swift           # Persistent custom voice storage
+│       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
-│   ├── SwiftVoxAltaTests/             # Library tests
-│   └── DigaTests/                     # CLI tests
-├── Formula/
-│   └── diga.rb                        # Reference Homebrew formula (auto-updated by release workflow)
+│   ├── SwiftVoxAltaTests/             # 13 test files (library)
+│   └── DigaTests/                     # 11 test files (CLI)
+├── .github/workflows/
+│   ├── tests.yml                      # CI: unit tests on PR (macos-26)
+│   └── release.yml                    # CD: build tarball, upload assets, trigger Homebrew tap
+├── Formula/diga.rb                    # Reference Homebrew formula
 ├── Makefile                           # Build targets (xcodebuild wrapper)
-├── Package.swift
+├── Package.swift                      # Swift 6.2, macOS 26+, iOS 26+
 ├── AGENTS.md                          # This file
-├── CHANGELOG.md                       # Release history
 ├── CLAUDE.md                          # Claude Code-specific instructions
 ├── GEMINI.md                          # Gemini-specific instructions
+├── CHANGELOG.md                       # Release history
 └── README.md
 ```
 
-## Key Components
-
-| Component | Purpose |
-|-----------|---------|
-| **VoxAltaVoiceProvider** | Implements SwiftHablare's `VoiceProvider` protocol |
-| **VoxAltaModelManager** | Actor managing Qwen3-TTS model lifecycle via mlx-audio-swift |
-| **VoxAltaVoiceCache** | Actor caching loaded voice clone prompts for performance |
-| **VoiceLockManager** | Generates audio from locked voice identities |
-| **AppleSiliconInfo** | Apple Silicon generation detection (M1-M5) and Neural Accelerator status |
-| **GenerationContext** | TTS generation context envelope (phrase, metadata) |
-| **VoxExporter** | Update clone prompts and sample audio in `.vox` archives |
-| **VoxImporter** | Import `.vox` archives and extract voice identity data |
-| **VoxAltaConfig** | Configuration (design/render/analysis model IDs, candidate count, output format) |
-| **VoxAltaProviderDescriptor** | Factory for SwiftHablare registry registration |
-| **`diga` CLI** | Drop-in `say` replacement with neural TTS |
+---
 
 ## Dependencies
 
-| Package | Purpose |
-|---------|---------|
-| [SwiftHablare](https://github.com/intrusive-memory/SwiftHablare) | VoiceProvider protocol and registry |
-| [mlx-audio-swift](https://github.com/intrusive-memory/mlx-audio-swift) | Qwen3-TTS inference engine (MLXAudioTTS) |
-| [SwiftAcervo](https://github.com/intrusive-memory/SwiftAcervo) | Shared model management and caching |
-| [vox-format](https://github.com/intrusive-memory/vox-format) | Portable `.vox` voice identity file format |
-| [swift-argument-parser](https://github.com/apple/swift-argument-parser) | CLI argument parsing |
+| Package | Source | Branch/Version | Purpose |
+|---------|--------|---------------|---------|
+| [SwiftHablare](https://github.com/intrusive-memory/SwiftHablare) | intrusive-memory | `development` | VoiceProvider protocol and registry |
+| [mlx-audio-swift](https://github.com/intrusive-memory/mlx-audio-swift) | intrusive-memory (fork) | `development` | Qwen3-TTS inference engine (MLXAudioTTS) |
+| [SwiftAcervo](https://github.com/intrusive-memory/SwiftAcervo) | intrusive-memory | `main` | Shared model management and caching |
+| [vox-format](https://github.com/intrusive-memory/vox-format) | intrusive-memory | `development` | Portable `.vox` voice identity file format |
+| [swift-argument-parser](https://github.com/apple/swift-argument-parser) | apple | `>= 1.5.0` | CLI argument parsing |
+| [EventSource](https://github.com/intrusive-memory/EventSource) | intrusive-memory | `xcode26-transitive-fix` | Override: fixes Xcode 26 transitive dep issue with swift-huggingface |
 
-### mlx-audio-swift Fork Notes
+### mlx-audio-swift Fork
 
-VoxAlta uses a fork of `mlx-audio-swift` from the intrusive-memory GitHub org:
+Fork from `intrusive-memory` org (not upstream). Includes:
+- Voice cloning: reference audio -> clone prompt generation (Base models)
+- `VoiceClonePrompt.serialize()` / `.deserialize(from:)` for clone prompt persistence
+- `Qwen3TTSModel.generateWithClonePrompt()` for clone-prompt-based generation
+- Preset speakers: CustomVoice model with 9 built-in speakers
+- `instruct` parameter support for performance directions
 
-- **Repository**: `https://github.com/intrusive-memory/mlx-audio-swift.git`
-- **Branch**: `development`
-- **Rationale**: Fork includes VoiceDesign v1 support (via PR #23 from upstream) and voice cloning with clone prompts.
+---
 
-This fork enables:
-- **Voice Cloning**: Reference audio -> clone prompt generation (Base 0.6B/1.7B models)
-- **Preset Speakers**: CustomVoice model with 9 built-in speakers
+## Library API Surface
 
-## VoiceLockManager API
+### VoxAltaVoiceProvider
 
-`VoiceLockManager` is an enum namespace providing voice lock creation and audio generation from locked voices.
-
-### `createLock(characterName:candidateAudio:designInstruction:modelManager:sampleSentence:modelRepo:)`
-
-Create a VoiceLock from candidate audio by extracting a voice clone prompt using the Base model.
-
-```swift
-public static func createLock(
-    characterName: String,
-    candidateAudio: Data,
-    designInstruction: String,
-    modelManager: VoxAltaModelManager,
-    sampleSentence: String? = nil,
-    modelRepo: Qwen3TTSModelRepo = .base1_7B
-) async throws -> VoiceLock
-```
-
-### `generateAudio(context:voiceLock:language:modelManager:modelRepo:cache:)`
-
-Generate speech audio using a locked voice identity (GenerationContext envelope).
-
-```swift
-public static func generateAudio(
-    context: GenerationContext,
-    voiceLock: VoiceLock,
-    language: String = "en",
-    modelManager: VoxAltaModelManager,
-    modelRepo: Qwen3TTSModelRepo = .base1_7B,
-    cache: VoxAltaVoiceCache? = nil
-) async throws -> Data
-```
-
-### `generateAudio(text:voiceLock:language:instruct:modelManager:modelRepo:cache:)`
-
-Generate speech audio using a locked voice identity (plain text).
-
-```swift
-public static func generateAudio(
-    text: String,
-    voiceLock: VoiceLock,
-    language: String = "en",
-    instruct: String? = nil,
-    modelManager: VoxAltaModelManager,
-    modelRepo: Qwen3TTSModelRepo = .base1_7B,
-    cache: VoxAltaVoiceCache? = nil
-) async throws -> Data
-```
-
-**Performance:**
-- First generation: ~20-40s per line (includes clone prompt deserialization)
-- Subsequent generations: ~10-20s per line (2x speedup via clone prompt caching)
-
-## VoxFormat (.vox) Integration
-
-VoxAlta uses the [vox-format](https://github.com/intrusive-memory/vox-format) library with the container-first API (`VoxFile` class).
-
-### VoxExporter
-
-Add or update clone prompts and sample audio in `.vox` archives:
-
-```swift
-// Add clone prompt to a VoxFile instance (container-first API)
-try VoxExporter.addClonePrompt(to: voxFile, data: promptData, modelRepo: .base1_7B)
-
-// Add sample audio to a VoxFile instance
-try VoxExporter.addSampleAudio(to: voxFile, data: wavData, modelRepo: .base1_7B)
-
-// Update clone prompt in existing .vox file on disk
-try VoxExporter.updateClonePrompt(in: voxURL, clonePromptData: promptData, modelRepo: .base1_7B)
-
-// Update sample audio in existing .vox file on disk
-try VoxExporter.updateSampleAudio(in: voxURL, sampleAudioData: wavData, modelRepo: .base1_7B)
-
-// Slug helper
-let slug = VoxExporter.modelSizeSlug(for: .base0_6B)    // "0.6b"
-```
-
-### VoxImporter
-
-Import `.vox` archives:
-
-```swift
-let result = try VoxImporter.importVox(from: voxURL, modelQuery: "1.7b")
-// result.name, result.description, result.method
-// result.clonePromptData (model-aware lookup with fallback)
-// result.sampleAudioData
-// result.referenceAudio (keyed by filename)
-// result.supportedModels (e.g. ["1.7b", "0.6b"])
-// result.createdAt, result.manifest
-```
-
-The `modelQuery` parameter defaults to `Qwen3TTSModelRepo.base1_7B.slug` (`"1.7b"`) and controls which model-specific clone prompt is extracted.
-
-### Embedding Paths
-
-| Path | Purpose |
-|------|---------|
-| `embeddings/qwen3-tts/{size}/clone-prompt.bin` | Model-specific clone prompt (e.g. `1.7b/`, `0.6b/`) |
-| `embeddings/qwen3-tts/{size}/sample-audio.wav` | Model-specific engine-generated voice sample |
-
-### CLI Usage
-
-```bash
-# Import a .vox file
-diga --import-vox voice.vox
-
-# Synthesize directly from a .vox file (no import needed)
-diga -v voice.vox "Hello, world!"
-```
-
-## Clone Prompt Resolution
-
-When synthesizing with an existing voice (`diga "Hello" -v alice`), `DigaEngine.loadOrCreateClonePrompt()` checks four sources in order:
-
-```
-1. Memory cache: cachedClonePrompts["alice:1.7b"]  ── HIT? → use
-2. Disk cache: alice-1.7b.cloneprompt              ── HIT? → use
-3. Legacy disk: alice.cloneprompt (1.7b only)      ── HIT? → use
-4. On-demand extraction from .vox:
-   Import alice.vox → extract clone prompt          ── HIT? → use
-   (no match) → Error: "Use `echada cast` to create a voice"
-```
-
-## Synthesis Flow
-
-```
-Text → TextChunker.chunk() → ["sentence 1", "sentence 2", ...]
-
-For each chunk:
-  VoiceLockManager.generateAudio()
-    clone prompt → VoiceClonePrompt.deserialize()
-    Qwen3TTSModel.generateWithClonePrompt(text, prompt)
-    → MLXArray → mlxArrayToWAVData → WAV segment
-
-WAVConcatenator.concatenate(segments) → final WAV
-
-Output:
-  -o file.wav → AudioFileWriter (wav/aiff/m4a)
-  (default)   → AudioPlayback (speakers)
-```
-
-## Disk Layout
-
-```
-~/.diga/voices/
-├── index.json                    ← Voice registry (JSON array of StoredVoice)
-├── alice-1.7b.cloneprompt        ← Serialized speaker embedding (~5-10KB)
-└── alice.vox                     ← Portable container (ZIP)
-    ├── manifest.json             │  name, description, provenance
-    ├── reference/                │  (optional reference audio)
-    └── embeddings/qwen3-tts/
-        ├── 1.7b/clone-prompt.bin │  Model-specific clone prompt
-        ├── 0.6b/clone-prompt.bin │  (optional second model)
-        └── sample-audio.wav      │  Pangram sample for preview
-
-~/Library/SharedModels/           ← Model weights (shared via Acervo)
-├── mlx-community_Qwen3-TTS-12Hz-1.7B-Base-bf16/         (~4.3GB)
-├── mlx-community_Qwen3-TTS-12Hz-0.6B-Base-bf16/         (~2.4GB)
-└── mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16/  (presets)
-```
-
-## Build and Test
-
-**CRITICAL**: Use `xcodebuild` or the Makefile for all builds and tests. Qwen3-TTS requires Metal shaders which don't compile with `swift build`.
-
-### Makefile Targets
-
-```bash
-make build      # Development build (xcodebuild debug)
-make install    # Debug build + copy binary and Metal bundle to ./bin
-make release    # Release build + copy to ./bin
-make test       # Run all tests (library + CLI)
-make test-unit  # Fast unit tests only (~5-10 seconds)
-make resolve    # Resolve SPM dependencies
-make clean      # Clean build artifacts
-```
-
-### Direct xcodebuild
-
-```bash
-# Build library
-xcodebuild build -scheme SwiftVoxAlta -destination 'platform=macOS,arch=arm64'
-
-# Run tests
-xcodebuild test -scheme SwiftVoxAlta-Package -destination 'platform=macOS,arch=arm64'
-
-# Build CLI tool
-xcodebuild build -scheme diga -destination 'platform=macOS,arch=arm64'
-```
-
-## Platform Requirements
-
-- **macOS 26.0+** (Apple Silicon only -- Qwen3-TTS requires Metal/MLX)
-- **iOS 26.0+** (Apple Silicon only)
-- **Swift 6.2+**
-- **Xcode 26+**
-
-## VoiceProvider Implementation
-
-VoxAltaVoiceProvider implements SwiftHablare's VoiceProvider protocol with dual-mode routing for both preset speakers and custom voices:
-
-### Dual-Mode Routing
-
-1. **Route 1 (Preset speakers)** -- Direct CustomVoice model generation, no setup required:
-   ```swift
-   let audio = try await provider.generateAudio(
-       text: "Hello",
-       voiceId: "ryan",  // Routes through Route 1
-       languageCode: "en"
-   )
-   ```
-   Supports: `ryan`, `aiden`, `vivian`, `serena`, `uncle_fu`, `dylan`, `eric`, `anna`, `sohee`
-
-2. **Route 2 (Clone prompts)** -- For custom voices loaded via `loadVoice()`:
-   ```swift
-   await provider.loadVoice(id: "ELENA", clonePromptData: lockData, gender: "female")
-   let audio = try await provider.generateAudio(
-       text: "Hello",
-       voiceId: "ELENA",  // Routes through Route 2
-       languageCode: "en"
-   )
-   ```
-
-### Multilingual Voice Support
-
-All 9 preset speakers are fully multilingual with English as their primary language. `fetchVoices(languageCode: "en")` returns all 9 preset speakers.
-
-### Full API Surface
+Implements SwiftHablare's `VoiceProvider` protocol with dual-mode routing.
 
 ```swift
 public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
@@ -370,7 +169,8 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     public init(
         modelManager: VoxAltaModelManager = VoxAltaModelManager(),
         baseModelRepo: Qwen3TTSModelRepo = .base1_7B,
-        customVoiceModelRepo: Qwen3TTSModelRepo = .customVoice1_7B
+        customVoiceModelRepo: Qwen3TTSModelRepo = .customVoice1_7B,
+        generationSettings: GenerationSettings = .default
     )
 
     // VoiceProvider protocol methods
@@ -390,74 +190,280 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
 }
 ```
 
-### Usage Example
+#### Dual-Mode Routing
+
+**Route 1 -- Preset speakers** (no clone prompt needed):
+```swift
+let audio = try await provider.generateAudio(text: "Hello", voiceId: "ryan", languageCode: "en")
+```
+Preset IDs: `ryan`, `aiden`, `vivian`, `serena`, `uncle_fu`, `dylan`, `eric`, `anna`, `sohee`
+
+**Route 2 -- Clone prompts** (custom voices loaded via `loadVoice()`):
+```swift
+await provider.loadVoice(id: "ELENA", clonePromptData: lockData, gender: "female")
+let audio = try await provider.generateAudio(text: "Hello", voiceId: "ELENA", languageCode: "en")
+```
+
+#### Preset Speaker Mapping
+
+| User-facing name | CustomVoice speaker name | Notes |
+|-----------------|------------------------|-------|
+| `anna` | `ono_anna` | Only name that differs from its speaker ID |
+| All others | Same as user name | `ryan` -> `"ryan"`, etc. |
+
+#### Registration with SwiftHablare
 
 ```swift
-import SwiftVoxAlta
-import SwiftHablare
-
-// Create provider
-let provider = VoxAltaVoiceProvider()
-
-// Fetch available voices (includes 9 presets + any loaded custom voices)
-let voices = try await provider.fetchVoices(languageCode: "en")
-
-// Generate audio with preset speaker (Route 1)
-let audioData = try await provider.generateAudio(
-    text: "Hello from VoxAlta!",
-    voiceId: "ryan",
-    languageCode: "en"
-)
-
-// Load a custom voice for cloning (Route 2)
-await provider.loadVoice(id: "ELENA", clonePromptData: lockData, gender: "female")
-let customAudio = try await provider.generateAudio(
-    text: "Hello from custom Elena!",
-    voiceId: "ELENA",
-    languageCode: "en"
-)
-
-// Register with SwiftHablare
 let registry = VoiceProviderRegistry.shared
 await registry.register(VoxAltaProviderDescriptor.descriptor())
 ```
 
+### GenerationSettings
+
+Controls sampling behavior for Qwen3-TTS audio generation.
+
+```swift
+public struct GenerationSettings: Codable, Sendable, Equatable {
+    public let temperature: Float       // Default: 0.7 (0.3-0.5 stable, 0.8-1.0 expressive)
+    public let topP: Float              // Default: 0.9 (nucleus sampling threshold)
+    public let repetitionPenalty: Float  // Default: 1.3 (1.0 = none, 1.5+ = aggressive)
+    public let maxTokens: Int           // Default: 16384 (~22 min audio at 12Hz token rate)
+
+    public static let `default` = GenerationSettings()
+}
+```
+
+Passed to `VoiceLockManager.generateAudio()` and stored on `VoxAltaVoiceProvider`.
+
+### GenerationContext
+
+Envelope carrying a phrase and optional metadata through the TTS pipeline.
+
+```swift
+public struct GenerationContext: Codable, Sendable {
+    public let phrase: String
+    public let metadata: [String: AnyCodableValue]  // Keys normalized to snake_case
+
+    public init(phrase: String, metadata: [String: AnyCodableValue] = [:])
+    public init(phrase: String, instruct: String?, metadata: [String: AnyCodableValue] = [:])
+
+    public var instruct: String?       // Extracted from metadata["instruct"]
+    public var serializedSize: Int     // JSON byte count for logging
+}
+```
+
+### VoiceLock
+
+Locked voice identity for consistent TTS rendering. Created by extracting a clone prompt from audio provided by SwiftEchada (via `.vox` files).
+
+```swift
+public struct VoiceLock: Codable, Sendable {
+    public let characterName: String
+    public let clonePromptData: Data       // Serialized speaker embedding
+    public let designInstruction: String
+    public let lockedAt: Date
+}
+```
+
+### VoiceLockManager
+
+Enum namespace for clone prompt extraction and audio generation. **This is NOT voice creation** -- `createLock` extracts a clone prompt from audio that already exists (e.g., sample audio embedded in a `.vox` file by SwiftEchada). Voice creation happens upstream in SwiftEchada.
+
+```swift
+public enum VoiceLockManager: Sendable {
+    // Extract a clone prompt from existing audio (NOT voice creation)
+    // Used when switching models or re-extracting from .vox sample audio
+    public static func createLock(
+        characterName: String,
+        candidateAudio: Data,         // WAV audio from .vox file or SwiftEchada output
+        designInstruction: String,
+        modelManager: VoxAltaModelManager,
+        sampleSentence: String? = nil,
+        modelRepo: Qwen3TTSModelRepo = .base1_7B
+    ) async throws -> VoiceLock
+
+    // Generate audio from GenerationContext envelope
+    public static func generateAudio(
+        context: GenerationContext,
+        voiceLock: VoiceLock,
+        language: String = "en",
+        modelManager: VoxAltaModelManager,
+        modelRepo: Qwen3TTSModelRepo = .base1_7B,
+        cache: VoxAltaVoiceCache? = nil,
+        settings: GenerationSettings = .default
+    ) async throws -> Data
+
+    // Generate audio from plain text
+    public static func generateAudio(
+        text: String,
+        voiceLock: VoiceLock,
+        language: String = "en",
+        instruct: String? = nil,
+        modelManager: VoxAltaModelManager,
+        modelRepo: Qwen3TTSModelRepo = .base1_7B,
+        cache: VoxAltaVoiceCache? = nil,
+        settings: GenerationSettings = .default
+    ) async throws -> Data
+}
+```
+
+**Performance:**
+- First generation: ~20-40s per line (includes clone prompt deserialization)
+- Subsequent generations: ~10-20s per line (2x speedup via clone prompt caching in VoxAltaVoiceCache)
+
+### VoxAltaVoiceCache
+
+Actor-based thread-safe cache with two layers:
+
+```swift
+public actor VoxAltaVoiceCache {
+    // Layer 1: Raw clone prompt data (serialized bytes)
+    public struct CachedVoice: Sendable {
+        public let clonePromptData: Data
+        public let gender: String?
+    }
+
+    public func store(id: String, data: Data, gender: String?)
+    public func remove(id: String)
+    public func removeAll()                    // Clears both voice AND clone prompt caches
+    public func get(id: String) -> CachedVoice?
+    public func allVoiceIds() -> [String]
+    public func allVoices() -> [(id: String, voice: CachedVoice)]
+    public var count: Int
+
+    // Layer 2: Deserialized clone prompts (avoids repeated deserialization)
+    public func getClonePrompt(id: String) -> VoiceClonePrompt?
+    public func storeClonePrompt(id: String, clonePrompt: VoiceClonePrompt)
+}
+```
+
+### VoxAltaModelManager
+
+Actor managing Qwen3-TTS model lifecycle.
+
+```swift
+public actor VoxAltaModelManager {
+    public var isModelLoaded: Bool
+    public var currentModelRepo: String?
+    public var totalPhysicalMemory: UInt64
+    public var availableMemory: UInt64
+
+    public func loadModel(repo: String) async throws -> any SpeechGenerationModel
+    public func loadModel(_ modelRepo: Qwen3TTSModelRepo) async throws -> any SpeechGenerationModel
+    public func unloadModel()
+    public func migrateIfNeeded()                          // Legacy -> Acervo migration
+    public nonisolated func isModelInAcervo(_ modelId: String) -> Bool
+    public func checkMemory(forModelSizeBytes: Int) -> Bool   // Warning only, non-blocking
+    public func validateMemory(forModelSizeBytes: Int) throws // Hard gate
+}
+```
+
+### Qwen3TTSModelRepo
+
+```swift
+public enum Qwen3TTSModelRepo: String, CaseIterable, Sendable {
+    case voiceDesign1_7B  // mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16  (~4.2GB, used by SwiftEchada)
+    case base1_7B         // mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16         (~4.3GB)
+    case base0_6B         // mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16         (~2.4GB)
+    case customVoice1_7B  // mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16  (~4.3GB)
+    case customVoice0_6B  // mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-bf16  (~2.4GB)
+    case base1_7B_8bit    // mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit         (~1.7GB)
+    case base1_7B_4bit    // mlx-community/Qwen3-TTS-12Hz-1.7B-Base-4bit         (~850MB, NOT recommended)
+
+    public var slug: String              // "0.6b" or "1.7b"
+    public var displayName: String
+    public static let supportedSlugs: Set<String> = ["0.6b", "1.7b"]
+    public init?(slug: String)           // Resolves to default Base model for that size
+}
+```
+
+### VoxImporter / VoxExporter
+
+```swift
+// Import
+public struct VoxImportResult: Sendable {
+    public let name: String
+    public let description: String
+    public let method: String?               // "designed", "synthesized", "cloned", "preset", "hybrid"
+    public let clonePromptData: Data?        // Model-aware lookup
+    public let sampleAudioData: Data?
+    public let referenceAudio: [String: Data]
+    public let createdAt: Date
+    public let manifest: VoxManifest
+    public let supportedModels: [String]     // e.g. ["1.7b", "0.6b"]
+}
+
+public enum VoxImporter: Sendable {
+    public static func importVox(from url: URL, modelQuery: String = "1.7b") throws -> VoxImportResult
+}
+
+// Export
+public enum VoxExporter: Sendable {
+    public static func addClonePrompt(to vox: VoxFile, data: Data, modelRepo: Qwen3TTSModelRepo = .base1_7B) throws
+    public static func addSampleAudio(to vox: VoxFile, data: Data, modelRepo: Qwen3TTSModelRepo = .base1_7B) throws
+    public static func updateClonePrompt(in voxURL: URL, clonePromptData: Data, modelRepo: Qwen3TTSModelRepo = .base1_7B) throws
+    public static func updateSampleAudio(in voxURL: URL, sampleAudioData: Data, modelRepo: Qwen3TTSModelRepo = .base1_7B) throws
+    public static func modelSizeSlug(for repo: Qwen3TTSModelRepo) -> String
+}
+```
+
+### AudioConversion
+
+```swift
+public enum AudioConversion: Sendable {
+    public static func mlxArrayToWAVData(_ audio: MLXArray, sampleRate: Int = 24000) throws -> Data
+    public static func wavDataToMLXArray(_ data: Data) throws -> MLXArray
+}
+```
+
+### VoxAltaError
+
+```swift
+public enum VoxAltaError: Error, LocalizedError, Sendable {
+    case cloningFailed(String)
+    case modelNotAvailable(String)
+    case voiceNotLoaded(String)
+    case insufficientMemory(available: Int, required: Int)
+    case audioExportFailed(String)
+    case voxExportFailed(String)
+    case voxImportFailed(String)
+}
+```
+
+### AppleSiliconGeneration
+
+21 cases: m1, m1Pro, m1Max, m1Ultra, m2, m2Pro, m2Max, m2Ultra, m3, m3Pro, m3Max, m3Ultra, m4, m4Pro, m4Max, m4Ultra, m5, m5Pro, m5Max, m5Ultra, unknown.
+
+```swift
+public enum AppleSiliconGeneration: String, Sendable, CaseIterable {
+    public var hasNeuralAccelerators: Bool   // true for M5 variants only
+    public static var current: AppleSiliconGeneration  // Cached, detected via sysctlbyname
+}
+```
+
+---
+
 ## CLI Tool (`diga`)
 
-`diga` is a drop-in replacement for `/usr/bin/say` with neural text-to-speech via Qwen3-TTS.
-
-**See [Available Voices Documentation](docs/AVAILABLE_VOICES.md)** for a complete list of built-in voices.
+Drop-in replacement for `/usr/bin/say` with neural TTS.
 
 ### Usage
 
 ```bash
-# Speak text (plays through speakers)
-diga "Hello, world!"
-
-# Read from file
-diga -f input.txt
-
-# Read from stdin
-echo "Hello" | diga
-
-# Write to file instead of playing
-diga -o output.wav "Hello, world!"
-diga -o output.m4a "Hello, world!"    # AAC encoding
-diga -o output.aiff "Hello, world!"   # AIFF encoding
-
-# Use a specific voice
-diga -v elena "Hello, world!"
-
-# List voices
-diga --voices
-diga -v ?
-
-# Import a voice from .vox file
-diga --import-vox voice.vox
-
-# Override model selection
-diga --model 0.6b "Hello"     # Use smaller model
-diga --model 1.7b "Hello"     # Use larger model
+diga "Hello, world!"                    # Play through speakers
+diga -f input.txt                       # Read from file
+echo "Hello" | diga                     # Read from stdin
+diga -o output.wav "Hello"              # Write WAV file
+diga -o output.m4a "Hello"              # Write AAC file
+diga -o output.aiff "Hello"             # Write AIFF file
+diga -v elena "Hello"                   # Use specific voice
+diga -v voice.vox "Hello"              # Synthesize directly from .vox file
+diga --instruct "whisper" "Hello"       # Performance direction
+diga --voices                           # List all voices
+diga -v ?                               # List all voices (shorthand)
+diga --import-vox voice.vox             # Import voice from .vox file
+diga --model 0.6b "Hello"              # Override model (smaller, faster)
+diga --model 1.7b "Hello"              # Override model (larger, better quality)
 ```
 
 ### CLI Flags
@@ -465,147 +471,198 @@ diga --model 1.7b "Hello"     # Use larger model
 | Flag | Short | Purpose |
 |------|-------|---------|
 | `--voices` | | List all available voices |
-| `--voice <name>` | `-v` | Select voice for synthesis |
+| `--voice <name>` | `-v` | Select voice (name or .vox file path) |
 | `--import-vox <file>` | | Import voice from a `.vox` file |
 | `--output <path>` | `-o` | Write to file (WAV/AIFF/M4A) |
 | `--file <path>` | `-f` | Read input from file (`-` for stdin) |
 | `--file-format <fmt>` | | Override output format (wav, aiff, m4a) |
-| `--instruct <text>` | | Performance direction (e.g., "speak softly", "whisper") |
-| `--model <id>` | | Override model (0.6b, 1.7b, or HF repo) |
+| `--instruct <text>` | | Performance direction (e.g., "speak softly") |
+| `--model <id>` | | Override model (0.6b, 1.7b, or HuggingFace repo) |
 | `--version` | | Show version |
 | `--help` | `-h` | Show help |
 
-To create custom voices, use `echada cast` (from SwiftEchada), then import with `diga --import-vox`.
-
 ### Parenthetical-to-Instruct Mapping
 
-Qwen3-TTS supports a free-form `instruct` string that conditions audio generation with performance directions. Screenplay parentheticals map directly to instruct values:
+Screenplay parentheticals map directly to `instruct` values. Strip enclosing parentheses, pass inner text verbatim:
+- `(softly)` -> `"softly"`
+- `(angry)` -> `"angry"`
+- `(with a French accent)` -> `"with a French accent"`
+- `(hushed, conspiratorial)` -> `"hushed, conspiratorial"`
 
-- Strip enclosing parentheses, pass inner text verbatim: `(softly)` becomes `"softly"`
-- Instruct is per-phrase; a parenthetical applies until the next parenthetical or end of dialogue block
-- Short, concrete directions work best; the model interprets them suggestively, not deterministically
+The `instruct` parameter is per-phrase and conditions audio generation suggestively.
 
-| Parenthetical | Instruct value |
-|---|---|
-| `(softly)` | `"softly"` |
-| `(angry)` | `"angry"` |
-| `(beat)` | `"beat"` |
-| `(with a French accent)` | `"with a French accent"` |
-| `(hushed, conspiratorial)` | `"hushed, conspiratorial"` |
+### CLI Internal Types (diga target, not public API)
 
-**API usage:**
+| Type | Purpose |
+|------|---------|
+| `DigaEngine` (actor) | Orchestrates model loading, voice resolution, chunked synthesis |
+| `DigaModelManager` (actor) | Model download, RAM-based auto-selection (16GB threshold) |
+| `VoiceStore` (struct) | JSON-based voice registry at `~/.diga/voices/index.json` |
+| `StoredVoice` (struct) | Voice entry: name, type, designDescription, clonePromptPath, createdAt |
+| `VoiceType` (enum) | `.builtin`, `.designed`, `.cloned`, `.preset` |
+| `BuiltinVoices` (enum) | 9 preset speaker definitions |
+| `TextChunker` (enum) | Sentence-boundary splitting via `NLTokenizer` (200 words/chunk default) |
+| `WAVConcatenator` (enum) | Concatenate multiple WAV segments into single output |
+| `AudioPlayback` (class) | AVAudioEngine-based speaker output + streaming chunked playback |
+| `AudioFileWriter` (enum) | Write WAV/AIFF/M4A files (AIFF via AudioFile API, M4A via ExtAudioFile) |
+| `AudioFormat` (enum) | `.wav`, `.aiff`, `.m4a` with extension inference |
+| `DigaEngineError` (enum) | `.voiceNotFound`, `.voiceDesignFailed`, `.synthesisFailed`, `.wavConcatenationFailed`, `.modelNotAvailable` |
 
-```swift
-// Via GenerationContext convenience initializer
-let context = GenerationContext(phrase: "I never thought it would end like this.", instruct: "softly")
+---
 
-// Via VoxAltaVoiceProvider
-let audio = try await provider.generateAudio(text: "Hello", voiceId: "ryan", languageCode: "en", instruct: "whisper")
+## Clone Prompt Resolution (DigaEngine)
 
-// Via diga CLI
-// diga "Hello world" --voice Chelsie --instruct "speak softly"
+When synthesizing with an existing voice (`diga "Hello" -v alice`), `DigaEngine.loadOrCreateClonePrompt()` checks five sources in order. **VoxAlta never creates a voice from scratch** -- it only resolves clone prompts that were originally created by SwiftEchada and packaged in `.vox` files.
+
+```
+1. Memory cache: cachedClonePrompts["alice:1.7b"]       -> HIT? use it
+2. Disk cache: ~/.diga/voices/alice-1.7b.cloneprompt     -> HIT? use it, cache in memory
+3. Legacy disk: ~/.diga/voices/alice.cloneprompt          -> HIT? use it (1.7b only), migrate
+4. .vox re-extraction: alice.vox -> sample audio or ref audio -> re-extract clone prompt for current model
+   (This is re-extraction for a different model size, not voice creation)
+5. Error: "No clone prompt found. Use `echada cast` to create one, then --import-vox."
 ```
 
-## Qwen3-TTS Models
+Steps 2-4 also update the `.vox` file with the clone prompt if present on disk.
 
-All models are defined in `Qwen3TTSModelRepo` (in `VoxAltaModelManager.swift`):
+---
 
-| Case | Repo ID | Size | Use Case |
-|------|---------|------|----------|
-| `base1_7B` | `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16` | ~4.3 GB | Voice cloning (recommended) |
-| `base0_6B` | `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16` | ~2.4 GB | Voice cloning (lighter, <16GB RAM) |
-| `base1_7B_8bit` | `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit` | ~1.7 GB | Reduced memory, minor quality loss |
-| `base1_7B_4bit` | `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-4bit` | ~850 MB | Smallest footprint (NOT recommended for production) |
-| `customVoice1_7B` | `mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16` | ~4.3 GB | 9 preset speakers (no clone prompt needed) |
-| `customVoice0_6B` | `mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-bf16` | ~2.4 GB | Lighter preset speakers |
-| `voiceDesign1_7B` | `mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16` | ~4.2 GB | Novel voice generation from text descriptions |
+## Synthesis Flow
 
-**Slug system**: All variants of the same parameter count share a slug (`"0.6b"` or `"1.7b"`). Use `Qwen3TTSModelRepo(slug:)` to resolve a slug to the default Base model.
+VoxAlta consumes `.vox` files produced by SwiftEchada and renders speech:
 
-- Models are auto-downloaded on first use from HuggingFace
-- Cached at `~/Library/SharedModels/` (via SwiftAcervo), shared across the intrusive-memory ecosystem
-- `diga` auto-selects 1.7B (>=16GB RAM) or 0.6B (<16GB RAM)
+```
+.vox file (from echada cast) -> VoxImporter -> clone prompt Data
+Text -> TextChunker.chunk() -> ["sentence 1", "sentence 2", ...]
 
-## Error Types
+For each chunk:
+  VoiceLockManager.generateAudio()
+    -> check VoxAltaVoiceCache for deserialized clone prompt (Layer 2)
+    -> cache MISS: VoiceClonePrompt.deserialize() -> store in cache
+    -> Qwen3TTSModel.generateWithClonePrompt(text, prompt, instruct, settings)
+    -> MLXArray -> AudioConversion.mlxArrayToWAVData() -> WAV segment
+    -> Stream.defaultStream(.gpu).synchronize() + Memory.clearCache()
 
-```swift
-public enum VoxAltaError: Error {
-    case cloningFailed(String)               // Voice cloning from reference audio failed
-    case modelNotAvailable(String)           // TTS model not available or download failed
-    case voiceNotLoaded(String)              // Voice not in cache (call loadVoice first)
-    case insufficientMemory(available:required:) // Not enough RAM for model
-    case audioExportFailed(String)           // Audio format conversion failed
-    case voxExportFailed(String)             // .vox archive export failed
-    case voxImportFailed(String)             // .vox archive import failed
-}
+WAVConcatenator.concatenate(segments) -> final WAV
+
+Output:
+  -o file.wav  -> AudioFileWriter (wav/aiff/m4a)
+  (default)    -> AudioPlayback (speakers)
 ```
 
-## Apple Silicon Detection API
+---
 
-`AppleSiliconInfo` provides runtime detection of Apple Silicon generation (M1 through M5) to identify Neural Accelerator availability for MLX performance optimizations.
+## VoxFormat (.vox) Integration
 
-```swift
-import SwiftVoxAlta
+### Embedding Paths
 
-let generation = AppleSiliconGeneration.current
-print("Running on \(generation.rawValue)")
+| Path | Purpose |
+|------|---------|
+| `embeddings/qwen3-tts/{size}/clone-prompt.bin` | Model-specific clone prompt (e.g., `1.7b/`, `0.6b/`) |
+| `embeddings/qwen3-tts/{size}/sample-audio.wav` | Model-specific engine-generated voice sample |
+| `reference/` | Optional reference audio files |
+| `manifest.json` | Voice metadata (name, description, provenance) |
 
-if generation.hasNeuralAccelerators {
-    print("Neural Accelerators available - expect 4x TTS speedup on macOS 26.2+")
-}
+### CLI Usage
+
+```bash
+diga --import-vox voice.vox            # Import to ~/.diga/voices/
+diga -v voice.vox "Hello, world!"      # Synthesize directly (no import needed)
 ```
+
+---
+
+## Disk Layout
+
+```
+~/.diga/voices/
+├── index.json                    # Voice registry (JSON array of StoredVoice)
+├── alice-1.7b.cloneprompt        # Model-specific serialized speaker embedding (~5-10KB)
+├── alice.cloneprompt             # Legacy (treated as 1.7b only)
+└── alice.vox                     # Portable container (ZIP)
+    ├── manifest.json
+    ├── reference/                # (optional reference audio)
+    └── embeddings/qwen3-tts/
+        ├── 1.7b/clone-prompt.bin
+        ├── 0.6b/clone-prompt.bin # (optional second model)
+        └── 1.7b/sample-audio.wav # Engine-generated voice sample
+
+~/Library/SharedModels/           # Model weights (shared via SwiftAcervo)
+├── mlx-community_Qwen3-TTS-12Hz-1.7B-Base-bf16/         (~4.3GB)
+├── mlx-community_Qwen3-TTS-12Hz-0.6B-Base-bf16/         (~2.4GB)
+└── mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16/  (~4.3GB, preset speakers)
+```
+
+---
 
 ## Design Patterns
 
 - **VoiceProvider abstraction** -- Implements SwiftHablare's protocol for plug-and-play integration
-- **Actor isolation** -- `VoxAltaModelManager` and `VoxAltaVoiceCache` are actors for thread safety
-- **Lazy model loading** -- Qwen3-TTS models loaded on-demand, cached for reuse, auto-unloaded on switch
-- **Memory-aware loading** -- Warns on low memory but lets macOS manage swap (non-blocking)
-- **Clone prompt locking** -- `VoiceLock` ensures voice consistency across all character dialogue
-- **Container-first .vox API** -- Uses `VoxFile(contentsOf:)` + `add()` + `write(to:)` for all .vox operations
-- **On-device inference** -- All TTS processing runs locally via Apple Silicon GPU
+- **Actor isolation** -- `VoxAltaModelManager` and `VoxAltaVoiceCache` are actors for thread safety; `DigaEngine` is also an actor
+- **Two-layer clone prompt cache** -- Layer 1: raw `Data` in `VoxAltaVoiceCache.voices`; Layer 2: deserialized `VoiceClonePrompt` in `clonePromptCache`
+- **Lazy model loading** -- Models loaded on-demand, cached, auto-unloaded on model switch
+- **Memory-aware loading** -- Warns on low memory (non-blocking); macOS manages swap
+- **GPU state cleanup** -- `Stream.defaultStream(.gpu).synchronize()` + `Memory.clearCache()` after every generation to prevent stale Metal buffers
+- **Container-first .vox API** -- `VoxFile(contentsOf:)` + `add()` + `write(to:)` for all .vox operations
 - **Strict concurrency** -- Swift 6 language mode with `StrictConcurrency` enabled
+
+---
+
+## Testing
+
+### Test Structure
+
+- **SwiftVoxAltaTests/** (13 files): VoiceProvider, model manager, voice cache, error paths, audio conversion, voice lock, VoxImporter/VoxExporter, generation context, generation settings, consistency, Apple Silicon info, type tests
+- **DigaTests/** (11 files): CLI integration, audio file writer, audio playback, engine, model manager, voice store, version, release, vox integration, dual model
+- **~328 tests** across 24 test files using Swift Testing `@Test` macro
+
+### Running Tests
+
+```bash
+make test-unit            # Fast: all unit tests (~5-10 seconds)
+make test-integration     # Slow: requires binary + cached voices
+make test                 # Both
+```
+
+### CI Behavior
+
+On CI (`GITHUB_ACTIONS` set):
+- `SwiftVoxAltaTests` are **skipped** (Metal compiler on GitHub runners doesn't support MLX features)
+- Only `DigaTests` run, excluding `DigaBinaryIntegrationTests` and `DigaDualModelIntegrationTests`
+- Integration tests commented out entirely in `.github/workflows/tests.yml`
+
+---
 
 ## Development Workflow
 
 - **Branch**: `development` -> PR -> `main`
-- **CI Required**: Unit tests must pass before merge (integration tests disabled on CI due to Metal compiler limitations on GitHub Actions runners)
 - **Never commit directly to `main`**
-- **Platforms**: macOS 26+, iOS 26+ only (Apple Silicon required)
-- **NEVER add `@available` attributes** for older platforms
-- **CI runner**: `macos-26`
+- **CI Required**: Unit tests must pass before merge
 
 ## Release Process
 
-1. Tag on `main` (e.g., `v0.7.0`)
-2. GitHub Release triggers `.github/workflows/release.yml`
-3. Release workflow: `make release` -> tarball -> upload assets -> dispatch to `intrusive-memory/homebrew-tap`
-4. Homebrew tap auto-updates formula with new URL and SHA256
+1. Bump version in `Sources/diga/Version.swift` and `VoxAltaVoiceProvider.swift`
+2. Tag on `main` (e.g., `v0.7.0`)
+3. GitHub Release triggers `.github/workflows/release.yml`
+4. Release workflow: `make release` -> tarball (`diga-{version}-arm64-macos.tar.gz`) -> upload assets -> dispatch to `intrusive-memory/homebrew-tap`
+5. Homebrew tap auto-updates formula with new URL and SHA256
 
-## Testing
-
-- **Library tests** (`SwiftVoxAltaTests/`, 13 files): VoiceProvider, model manager, voice cache, error paths, audio conversion, voice lock, VoxImporter/VoxExporter, generation context, consistency, type tests
-- **CLI tests** (`DigaTests/`, 11 files): CLI integration, audio file writer, audio playback, engine, model manager, voice store, version, release, vox integration, dual model
-- **~328 tests** across 24 test files (uses Swift Testing `@Test` macro)
-
-## Important Notes
-
-- **Apple Silicon required** -- Qwen3-TTS via MLX requires M1/M2/M3/M4 GPU
-- **Metal shaders required** -- Must build with `xcodebuild` (not `swift build`)
-- **Model downloads** -- First use auto-downloads Qwen3-TTS (~2-4 GB per model)
-- **Character consistency** -- Locked voices ensure same character sounds identical across scenes
-- **Privacy** -- All processing on-device, no cloud APIs
-- **Voice creation** -- Use `echada cast` (SwiftEchada) to design/clone voices, then import with `--import-vox`
+---
 
 ## Documentation Index
 
 | Document | Purpose |
 |----------|---------|
-| [AGENTS.md](AGENTS.md) | This file - complete project documentation |
-| [CHANGELOG.md](CHANGELOG.md) | Release history and version notes |
-| [CLAUDE.md](CLAUDE.md) | Claude Code-specific instructions |
+| [AGENTS.md](AGENTS.md) | This file -- complete project documentation |
+| [CLAUDE.md](CLAUDE.md) | Claude Code-specific build instructions |
 | [GEMINI.md](GEMINI.md) | Gemini-specific instructions |
-| [Available Voices](docs/AVAILABLE_VOICES.md) | Built-in voices with canonical URIs |
-| [CLI Reference](docs/CLI.md) | CLI usage and voice management |
-| [Building & Testing](docs/BUILDING.md) | Build from source, test suites |
-| [Echada Handoff](docs/ECHADA_VOICE_CREATION_HANDOFF.md) | Removed voice creation code for Echada migration |
+| [CHANGELOG.md](CHANGELOG.md) | Release history |
+| [docs/OVERVIEW.md](docs/OVERVIEW.md) | High-level project overview |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture and design decisions |
+| [docs/API-SURFACE.md](docs/API-SURFACE.md) | API surface reference |
+| [docs/AVAILABLE_VOICES.md](docs/AVAILABLE_VOICES.md) | Built-in voices with descriptions |
+| [docs/BUILDING.md](docs/BUILDING.md) | Build from source, test suites |
+| [docs/CLI.md](docs/CLI.md) | CLI usage and voice management |
+| [docs/CHARACTER-STUDIO.md](docs/CHARACTER-STUDIO.md) | Character voice studio concept |
+| [docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md) | Open design questions |
+| [docs/PRODUCIESTA_INTEGRATION.md](docs/PRODUCIESTA_INTEGRATION.md) | Integration with Produciesta app |
