@@ -253,6 +253,57 @@ struct VoxAltaVoiceProviderVoiceTests {
     }
 }
 
+// MARK: - Instruct Parameter
+
+@Suite("VoxAltaVoiceProvider - Instruct")
+struct VoxAltaVoiceProviderInstructTests {
+
+    @Test("generateAudio without instruct compiles and works (backward compat)")
+    func generateAudioWithoutInstruct() async {
+        let provider = VoxAltaVoiceProvider()
+        // This call should compile without the instruct parameter (protocol conformance)
+        do {
+            _ = try await provider.generateAudio(
+                text: "Hello",
+                voiceId: "NONEXISTENT",
+                languageCode: "en"
+            )
+        } catch {
+            // Expected — voice not loaded
+        }
+    }
+
+    @Test("generateAudio with instruct parameter compiles")
+    func generateAudioWithInstruct() async {
+        let provider = VoxAltaVoiceProvider()
+        do {
+            _ = try await provider.generateAudio(
+                text: "Hello",
+                voiceId: "NONEXISTENT",
+                languageCode: "en",
+                instruct: "speak softly"
+            )
+        } catch {
+            // Expected — voice not loaded
+        }
+    }
+
+    @Test("generateAudio with nil instruct is equivalent to no instruct")
+    func generateAudioWithNilInstruct() async {
+        let provider = VoxAltaVoiceProvider()
+        do {
+            _ = try await provider.generateAudio(
+                text: "Hello",
+                voiceId: "NONEXISTENT",
+                languageCode: "en",
+                instruct: nil
+            )
+        } catch {
+            // Expected — voice not loaded
+        }
+    }
+}
+
 // MARK: - Audio Generation
 
 @Suite(

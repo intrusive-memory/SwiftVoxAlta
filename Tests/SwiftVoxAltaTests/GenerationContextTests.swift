@@ -150,6 +150,58 @@ struct GenerationContextTests {
         #expect(context.instruct == nil)
     }
 
+    // MARK: - Convenience Initializer (instruct)
+
+    @Test("Convenience init stores instruct in metadata")
+    func convenienceInitStoresInstruct() {
+        let context = GenerationContext(phrase: "Hello", instruct: "speak softly")
+        #expect(context.instruct == "speak softly")
+        #expect(context.metadata["instruct"] == .string("speak softly"))
+    }
+
+    @Test("Convenience init with nil instruct produces no instruct metadata")
+    func convenienceInitNilInstruct() {
+        let context = GenerationContext(phrase: "Hello", instruct: nil)
+        #expect(context.instruct == nil)
+        #expect(context.metadata["instruct"] == nil)
+    }
+
+    @Test("Convenience init with empty instruct string produces no instruct metadata")
+    func convenienceInitEmptyInstruct() {
+        let context = GenerationContext(phrase: "Hello", instruct: "")
+        #expect(context.instruct == nil)
+        #expect(context.metadata["instruct"] == nil)
+    }
+
+    @Test("Convenience init with whitespace-only instruct produces no instruct metadata")
+    func convenienceInitWhitespaceInstruct() {
+        let context = GenerationContext(phrase: "Hello", instruct: "   ")
+        #expect(context.instruct == nil)
+        #expect(context.metadata["instruct"] == nil)
+    }
+
+    @Test("Convenience init merges instruct with additional metadata")
+    func convenienceInitMergesMetadata() {
+        let context = GenerationContext(
+            phrase: "Hello",
+            instruct: "whisper",
+            metadata: ["emotion": .string("sad")]
+        )
+        #expect(context.instruct == "whisper")
+        #expect(context.metadata["emotion"] == .string("sad"))
+        #expect(context.metadata.count == 2)
+    }
+
+    @Test("Convenience init instruct parameter takes precedence over metadata instruct key")
+    func convenienceInitInstructPrecedence() {
+        let context = GenerationContext(
+            phrase: "Hello",
+            instruct: "from parameter",
+            metadata: ["instruct": .string("from metadata")]
+        )
+        #expect(context.instruct == "from parameter")
+    }
+
     // MARK: - Serialized Size
 
     @Test("serializedSize is positive for non-trivial context")

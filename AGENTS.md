@@ -377,6 +377,7 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     public func isConfigured() async -> Bool
     public func fetchVoices(languageCode: String) async throws -> [Voice]
     public func generateAudio(text: String, voiceId: String, languageCode: String) async throws -> Data
+    public func generateAudio(text: String, voiceId: String, languageCode: String, instruct: String?) async throws -> Data
     public func generateAudio(context: GenerationContext, voiceId: String, languageCode: String) async throws -> Data
     public func generateProcessedAudio(text: String, voiceId: String, languageCode: String) async throws -> ProcessedAudio
     public func estimateDuration(text: String, voiceId: String) async -> TimeInterval
@@ -469,11 +470,41 @@ diga --model 1.7b "Hello"     # Use larger model
 | `--output <path>` | `-o` | Write to file (WAV/AIFF/M4A) |
 | `--file <path>` | `-f` | Read input from file (`-` for stdin) |
 | `--file-format <fmt>` | | Override output format (wav, aiff, m4a) |
+| `--instruct <text>` | | Performance direction (e.g., "speak softly", "whisper") |
 | `--model <id>` | | Override model (0.6b, 1.7b, or HF repo) |
 | `--version` | | Show version |
 | `--help` | `-h` | Show help |
 
 To create custom voices, use `echada cast` (from SwiftEchada), then import with `diga --import-vox`.
+
+### Parenthetical-to-Instruct Mapping
+
+Qwen3-TTS supports a free-form `instruct` string that conditions audio generation with performance directions. Screenplay parentheticals map directly to instruct values:
+
+- Strip enclosing parentheses, pass inner text verbatim: `(softly)` becomes `"softly"`
+- Instruct is per-phrase; a parenthetical applies until the next parenthetical or end of dialogue block
+- Short, concrete directions work best; the model interprets them suggestively, not deterministically
+
+| Parenthetical | Instruct value |
+|---|---|
+| `(softly)` | `"softly"` |
+| `(angry)` | `"angry"` |
+| `(beat)` | `"beat"` |
+| `(with a French accent)` | `"with a French accent"` |
+| `(hushed, conspiratorial)` | `"hushed, conspiratorial"` |
+
+**API usage:**
+
+```swift
+// Via GenerationContext convenience initializer
+let context = GenerationContext(phrase: "I never thought it would end like this.", instruct: "softly")
+
+// Via VoxAltaVoiceProvider
+let audio = try await provider.generateAudio(text: "Hello", voiceId: "ryan", languageCode: "en", instruct: "whisper")
+
+// Via diga CLI
+// diga "Hello world" --voice Chelsie --instruct "speak softly"
+```
 
 ## Qwen3-TTS Models
 

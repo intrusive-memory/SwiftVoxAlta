@@ -33,6 +33,10 @@ public actor VoxAltaVoiceCache {
         }
     }
 
+    // MARK: - Initialization
+
+    public init() {}
+
     // MARK: - State
 
     private var voices: [String: CachedVoice] = [:]

@@ -155,6 +155,24 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
         return try await generateAudio(context: context, voiceId: voiceId, languageCode: languageCode)
     }
 
+    /// Generate speech audio from text with a performance direction.
+    ///
+    /// Like `generateAudio(text:voiceId:languageCode:)` but injects an instruct
+    /// hint (e.g., "speak softly", "with excitement") into the generation context.
+    ///
+    /// - Parameters:
+    ///   - text: The text to synthesize.
+    ///   - voiceId: The voice identifier (character name) to use.
+    ///   - languageCode: The language code for generation (e.g., "en").
+    ///   - instruct: Performance direction for the TTS model.
+    /// - Returns: WAV format audio data (24kHz, 16-bit PCM, mono).
+    /// - Throws: `VoxAltaError.voiceNotLoaded` if the voice is not in the cache,
+    ///           or other errors from model loading and audio generation.
+    public func generateAudio(text: String, voiceId: String, languageCode: String, instruct: String?) async throws -> Data {
+        let context = GenerationContext(phrase: text, instruct: instruct)
+        return try await generateAudio(context: context, voiceId: voiceId, languageCode: languageCode)
+    }
+
     /// Generate speech audio from a generation context using a loaded voice.
     ///
     /// The voice must have been previously loaded via `loadVoice(id:clonePromptData:)`.
@@ -224,6 +242,10 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     ) async throws -> ProcessedAudio {
         let audioData = try await generateAudio(text: text, voiceId: voiceId, languageCode: languageCode)
         let duration = Self.measureWAVDuration(audioData)
+
+        // DIAGNOSTIC: Log actual WAV data size vs expected size from duration
+        let expectedSize = Int(duration * 24000) * 2 + 44  // samples * bytes_per_sample + header
+        FileHandle.standardError.write(Data("[VoxAlta] WAV data: \(audioData.count) bytes, expected from duration: \(expectedSize) bytes, duration: \(String(format: "%.2f", duration))s\n".utf8))
 
         return ProcessedAudio(
             audioData: audioData,
