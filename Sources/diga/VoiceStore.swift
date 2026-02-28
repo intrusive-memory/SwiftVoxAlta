@@ -1,4 +1,5 @@
 import Foundation
+import SwiftVoxAlta
 
 // MARK: - StoredVoice
 
@@ -107,7 +108,7 @@ struct VoiceStore: Sendable {
                 try FileManager.default.removeItem(at: legacyPromptURL)
             }
             // Remove model-specific clone prompts.
-            for slug in ["0.6b", "1.7b"] {
+            for slug in Qwen3TTSModelRepo.supportedSlugs.sorted() {
                 let modelPromptURL = voicesDirectory.appendingPathComponent("\(name)-\(slug).cloneprompt")
                 if FileManager.default.fileExists(atPath: modelPromptURL.path) {
                     try FileManager.default.removeItem(at: modelPromptURL)

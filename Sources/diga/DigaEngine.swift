@@ -200,6 +200,9 @@ actor DigaEngine {
     /// VoxAlta model manager for loading Qwen3-TTS models into memory.
     private let voxAltaModelManager: VoxAltaModelManager
 
+    /// Voice cache for clone prompt reuse across chunks (avoids repeated deserialization).
+    private let voiceCache: VoxAltaVoiceCache = VoxAltaVoiceCache()
+
     /// Cached clone prompt data keyed by "voiceName:modelSlug" (avoids re-reading from disk).
     private var cachedClonePrompts: [String: Data] = [:]
 
@@ -246,13 +249,7 @@ actor DigaEngine {
 
     /// The model size slug for the currently resolved model (e.g. "0.6b" or "1.7b").
     private var resolvedModelSlug: String {
-        switch resolvedBaseModelRepo {
-        case .base0_6B, .customVoice0_6B:
-            return "0.6b"
-        case .base1_7B, .base1_7B_8bit, .base1_7B_4bit,
-             .customVoice1_7B, .voiceDesign1_7B:
-            return "1.7b"
-        }
+        resolvedBaseModelRepo.slug
     }
 
     // MARK: - Voice Resolution
@@ -309,7 +306,7 @@ actor DigaEngine {
     ///   - voiceName: The voice name to use, or nil for the default voice.
     /// - Returns: WAV format audio Data.
     /// - Throws: `DigaEngineError` if voice resolution, model loading, or synthesis fails.
-    func synthesize(text: String, voiceName: String? = nil) async throws -> Data {
+    func synthesize(text: String, voiceName: String? = nil, instruct: String? = nil) async throws -> Data {
         // Resolve voice.
         let voice = try resolveVoice(name: voiceName)
 
@@ -320,7 +317,8 @@ actor DigaEngine {
                 speakerName: speakerName,
                 voiceName: voice.name,
                 modelManager: voxAltaModelManager,
-                modelRepo: .customVoice1_7B
+                modelRepo: .customVoice1_7B,
+                instruct: instruct
             )
         }
 
@@ -333,6 +331,9 @@ actor DigaEngine {
             clonePromptData: clonePromptData,
             designInstruction: voice.designDescription ?? ""
         )
+
+        // Pre-load the model and warm the voice cache before generation.
+        try await warmUpForGeneration(voiceLock: voiceLock)
 
         // Chunk the text.
         let chunks = TextChunker.chunk(text)
@@ -353,13 +354,14 @@ actor DigaEngine {
 
             let wavData: Data
             do {
-                let context = GenerationContext(phrase: chunk)
+                let context = GenerationContext(phrase: chunk, instruct: instruct)
                 wavData = try await VoiceLockManager.generateAudio(
                     context: context,
                     voiceLock: voiceLock,
                     language: "en",
                     modelManager: voxAltaModelManager,
-                    modelRepo: resolvedBaseModelRepo
+                    modelRepo: resolvedBaseModelRepo,
+                    cache: voiceCache
                 )
             } catch {
                 throw DigaEngineError.synthesisFailed(
@@ -389,11 +391,11 @@ actor DigaEngine {
     ///   - voxPath: Path to the `.vox` file.
     /// - Returns: WAV format audio Data.
     /// - Throws: `DigaEngineError` if import, voice resolution, or synthesis fails.
-    func synthesizeFromVox(text: String, voxPath: String) async throws -> Data {
+    func synthesizeFromVox(text: String, voxPath: String, instruct: String? = nil) async throws -> Data {
         let voxURL = URL(fileURLWithPath: voxPath)
         let importResult: VoxImportResult
         do {
-            importResult = try VoxImporter.importVox(from: voxURL)
+            importResult = try VoxImporter.importVox(from: voxURL, modelQuery: resolvedModelSlug)
         } catch {
             throw DigaEngineError.synthesisFailed("Failed to read .vox file: \(error.localizedDescription)")
         }
@@ -430,6 +432,9 @@ actor DigaEngine {
             designInstruction: importResult.description
         )
 
+        // Pre-load the model and warm the voice cache before generation.
+        try await warmUpForGeneration(voiceLock: voiceLock)
+
         let chunks = TextChunker.chunk(text)
         guard !chunks.isEmpty else {
             throw DigaEngineError.synthesisFailed("Input text is empty after chunking.")
@@ -444,13 +449,14 @@ actor DigaEngine {
             if chunks.count > 1 {
                 FileHandle.standardError.write(Data("\rChunk \(i + 1)/\(chunks.count)...".utf8))
             }
-            let context = GenerationContext(phrase: chunk)
+            let context = GenerationContext(phrase: chunk, instruct: instruct)
             let wavData = try await VoiceLockManager.generateAudio(
                 context: context,
                 voiceLock: voiceLock,
                 language: "en",
                 modelManager: voxAltaModelManager,
-                modelRepo: resolvedBaseModelRepo
+                modelRepo: resolvedBaseModelRepo,
+                cache: voiceCache
             )
             wavSegments.append(wavData)
         }
@@ -474,6 +480,7 @@ actor DigaEngine {
     ///   - voiceName: The user-facing voice name (for logging).
     ///   - modelManager: The model manager used to load the CustomVoice model.
     ///   - modelRepo: The CustomVoice model variant to use. Defaults to `.customVoice1_7B`.
+    ///   - instruct: Optional performance direction for the TTS model.
     /// - Returns: WAV format audio Data.
     /// - Throws: `DigaEngineError` if model loading or synthesis fails.
     nonisolated private func synthesizeWithPresetSpeaker(
@@ -481,7 +488,8 @@ actor DigaEngine {
         speakerName: String,
         voiceName: String,
         modelManager: VoxAltaModelManager,
-        modelRepo: Qwen3TTSModelRepo
+        modelRepo: Qwen3TTSModelRepo,
+        instruct: String? = nil
     ) async throws -> Data {
         // 1. Chunk text.
         let chunks = TextChunker.chunk(text)
@@ -516,6 +524,7 @@ actor DigaEngine {
                     refAudio: nil,
                     refText: nil,
                     language: "en",
+                    instruct: instruct,
                     generationParameters: GenerateParameters()
                 )
                 sampleRate = qwenModel.sampleRate
@@ -596,7 +605,7 @@ actor DigaEngine {
         let legacyPromptFile = voiceStore.voicesDirectory
             .appendingPathComponent("\(voice.name).cloneprompt")
         if FileManager.default.fileExists(atPath: legacyPromptFile.path),
-           slug == "1.7b" {
+           slug == Qwen3TTSModelRepo.base1_7B.slug {
             let data = try Data(contentsOf: legacyPromptFile)
             cachedClonePrompts[cacheKey] = data
 
@@ -674,5 +683,45 @@ actor DigaEngine {
         throw DigaEngineError.voiceDesignFailed(
             "No clone prompt found for '\(voice.name)'. Use `echada cast` to create one, then --import-vox."
         )
+    }
+
+    // MARK: - Pre-Generation Warm-Up
+
+    /// Pre-loads the TTS model and deserializes the voice clone prompt into cache
+    /// before generation begins.
+    ///
+    /// This ensures the model weights are in GPU memory and the clone prompt is
+    /// deserialized and cached before the first chunk is synthesized, preventing
+    /// the first generation from using a default/uninitialized voice.
+    ///
+    /// - Parameter voiceLock: The voice lock containing the serialized clone prompt.
+    /// - Throws: `DigaEngineError` if model loading or clone prompt deserialization fails.
+    private func warmUpForGeneration(voiceLock: VoiceLock) async throws {
+        // 1. Pre-load the model into GPU memory.
+        let model = try await voxAltaModelManager.loadModel(resolvedBaseModelRepo)
+        guard model is Qwen3TTSModel else {
+            throw DigaEngineError.modelNotAvailable(
+                "Loaded model is not a Qwen3TTSModel. Got \(type(of: model))."
+            )
+        }
+        FileHandle.standardError.write(
+            Data("[DigaEngine] Model pre-loaded: \(resolvedBaseModelRepo.displayName)\n".utf8)
+        )
+
+        // 2. Pre-deserialize the clone prompt into the voice cache.
+        let existingPrompt = await voiceCache.getClonePrompt(id: voiceLock.characterName)
+        if existingPrompt == nil {
+            do {
+                let clonePrompt = try VoiceClonePrompt.deserialize(from: voiceLock.clonePromptData)
+                await voiceCache.storeClonePrompt(id: voiceLock.characterName, clonePrompt: clonePrompt)
+                FileHandle.standardError.write(
+                    Data("[DigaEngine] Voice '\(voiceLock.characterName)' pre-loaded into cache\n".utf8)
+                )
+            } catch {
+                throw DigaEngineError.synthesisFailed(
+                    "Failed to deserialize clone prompt for '\(voiceLock.characterName)': \(error.localizedDescription)"
+                )
+            }
+        }
     }
 }

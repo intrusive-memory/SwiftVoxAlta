@@ -11,25 +11,72 @@ public enum VoxExporter: Sendable {
 
     /// Returns a short slug for the given model repo (e.g. "0.6b" or "1.7b").
     public static func modelSizeSlug(for repo: Qwen3TTSModelRepo) -> String {
-        switch repo {
-        case .base0_6B, .customVoice0_6B:
-            return "0.6b"
-        case .base1_7B, .base1_7B_8bit, .base1_7B_4bit,
-             .customVoice1_7B, .voiceDesign1_7B:
-            return "1.7b"
-        }
+        repo.slug
     }
 
     /// Returns the model-specific embedding archive path for a clone prompt.
     /// e.g. `"embeddings/qwen3-tts/0.6b/clone-prompt.bin"`
-    public static func clonePromptPath(for repo: Qwen3TTSModelRepo) -> String {
+    static func clonePromptPath(for repo: Qwen3TTSModelRepo) -> String {
         "embeddings/qwen3-tts/\(modelSizeSlug(for: repo))/clone-prompt.bin"
     }
 
-    /// Returns the embedding archive path for sample audio.
-    public static let sampleAudioPath = "embeddings/qwen3-tts/sample-audio.wav"
+    /// Returns the model-specific embedding archive path for sample audio.
+    /// e.g. `"embeddings/qwen3-tts/0.6b/sample-audio.wav"`
+    static func sampleAudioPath(for repo: Qwen3TTSModelRepo) -> String {
+        "embeddings/qwen3-tts/\(modelSizeSlug(for: repo))/sample-audio.wav"
+    }
 
-    // MARK: - Update Operations
+    // MARK: - VoxFile Write Operations
+
+    /// Add a clone prompt embedding to a VoxFile for the given model.
+    ///
+    /// Encapsulates the archive path convention and metadata assembly so callers
+    /// don't need to know internal `.vox` layout details.
+    ///
+    /// - Parameters:
+    ///   - vox: The VoxFile instance to add the clone prompt to.
+    ///   - data: The clone prompt binary data.
+    ///   - modelRepo: The model repo the clone prompt was generated with.
+    public static func addClonePrompt(
+        to vox: VoxFile,
+        data: Data,
+        modelRepo: Qwen3TTSModelRepo = .base1_7B
+    ) throws {
+        let slug = modelSizeSlug(for: modelRepo)
+        try vox.add(data, at: clonePromptPath(for: modelRepo), metadata: [
+            "key": "qwen3-tts-\(slug)-clone-prompt",
+            "model": modelRepo.rawValue,
+            "engine": "qwen3-tts",
+            "format": "bin",
+            "description": "Clone prompt for voice cloning (\(slug))",
+        ])
+    }
+
+    /// Add sample audio to a VoxFile for the given model.
+    ///
+    /// Encapsulates the archive path convention and metadata assembly so callers
+    /// don't need to know internal `.vox` layout details.
+    ///
+    /// - Parameters:
+    ///   - vox: The VoxFile instance to add the sample audio to.
+    ///   - data: The WAV audio data to embed as a voice sample.
+    ///   - modelRepo: The model repo the sample was generated with.
+    public static func addSampleAudio(
+        to vox: VoxFile,
+        data: Data,
+        modelRepo: Qwen3TTSModelRepo = .base1_7B
+    ) throws {
+        let slug = modelSizeSlug(for: modelRepo)
+        try vox.add(data, at: sampleAudioPath(for: modelRepo), metadata: [
+            "key": "qwen3-tts-\(slug)-sample-audio",
+            "model": modelRepo.rawValue,
+            "engine": "qwen3-tts",
+            "format": "wav",
+            "description": "Engine-generated voice sample (\(slug))",
+        ])
+    }
+
+    // MARK: - URL-Based Update Operations
 
     /// Update (or add) a model-specific clone prompt in an existing `.vox` archive.
     ///
@@ -49,12 +96,7 @@ public enum VoxExporter: Sendable {
     ) throws {
         do {
             let vox = try VoxFile(contentsOf: voxURL)
-            try vox.add(clonePromptData, at: clonePromptPath(for: modelRepo), metadata: [
-                "model": modelRepo.rawValue,
-                "engine": "qwen3-tts",
-                "format": "bin",
-                "description": "Clone prompt for voice cloning (\(modelSizeSlug(for: modelRepo)))",
-            ])
+            try addClonePrompt(to: vox, data: clonePromptData, modelRepo: modelRepo)
             try vox.write(to: voxURL)
         } catch let error as VoxAltaError {
             throw error
@@ -65,22 +107,22 @@ public enum VoxExporter: Sendable {
 
     /// Update (or add) the sample audio in an existing `.vox` archive.
     ///
-    /// Opens the existing `.vox`, adds the sample audio WAV data, and writes back.
-    /// Other entries are preserved.
+    /// Opens the existing `.vox`, adds the sample audio WAV data at the model-specific path,
+    /// and writes back. Other entries (including other models' sample audio) are preserved.
     ///
     /// - Parameters:
     ///   - voxURL: Path to the existing `.vox` file.
     ///   - sampleAudioData: The WAV audio data to embed as a voice sample.
+    ///   - modelRepo: The model repo the sample was generated with.
     /// - Throws: `VoxAltaError.voxExportFailed` on failure.
-    public static func updateSampleAudio(in voxURL: URL, sampleAudioData: Data) throws {
+    public static func updateSampleAudio(
+        in voxURL: URL,
+        sampleAudioData: Data,
+        modelRepo: Qwen3TTSModelRepo = .base1_7B
+    ) throws {
         do {
             let vox = try VoxFile(contentsOf: voxURL)
-            try vox.add(sampleAudioData, at: sampleAudioPath, metadata: [
-                "model": defaultCloneModel,
-                "engine": "qwen3-tts",
-                "format": "wav",
-                "description": "Engine-generated voice sample",
-            ])
+            try addSampleAudio(to: vox, data: sampleAudioData, modelRepo: modelRepo)
             try vox.write(to: voxURL)
         } catch let error as VoxAltaError {
             throw error

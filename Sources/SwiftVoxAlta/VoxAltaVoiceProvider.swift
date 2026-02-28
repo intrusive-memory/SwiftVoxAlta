@@ -28,7 +28,7 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     // MARK: - Version
 
     /// Current version of the SwiftVoxAlta library
-    public static let version = "0.7.0"
+    public static let version = "0.8.0"
 
     // MARK: - VoiceProvider Metadata
 
@@ -67,6 +67,9 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     /// The CustomVoice model variant to use for preset speaker generation.
     private let customVoiceModelRepo: Qwen3TTSModelRepo
 
+    /// Generation parameters controlling sampling behavior for audio synthesis.
+    public let generationSettings: GenerationSettings
+
     // MARK: - Initialization
 
     /// Create a new VoxAlta voice provider.
@@ -75,15 +78,18 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     ///   - modelManager: The model manager to use for TTS model operations. Defaults to a new instance.
     ///   - baseModelRepo: The Base model variant to use for voice cloning. Defaults to `.base1_7B` (3.4GB).
     ///   - customVoiceModelRepo: The CustomVoice model variant for preset speakers. Defaults to `.customVoice1_7B` (3.4GB).
+    ///   - generationSettings: Sampling parameters for audio generation. Defaults to `.default`.
     public init(
         modelManager: VoxAltaModelManager = VoxAltaModelManager(),
         baseModelRepo: Qwen3TTSModelRepo = .base1_7B,
-        customVoiceModelRepo: Qwen3TTSModelRepo = .customVoice1_7B
+        customVoiceModelRepo: Qwen3TTSModelRepo = .customVoice1_7B,
+        generationSettings: GenerationSettings = .default
     ) {
         self.modelManager = modelManager
         self.voiceCache = VoxAltaVoiceCache()
         self.baseModelRepo = baseModelRepo
         self.customVoiceModelRepo = customVoiceModelRepo
+        self.generationSettings = generationSettings
     }
 
     // MARK: - VoiceProvider Protocol
@@ -149,6 +155,24 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
         return try await generateAudio(context: context, voiceId: voiceId, languageCode: languageCode)
     }
 
+    /// Generate speech audio from text with a performance direction.
+    ///
+    /// Like `generateAudio(text:voiceId:languageCode:)` but injects an instruct
+    /// hint (e.g., "speak softly", "with excitement") into the generation context.
+    ///
+    /// - Parameters:
+    ///   - text: The text to synthesize.
+    ///   - voiceId: The voice identifier (character name) to use.
+    ///   - languageCode: The language code for generation (e.g., "en").
+    ///   - instruct: Performance direction for the TTS model.
+    /// - Returns: WAV format audio data (24kHz, 16-bit PCM, mono).
+    /// - Throws: `VoxAltaError.voiceNotLoaded` if the voice is not in the cache,
+    ///           or other errors from model loading and audio generation.
+    public func generateAudio(text: String, voiceId: String, languageCode: String, instruct: String?) async throws -> Data {
+        let context = GenerationContext(phrase: text, instruct: instruct)
+        return try await generateAudio(context: context, voiceId: voiceId, languageCode: languageCode)
+    }
+
     /// Generate speech audio from a generation context using a loaded voice.
     ///
     /// The voice must have been previously loaded via `loadVoice(id:clonePromptData:)`.
@@ -168,7 +192,8 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
             return try await generateWithPresetSpeaker(
                 text: context.phrase,
                 speakerName: speaker.mlxSpeaker,
-                language: languageCode
+                language: languageCode,
+                instruct: context.instruct
             )
         }
 
@@ -194,7 +219,8 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
             language: languageCode,
             modelManager: modelManager,
             modelRepo: baseModelRepo,
-            cache: voiceCache
+            cache: voiceCache,
+            settings: generationSettings
         )
     }
 
@@ -216,6 +242,10 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     ) async throws -> ProcessedAudio {
         let audioData = try await generateAudio(text: text, voiceId: voiceId, languageCode: languageCode)
         let duration = Self.measureWAVDuration(audioData)
+
+        // DIAGNOSTIC: Log actual WAV data size vs expected size from duration
+        let expectedSize = Int(duration * 24000) * 2 + 44  // samples * bytes_per_sample + header
+        FileHandle.standardError.write(Data("[VoxAlta] WAV data: \(audioData.count) bytes, expected from duration: \(expectedSize) bytes, duration: \(String(format: "%.2f", duration))s\n".utf8))
 
         return ProcessedAudio(
             audioData: audioData,
@@ -328,11 +358,13 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     ///   - text: The text to synthesize.
     ///   - speakerName: The preset speaker ID (e.g., "ryan").
     ///   - language: The language code for generation.
+    ///   - instruct: Optional performance direction for the TTS model.
     /// - Returns: WAV format audio data (24kHz, 16-bit PCM, mono).
     private func generateWithPresetSpeaker(
         text: String,
         speakerName: String,
-        language: String
+        language: String,
+        instruct: String? = nil
     ) async throws -> Data {
         let model = try await modelManager.loadModel(customVoiceModelRepo)
 
@@ -348,6 +380,7 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
             refAudio: nil,
             refText: nil,
             language: language,
+            instruct: instruct,
             generationParameters: GenerateParameters()
         )
 

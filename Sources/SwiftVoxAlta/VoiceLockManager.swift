@@ -121,8 +121,9 @@ public enum VoiceLockManager: Sendable {
 
     /// Generate speech audio using a locked voice identity and a generation context.
     ///
-    /// Logs the envelope size, then delegates to the text-based `generateAudio` using
-    /// the context's phrase. The metadata is available for future pipeline stages.
+    /// Logs the envelope size, extracts the `instruct` hint from metadata (if present),
+    /// and delegates to the text-based `generateAudio`. The instruct hint is forwarded
+    /// to Qwen3-TTS as a performance direction (e.g., "Speak softly, sotto voce").
     ///
     /// - Parameters:
     ///   - context: The generation context containing the phrase and optional metadata.
@@ -131,6 +132,7 @@ public enum VoiceLockManager: Sendable {
     ///   - modelManager: The model manager used to load the Base model.
     ///   - modelRepo: The Base model variant to use for generation. Defaults to `.base1_7B`.
     ///   - cache: Optional voice cache for clone prompt caching.
+    ///   - settings: Generation parameters controlling sampling behavior.
     /// - Returns: WAV format Data of the generated speech audio (24kHz, 16-bit PCM, mono).
     /// - Throws: `VoxAltaError.cloningFailed` if generation fails,
     ///           `VoxAltaError.modelNotAvailable` if the Base model cannot be loaded.
@@ -140,18 +142,24 @@ public enum VoiceLockManager: Sendable {
         language: String = "en",
         modelManager: VoxAltaModelManager,
         modelRepo: Qwen3TTSModelRepo = .base1_7B,
-        cache: VoxAltaVoiceCache? = nil
+        cache: VoxAltaVoiceCache? = nil,
+        settings: GenerationSettings = .default
     ) async throws -> Data {
         VoiceLockManagerLogger.log(
             "Envelope for '\(voiceLock.characterName)': \(context.serializedSize) bytes, \(context.metadata.count) metadata key(s)"
         )
+        if let instruct = context.instruct {
+            VoiceLockManagerLogger.log("Instruct hint for '\(voiceLock.characterName)': \(instruct)")
+        }
         return try await generateAudio(
             text: context.phrase,
             voiceLock: voiceLock,
             language: language,
+            instruct: context.instruct,
             modelManager: modelManager,
             modelRepo: modelRepo,
-            cache: cache
+            cache: cache,
+            settings: settings
         )
     }
 
@@ -171,10 +179,13 @@ public enum VoiceLockManager: Sendable {
     ///   - text: The text to synthesize.
     ///   - voiceLock: The voice lock containing the serialized clone prompt.
     ///   - language: The language code for generation. Defaults to "en".
+    ///   - instruct: Optional performance direction for the TTS model (e.g., "Speak softly").
+    ///     Forwarded to Qwen3-TTS as the `instruct` parameter to influence vocal delivery.
     ///   - modelManager: The model manager used to load the Base model.
     ///   - modelRepo: The Base model variant to use for generation. Defaults to `.base1_7B`.
     ///   - cache: Optional voice cache for clone prompt caching. If provided, reduces
     ///            deserialization overhead on repeated calls.
+    ///   - settings: Generation parameters controlling sampling behavior.
     /// - Returns: WAV format Data of the generated speech audio (24kHz, 16-bit PCM, mono).
     /// - Throws: `VoxAltaError.cloningFailed` if generation fails,
     ///           `VoxAltaError.modelNotAvailable` if the Base model cannot be loaded.
@@ -182,9 +193,11 @@ public enum VoiceLockManager: Sendable {
         text: String,
         voiceLock: VoiceLock,
         language: String = "en",
+        instruct: String? = nil,
         modelManager: VoxAltaModelManager,
         modelRepo: Qwen3TTSModelRepo = .base1_7B,
-        cache: VoxAltaVoiceCache? = nil
+        cache: VoxAltaVoiceCache? = nil,
+        settings: GenerationSettings = .default
     ) async throws -> Data {
         // Load Base model
         let model = try await modelManager.loadModel(modelRepo)
@@ -222,13 +235,25 @@ public enum VoiceLockManager: Sendable {
             }
         }
 
+        // Log generation parameters
+        VoiceLockManagerLogger.log("🎛️  Generation params: temp=\(settings.temperature), topP=\(settings.topP), repPenalty=\(settings.repetitionPenalty), maxTokens=\(settings.maxTokens)")
+        if let instruct = instruct {
+            VoiceLockManagerLogger.log("📝 Instruct: \"\(instruct)\"")
+        }
+        VoiceLockManagerLogger.log("🗣️  Text (\(text.count) chars): \"\(text.prefix(100))\(text.count > 100 ? "..." : "")\"")
+
         // Generate audio with clone prompt
         let audioArray: MLXArray
         do {
             audioArray = try qwenModel.generateWithClonePrompt(
                 text: text,
                 clonePrompt: clonePrompt,
-                language: language
+                language: language,
+                instruct: instruct,
+                temperature: settings.temperature,
+                topP: settings.topP,
+                repetitionPenalty: settings.repetitionPenalty,
+                maxTokens: settings.maxTokens
             )
         } catch {
             throw VoxAltaError.cloningFailed(

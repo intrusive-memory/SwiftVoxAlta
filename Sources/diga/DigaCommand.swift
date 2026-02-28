@@ -39,6 +39,9 @@ struct DigaCommand: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "Voice name to use for synthesis. Use '-v ?' to list voices.")
     var voice: String?
 
+    @Option(name: .long, help: "Performance direction (e.g., 'speak softly', 'whisper'). Applied to all chunks.")
+    var instruct: String?
+
     // MARK: - Positional Arguments
 
     @Argument(help: "Text to speak.")
@@ -104,9 +107,9 @@ struct DigaCommand: AsyncParsableCommand {
         let engine = DigaEngine(modelOverride: resolvedModel)
         let wavData: Data
         if isVoxFile {
-            wavData = try await engine.synthesizeFromVox(text: trimmedText, voxPath: voice!)
+            wavData = try await engine.synthesizeFromVox(text: trimmedText, voxPath: voice!, instruct: instruct)
         } else {
-            wavData = try await engine.synthesize(text: trimmedText, voiceName: voice)
+            wavData = try await engine.synthesize(text: trimmedText, voiceName: voice, instruct: instruct)
         }
 
         // Route output: file (-o) or speaker playback.
@@ -136,19 +139,15 @@ struct DigaCommand: AsyncParsableCommand {
     private func resolveModelFlag() throws -> String? {
         guard let modelValue = model else { return nil }
 
-        switch modelValue.lowercased() {
-        case "0.6b":
-            return TTSModelID.small
-        case "1.7b":
-            return TTSModelID.large
-        default:
-            // Accept any string that looks like a HuggingFace model ID (contains /).
-            if modelValue.contains("/") {
-                return modelValue
-            }
-            // Invalid shorthand — not "0.6b", "1.7b", or a HF model ID.
+        if let repo = Qwen3TTSModelRepo(slug: modelValue) {
+            return repo.rawValue
+        } else if modelValue.contains("/") {
+            // Accept any string that looks like a HuggingFace model ID.
+            return modelValue
+        } else {
+            let slugs = Qwen3TTSModelRepo.supportedSlugs.sorted().joined(separator: "', '")
             throw ValidationError(
-                "Invalid model: '\(modelValue)'. Use '0.6b', '1.7b', or a HuggingFace model ID (org/repo)."
+                "Invalid model: '\(modelValue)'. Use '\(slugs)', or a HuggingFace model ID (org/repo)."
             )
         }
     }
@@ -263,12 +262,23 @@ struct DigaCommand: AsyncParsableCommand {
         // Write clone prompt to disk if present.
         var clonePromptPath: String?
         if let promptData = result.clonePromptData {
-            let promptURL = store.voicesDirectory.appendingPathComponent("\(result.name).cloneprompt")
             try FileManager.default.createDirectory(
                 at: store.voicesDirectory,
                 withIntermediateDirectories: true
             )
-            try promptData.write(to: promptURL, options: .atomic)
+
+            // Clear stale model-specific clone prompt caches before writing fresh data.
+            for slug in Qwen3TTSModelRepo.supportedSlugs.sorted() {
+                let staleURL = store.voicesDirectory.appendingPathComponent("\(result.name)-\(slug).cloneprompt")
+                try? FileManager.default.removeItem(at: staleURL)
+            }
+
+            // Write to both legacy (unsuffixed) and default model-specific paths.
+            let legacyURL = store.voicesDirectory.appendingPathComponent("\(result.name).cloneprompt")
+            try promptData.write(to: legacyURL, options: .atomic)
+
+            let modelURL = store.voicesDirectory.appendingPathComponent("\(result.name)-1.7b.cloneprompt")
+            try promptData.write(to: modelURL, options: .atomic)
         }
 
         // For cloned voices without a clone prompt, store reference audio path.

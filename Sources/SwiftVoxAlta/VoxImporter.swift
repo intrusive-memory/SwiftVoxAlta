@@ -34,19 +34,18 @@ public enum VoxImporter: Sendable {
     ///
     /// - Parameters:
     ///   - url: Path to the `.vox` file.
-    ///   - modelQuery: Model query string (e.g., `"0.6b"`, `"1.7b"`). Defaults to `"1.7b"`.
+    ///   - modelQuery: Model query string (e.g., `"0.6b"`, `"1.7b"`). Defaults to `.base1_7B.slug`.
     /// - Returns: A `VoxImportResult` with extracted metadata and binary data.
     /// - Throws: `VoxAltaError.voxImportFailed` on failure.
-    public static func importVox(from url: URL, modelQuery: String = "1.7b") throws -> VoxImportResult {
+    public static func importVox(from url: URL, modelQuery: String = Qwen3TTSModelRepo.base1_7B.slug) throws -> VoxImportResult {
         do {
             let voxFile = try VoxFile(contentsOf: url)
 
-            // Model-aware clone prompt lookup, with fallback to first available.
-            let clonePromptData = voxFile.embeddingData(for: modelQuery)
-                ?? voxFile.entries(under: "embeddings/").first?.data
+            // Model-aware clone prompt lookup (excludes sample audio entries).
+            let clonePromptData = voxFile.clonePromptData(for: modelQuery)
 
-            // Look for sample audio in embeddings.
-            let sampleAudioData = voxFile["embeddings/qwen3-tts/sample-audio.wav"]?.data
+            // Model-aware sample audio lookup, with legacy fallback.
+            let sampleAudioData = voxFile.sampleAudioData(for: modelQuery)
 
             // Collect reference audio entries.
             var referenceAudio: [String: Data] = [:]

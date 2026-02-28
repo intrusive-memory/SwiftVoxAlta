@@ -79,6 +79,37 @@ public struct GenerationContext: Codable, Sendable {
         self.metadata = normalized
     }
 
+    /// Create a generation context with an explicit instruct parameter.
+    ///
+    /// Convenience initializer that injects `instruct` into the metadata dictionary.
+    /// Empty or whitespace-only instruct strings are treated as `nil`.
+    ///
+    /// - Parameters:
+    ///   - phrase: The text to synthesize.
+    ///   - instruct: Optional performance direction (e.g., "speak softly", "with excitement").
+    ///   - metadata: Optional key-value pairs. Keys are automatically normalized
+    ///     to lowercase snake_case.
+    public init(phrase: String, instruct: String?, metadata: [String: AnyCodableValue] = [:]) {
+        var combined = metadata
+        if let instruct, !instruct.trimmingCharacters(in: .whitespaces).isEmpty {
+            combined["instruct"] = .string(instruct)
+        }
+        self.init(phrase: phrase, metadata: combined)
+    }
+
+    /// The instruct hint extracted from metadata, if present.
+    ///
+    /// Callers populate `metadata["instruct"]` with a natural-language performance
+    /// direction (e.g., "Speak softly, sotto voce") derived from screenplay
+    /// parentheticals. This accessor provides convenient typed access for the
+    /// TTS generation pipeline.
+    public var instruct: String? {
+        if case .string(let value) = metadata["instruct"] {
+            return value
+        }
+        return nil
+    }
+
     /// JSON-encoded byte count, useful for logging envelope sizes.
     public var serializedSize: Int {
         (try? JSONEncoder().encode(self).count) ?? 0

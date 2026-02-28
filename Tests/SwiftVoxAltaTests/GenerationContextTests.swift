@@ -124,6 +124,84 @@ struct GenerationContextTests {
         #expect(GenerationContext.toSnakeCase("") == "")
     }
 
+    // MARK: - Instruct Accessor
+
+    @Test("instruct returns string value from metadata")
+    func instructFromMetadata() {
+        let context = GenerationContext(
+            phrase: "I never thought it would end like this.",
+            metadata: ["instruct": .string("Speak softly, sotto voce")]
+        )
+        #expect(context.instruct == "Speak softly, sotto voce")
+    }
+
+    @Test("instruct returns nil when not present")
+    func instructNilWhenMissing() {
+        let context = GenerationContext(phrase: "Hello world")
+        #expect(context.instruct == nil)
+    }
+
+    @Test("instruct returns nil for non-string metadata value")
+    func instructNilForNonString() {
+        let context = GenerationContext(
+            phrase: "test",
+            metadata: ["instruct": .bool(true)]
+        )
+        #expect(context.instruct == nil)
+    }
+
+    // MARK: - Convenience Initializer (instruct)
+
+    @Test("Convenience init stores instruct in metadata")
+    func convenienceInitStoresInstruct() {
+        let context = GenerationContext(phrase: "Hello", instruct: "speak softly")
+        #expect(context.instruct == "speak softly")
+        #expect(context.metadata["instruct"] == .string("speak softly"))
+    }
+
+    @Test("Convenience init with nil instruct produces no instruct metadata")
+    func convenienceInitNilInstruct() {
+        let context = GenerationContext(phrase: "Hello", instruct: nil)
+        #expect(context.instruct == nil)
+        #expect(context.metadata["instruct"] == nil)
+    }
+
+    @Test("Convenience init with empty instruct string produces no instruct metadata")
+    func convenienceInitEmptyInstruct() {
+        let context = GenerationContext(phrase: "Hello", instruct: "")
+        #expect(context.instruct == nil)
+        #expect(context.metadata["instruct"] == nil)
+    }
+
+    @Test("Convenience init with whitespace-only instruct produces no instruct metadata")
+    func convenienceInitWhitespaceInstruct() {
+        let context = GenerationContext(phrase: "Hello", instruct: "   ")
+        #expect(context.instruct == nil)
+        #expect(context.metadata["instruct"] == nil)
+    }
+
+    @Test("Convenience init merges instruct with additional metadata")
+    func convenienceInitMergesMetadata() {
+        let context = GenerationContext(
+            phrase: "Hello",
+            instruct: "whisper",
+            metadata: ["emotion": .string("sad")]
+        )
+        #expect(context.instruct == "whisper")
+        #expect(context.metadata["emotion"] == .string("sad"))
+        #expect(context.metadata.count == 2)
+    }
+
+    @Test("Convenience init instruct parameter takes precedence over metadata instruct key")
+    func convenienceInitInstructPrecedence() {
+        let context = GenerationContext(
+            phrase: "Hello",
+            instruct: "from parameter",
+            metadata: ["instruct": .string("from metadata")]
+        )
+        #expect(context.instruct == "from parameter")
+    }
+
     // MARK: - Serialized Size
 
     @Test("serializedSize is positive for non-trivial context")

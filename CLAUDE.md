@@ -52,7 +52,7 @@ make test              # ~15-60 seconds, includes integration tests
 
 - **ONLY** iOS 26.0+ and macOS 26.0+
 - **NEVER** add `@available` attributes for older versions
-- **Apple Silicon only** - M1/M2/M3/M4 required
+- **Apple Silicon only** - M1/M2/M3/M4/M5 required
 
 ---
 

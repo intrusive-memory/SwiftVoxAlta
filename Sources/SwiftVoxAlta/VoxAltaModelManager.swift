@@ -44,6 +44,35 @@ public enum Qwen3TTSModelRepo: String, CaseIterable, Sendable {
     /// NOT recommended for production use.
     case base1_7B_4bit = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-4bit"
 
+    /// Short model-size slug used as a user-facing identifier and .vox query key.
+    ///
+    /// Examples: `"0.6b"`, `"1.7b"`.  All variants of the same parameter count
+    /// share the same slug, so both `base1_7B` and `base1_7B_8bit` return `"1.7b"`.
+    public var slug: String {
+        switch self {
+        case .base0_6B, .customVoice0_6B:
+            return "0.6b"
+        case .base1_7B, .base1_7B_8bit, .base1_7B_4bit,
+             .customVoice1_7B, .voiceDesign1_7B:
+            return "1.7b"
+        }
+    }
+
+    /// The two supported model size slugs for CLI option validation.
+    public static let supportedSlugs: Set<String> = ["0.6b", "1.7b"]
+
+    /// Resolves a slug string to the default Base model repo for that size.
+    ///
+    /// - Parameter slug: A model size slug (e.g., `"0.6b"`, `"1.7b"`).
+    /// - Returns: The corresponding Base model repo, or `nil` if unrecognized.
+    public init?(slug: String) {
+        switch slug.lowercased() {
+        case "0.6b": self = .base0_6B
+        case "1.7b": self = .base1_7B
+        default: return nil
+        }
+    }
+
     /// Human-readable display name for the model variant.
     public var displayName: String {
         switch self {

@@ -71,13 +71,15 @@ ifdef GITHUB_ACTIONS
 	  -scheme $(TEST_SCHEME) \
 	  -destination '$(DESTINATION)' \
 	  -only-testing:DigaTests \
-	  -skip-testing:DigaTests/DigaBinaryIntegrationTests
+	  -skip-testing:DigaTests/DigaBinaryIntegrationTests \
+	  -skip-testing:DigaTests/DigaDualModelIntegrationTests
 else
 	@echo "Local run: Running all tests (DigaTests + SwiftVoxAltaTests)"
 	xcodebuild test \
 	  -scheme $(TEST_SCHEME) \
 	  -destination '$(DESTINATION)' \
-	  -skip-testing:DigaTests/DigaBinaryIntegrationTests
+	  -skip-testing:DigaTests/DigaBinaryIntegrationTests \
+	  -skip-testing:DigaTests/DigaDualModelIntegrationTests
 endif
 
 # Integration tests (requires binary + cached voices)
@@ -86,7 +88,8 @@ test-integration: install
 	xcodebuild test \
 	  -scheme $(TEST_SCHEME) \
 	  -destination '$(DESTINATION)' \
-	  -only-testing:DigaTests/DigaBinaryIntegrationTests
+	  -only-testing:DigaTests/DigaBinaryIntegrationTests \
+	  -only-testing:DigaTests/DigaDualModelIntegrationTests
 
 # All tests (unit + integration)
 test: test-unit test-integration
