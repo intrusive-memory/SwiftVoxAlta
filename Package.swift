@@ -24,8 +24,7 @@ let package = Package(
         .package(url: "https://github.com/intrusive-memory/SwiftAcervo.git", branch: "main"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
         .package(url: "https://github.com/intrusive-memory/vox-format.git", branch: "development"),
-        // Override transitive EventSource dep from swift-huggingface (Xcode 26 fix)
-        .package(url: "https://github.com/intrusive-memory/EventSource.git", branch: "xcode26-transitive-fix"),
+        .package(url: "https://github.com/mattt/EventSource.git", from: "1.4.0"),
     ],
     targets: [
         .target(
