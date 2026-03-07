@@ -20,7 +20,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/intrusive-memory/SwiftHablare.git", branch: "development"),
-        .package(url: "https://github.com/intrusive-memory/mlx-audio-swift.git", branch: "development"),
+        .package(url: "https://github.com/intrusive-memory/mlx-audio-swift.git", branch: "main"),
         .package(url: "https://github.com/intrusive-memory/SwiftAcervo.git", branch: "main"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
         .package(url: "https://github.com/intrusive-memory/vox-format.git", branch: "development"),
