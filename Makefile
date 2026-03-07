@@ -8,7 +8,7 @@ BIN_DIR = ./bin
 DESTINATION = platform=macOS,arch=arm64
 DERIVED_DATA = $(HOME)/Library/Developer/Xcode/DerivedData
 
-.PHONY: all build release install clean test test-unit test-integration setup-voices resolve help
+.PHONY: all build release install clean test test-unit test-integration setup-voices resolve lint help
 
 all: install
 
@@ -102,6 +102,10 @@ setup-voices: install
 	@echo "✓ CustomVoice model cached at ~/Library/Caches/intrusive-memory/Models/"
 	@echo "  You can now run 'make test' or 'make test-integration'."
 
+# Format Swift source files
+lint:
+	swift format -i -r .
+
 # Clean build artifacts
 clean:
 	xcodebuild clean -scheme $(SCHEME) -destination '$(DESTINATION)' 2>/dev/null || true
@@ -118,6 +122,7 @@ help:
 	@echo "  build           - Development build (xcodebuild debug, no copy)"
 	@echo "  install         - Debug build with xcodebuild + copy to ./bin (default)"
 	@echo "  release         - Release build with xcodebuild + copy to ./bin"
+	@echo "  lint            - Format Swift source files"
 	@echo "  test            - Run all tests (unit + integration)"
 	@echo "  test-unit       - Run fast unit tests only (no binary required)"
 	@echo "  test-integration - Run binary integration tests (requires binary + voices)"
