@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import SwiftAcervo
+import SwiftVoxAlta
 
 // MARK: - Replicated Constants and Logic
 //
@@ -11,31 +12,19 @@ import SwiftAcervo
 //
 // If someone changes a constant in DigaModelManager.swift, these tests
 // serve as the canary that detects drift.
+//
+// TTSModelID now references Qwen3TTSModelRepo.rawValue instead of hardcoded
+// strings. The mirror below uses Qwen3TTSModelRepo directly via SwiftVoxAlta.
 
-/// Mirror of TTSModelID from DigaModelManager.swift
-private enum TestTTSModelID {
-    static let large = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16"
-    static let small = "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16"
-    static let voiceDesign = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
-    static let ramThresholdBytes: UInt64 = 16 * 1024 * 1024 * 1024  // 16 GB
-}
-
-/// Mirror of TTSModelFiles from DigaModelManager.swift
-private enum TestTTSModelFiles {
-    static let required: [String] = [
-        "config.json",
-        "tokenizer.json",
-        "tokenizer_config.json",
-        "model.safetensors",
-    ]
-}
+/// RAM threshold in bytes (16 GB) for model selection.
+private let testRAMThresholdBytes: UInt64 = 16 * 1024 * 1024 * 1024  // 16 GB
 
 /// Replicates the model selection logic from DigaModelManager.
 private func recommendedModel(forRAMBytes ramBytes: UInt64) -> String {
-    if ramBytes >= TestTTSModelID.ramThresholdBytes {
-        return TestTTSModelID.large
+    if ramBytes >= testRAMThresholdBytes {
+        return Qwen3TTSModelRepo.base1_7B.rawValue
     } else {
-        return TestTTSModelID.small
+        return Qwen3TTSModelRepo.base0_6B.rawValue
     }
 }
 
@@ -67,7 +56,7 @@ struct DigaModelManagerTests {
 
     @Test("modelDirectory for small model produces correct slug")
     func modelDirectorySmallModel() throws {
-        let dir = try Acervo.modelDirectory(for: TestTTSModelID.small)
+        let dir = try Acervo.modelDirectory(for: Qwen3TTSModelRepo.base0_6B.rawValue)
         #expect(dir.lastPathComponent == "mlx-community_Qwen3-TTS-12Hz-0.6B-Base-bf16")
     }
 
@@ -77,37 +66,37 @@ struct DigaModelManagerTests {
     func recommendedModelLargeRAM() {
         // Exactly 16 GB
         let model16 = recommendedModel(forRAMBytes: 16 * 1024 * 1024 * 1024)
-        #expect(model16 == TestTTSModelID.large)
+        #expect(model16 == Qwen3TTSModelRepo.base1_7B.rawValue)
 
         // 32 GB
         let model32 = recommendedModel(forRAMBytes: 32 * 1024 * 1024 * 1024)
-        #expect(model32 == TestTTSModelID.large)
+        #expect(model32 == Qwen3TTSModelRepo.base1_7B.rawValue)
 
         // 64 GB
         let model64 = recommendedModel(forRAMBytes: 64 * 1024 * 1024 * 1024)
-        #expect(model64 == TestTTSModelID.large)
+        #expect(model64 == Qwen3TTSModelRepo.base1_7B.rawValue)
     }
 
     @Test("recommendedModel returns small model for less than 16GB RAM")
     func recommendedModelSmallRAM() {
         // 8 GB
         let model8 = recommendedModel(forRAMBytes: 8 * 1024 * 1024 * 1024)
-        #expect(model8 == TestTTSModelID.small)
+        #expect(model8 == Qwen3TTSModelRepo.base0_6B.rawValue)
 
         // 1 byte below threshold
-        let modelJustBelow = recommendedModel(forRAMBytes: TestTTSModelID.ramThresholdBytes - 1)
-        #expect(modelJustBelow == TestTTSModelID.small)
+        let modelJustBelow = recommendedModel(forRAMBytes: testRAMThresholdBytes - 1)
+        #expect(modelJustBelow == Qwen3TTSModelRepo.base0_6B.rawValue)
 
         // 0 bytes
         let model0 = recommendedModel(forRAMBytes: 0)
-        #expect(model0 == TestTTSModelID.small)
+        #expect(model0 == Qwen3TTSModelRepo.base0_6B.rawValue)
     }
 
     @Test("RAM threshold is exactly 16 GB in bytes")
     func ramThresholdValue() {
         let expected: UInt64 = 16 * 1024 * 1024 * 1024
-        #expect(TestTTSModelID.ramThresholdBytes == expected)
-        #expect(TestTTSModelID.ramThresholdBytes == 17_179_869_184)
+        #expect(testRAMThresholdBytes == expected)
+        #expect(testRAMThresholdBytes == 17_179_869_184)
     }
 
     // MARK: - 2.1/2.3 Model Availability (via Acervo)
@@ -153,23 +142,74 @@ struct DigaModelManagerTests {
         #expect(available == false)
     }
 
-    // MARK: - 2.3 Download Infrastructure
+    // MARK: - 2.3 Download Infrastructure (Component Registry)
 
-    @Test("Required model files list contains exactly 4 expected files")
-    func requiredModelFiles() {
-        #expect(TestTTSModelFiles.required.count == 4)
-        #expect(TestTTSModelFiles.required.contains("config.json"))
-        #expect(TestTTSModelFiles.required.contains("tokenizer.json"))
-        #expect(TestTTSModelFiles.required.contains("tokenizer_config.json"))
-        #expect(TestTTSModelFiles.required.contains("model.safetensors"))
+    @Test("All 7 Qwen3-TTS components are registered in Acervo after manager init")
+    func allComponentsRegistered() {
+        // Trigger registration by initializing the model manager
+        _ = VoxAltaModelManager()
+
+        let allComponents = Acervo.registeredComponents()
+        let ttsComponents = allComponents.filter { $0.id.hasPrefix("qwen3-tts") }
+        #expect(ttsComponents.count >= 7)
+    }
+
+    @Test("Each Qwen3TTSModelRepo case has a unique componentId")
+    func componentIdsAreUnique() {
+        let ids = Qwen3TTSModelRepo.allCases.map { $0.componentId }
+        let unique = Set(ids)
+        #expect(unique.count == ids.count)
+    }
+
+    @Test("4-bit variant is marked deprecated in Acervo metadata")
+    func fourBitVariantIsDeprecated() {
+        _ = VoxAltaModelManager()
+        let descriptor = Acervo.component(Qwen3TTSModelRepo.base1_7B_4bit.componentId)
+        #expect(descriptor != nil)
+        #expect(descriptor?.metadata["deprecated"] == "true")
+    }
+
+    @Test("Non-deprecated components are not marked deprecated")
+    func activeComponentsAreNotDeprecated() {
+        _ = VoxAltaModelManager()
+        let activeRepos: [Qwen3TTSModelRepo] = [
+            .base1_7B, .base0_6B, .customVoice1_7B,
+            .customVoice0_6B, .voiceDesign1_7B, .base1_7B_8bit,
+        ]
+        for repo in activeRepos {
+            let descriptor = Acervo.component(repo.componentId)
+            #expect(descriptor != nil, "Missing component for \(repo.componentId)")
+            #expect(descriptor?.metadata["deprecated"] != "true",
+                    "\(repo.componentId) should not be deprecated")
+        }
+    }
+
+    @Test("ComponentDescriptors declare required files including config.json and model.safetensors")
+    func componentDescriptorsDeclareRequiredFiles() {
+        _ = VoxAltaModelManager()
+        for repo in Qwen3TTSModelRepo.allCases {
+            guard let descriptor = Acervo.component(repo.componentId) else {
+                Issue.record("Missing component descriptor for \(repo.componentId)")
+                continue
+            }
+            let filePaths = descriptor.files.map { $0.relativePath }
+            #expect(filePaths.contains("config.json"),
+                    "\(repo.componentId) missing config.json")
+            #expect(filePaths.contains("model.safetensors"),
+                    "\(repo.componentId) missing model.safetensors")
+            #expect(filePaths.contains("tokenizer.json"),
+                    "\(repo.componentId) missing tokenizer.json")
+            #expect(filePaths.contains("tokenizer_config.json"),
+                    "\(repo.componentId) missing tokenizer_config.json")
+        }
     }
 
     // MARK: - 2.2/2.4 Model Override
 
     @Test("Model constants match expected HuggingFace IDs")
     func modelConstants() {
-        #expect(TestTTSModelID.large == "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16")
-        #expect(TestTTSModelID.small == "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16")
+        #expect(Qwen3TTSModelRepo.base1_7B.rawValue == "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16")
+        #expect(Qwen3TTSModelRepo.base0_6B.rawValue == "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16")
     }
 
     // MARK: - Progress Formatting

@@ -116,6 +116,121 @@ public enum Qwen3TTSModelSize {
     public static let headroomMultiplier: Double = 1.5
 }
 
+// MARK: - Acervo Component Registration
+
+extension Qwen3TTSModelRepo {
+    /// The Acervo component ID for this model variant.
+    ///
+    /// Used to look up, download, and check availability of this model
+    /// via the SwiftAcervo Component Registry.
+    public var componentId: String {
+        switch self {
+        case .base1_7B:         return "qwen3-tts-base-1.7b"
+        case .base0_6B:         return "qwen3-tts-base-0.6b"
+        case .customVoice1_7B:  return "qwen3-tts-custom-1.7b"
+        case .customVoice0_6B:  return "qwen3-tts-custom-0.6b"
+        case .voiceDesign1_7B:  return "qwen3-tts-voicedesign-1.7b"
+        case .base1_7B_8bit:    return "qwen3-tts-base-1.7b-8bit"
+        case .base1_7B_4bit:    return "qwen3-tts-base-1.7b-4bit"
+        }
+    }
+}
+
+/// Required files for any Qwen3-TTS model variant.
+///
+/// These files are declared in each `ComponentDescriptor` so that
+/// `Acervo.ensureComponentReady()` knows exactly what to download.
+private let qwen3TTSRequiredFiles: [ComponentFile] = [
+    ComponentFile(relativePath: "config.json"),
+    ComponentFile(relativePath: "tokenizer.json"),
+    ComponentFile(relativePath: "tokenizer_config.json"),
+    ComponentFile(relativePath: "model.safetensors"),
+]
+
+/// All 7 Qwen3-TTS component descriptors (6 active + 1 deprecated).
+///
+/// Registered at module initialization so the Acervo Component Registry
+/// is populated before any model loading or download is attempted.
+private let qwen3TTSComponentDescriptors: [ComponentDescriptor] = [
+    ComponentDescriptor(
+        id: Qwen3TTSModelRepo.base1_7B.componentId,
+        type: .languageModel,
+        displayName: "Qwen3-TTS Base 1.7B (bf16)",
+        huggingFaceRepo: Qwen3TTSModelRepo.base1_7B.rawValue,
+        files: qwen3TTSRequiredFiles,
+        estimatedSizeBytes: 3_400_000_000,
+        minimumMemoryBytes: 3_400_000_000
+    ),
+    ComponentDescriptor(
+        id: Qwen3TTSModelRepo.base0_6B.componentId,
+        type: .languageModel,
+        displayName: "Qwen3-TTS Base 0.6B (bf16)",
+        huggingFaceRepo: Qwen3TTSModelRepo.base0_6B.rawValue,
+        files: qwen3TTSRequiredFiles,
+        estimatedSizeBytes: 1_200_000_000,
+        minimumMemoryBytes: 1_200_000_000
+    ),
+    ComponentDescriptor(
+        id: Qwen3TTSModelRepo.customVoice1_7B.componentId,
+        type: .languageModel,
+        displayName: "Qwen3-TTS CustomVoice 1.7B (bf16)",
+        huggingFaceRepo: Qwen3TTSModelRepo.customVoice1_7B.rawValue,
+        files: qwen3TTSRequiredFiles,
+        estimatedSizeBytes: 3_400_000_000,
+        minimumMemoryBytes: 3_400_000_000
+    ),
+    ComponentDescriptor(
+        id: Qwen3TTSModelRepo.customVoice0_6B.componentId,
+        type: .languageModel,
+        displayName: "Qwen3-TTS CustomVoice 0.6B (bf16)",
+        huggingFaceRepo: Qwen3TTSModelRepo.customVoice0_6B.rawValue,
+        files: qwen3TTSRequiredFiles,
+        estimatedSizeBytes: 1_200_000_000,
+        minimumMemoryBytes: 1_200_000_000
+    ),
+    ComponentDescriptor(
+        id: Qwen3TTSModelRepo.voiceDesign1_7B.componentId,
+        type: .languageModel,
+        displayName: "Qwen3-TTS VoiceDesign 1.7B (bf16)",
+        huggingFaceRepo: Qwen3TTSModelRepo.voiceDesign1_7B.rawValue,
+        files: qwen3TTSRequiredFiles,
+        estimatedSizeBytes: 3_400_000_000,
+        minimumMemoryBytes: 3_400_000_000
+    ),
+    ComponentDescriptor(
+        id: Qwen3TTSModelRepo.base1_7B_8bit.componentId,
+        type: .languageModel,
+        displayName: "Qwen3-TTS Base 1.7B (8-bit)",
+        huggingFaceRepo: Qwen3TTSModelRepo.base1_7B_8bit.rawValue,
+        files: qwen3TTSRequiredFiles,
+        estimatedSizeBytes: 1_700_000_000,
+        minimumMemoryBytes: 1_700_000_000
+    ),
+    // Deprecated: 4-bit variant has significant quality degradation.
+    // Keep registered so existing cached copies can be migrated/deleted.
+    // Excluded from UI/CLI model selection by default.
+    ComponentDescriptor(
+        id: Qwen3TTSModelRepo.base1_7B_4bit.componentId,
+        type: .languageModel,
+        displayName: "Qwen3-TTS Base 1.7B (4-bit) [Deprecated]",
+        huggingFaceRepo: Qwen3TTSModelRepo.base1_7B_4bit.rawValue,
+        files: qwen3TTSRequiredFiles,
+        estimatedSizeBytes: 850_000_000,
+        minimumMemoryBytes: 850_000_000,
+        metadata: ["deprecated": "true"]
+    ),
+]
+
+/// Module-level registration trigger.
+///
+/// This `let` is evaluated once (lazily) on first access, registering all
+/// 7 Qwen3-TTS component descriptors with the SwiftAcervo Component Registry.
+/// `VoxAltaModelManager.init()` references this to ensure registration happens
+/// before any model loading or download call.
+private let _registerQwen3TTSComponents: Void = {
+    Acervo.register(qwen3TTSComponentDescriptors)
+}()
+
 // MARK: - VoxAltaModelManager
 
 /// Actor responsible for the lifecycle of Qwen3-TTS models.
@@ -153,7 +268,13 @@ public actor VoxAltaModelManager {
     private var migrationAttempted = false
 
     /// Initializes an empty model manager with no model loaded.
-    public init() {}
+    ///
+    /// Triggers Acervo component registration on first instantiation via
+    /// the module-level `_registerQwen3TTSComponents` lazy initializer.
+    public init() {
+        // Trigger lazy registration of all Qwen3-TTS ComponentDescriptors.
+        _ = _registerQwen3TTSComponents
+    }
 
     // MARK: - Acervo Integration
 
@@ -212,6 +333,12 @@ public actor VoxAltaModelManager {
         // Warn (but don't block) if memory looks tight — let macOS manage pressure
         if let estimatedSize = Qwen3TTSModelSize.knownSizes[repo] {
             checkMemory(forModelSizeBytes: estimatedSize)
+        }
+
+        // Ensure the model's files are on disk via the Acervo Component Registry.
+        // This replaces the implicit download-on-demand in TTSModelUtils.
+        if let modelRepo = Qwen3TTSModelRepo(rawValue: repo) {
+            try await Acervo.ensureComponentReady(modelRepo.componentId)
         }
 
         // Load via mlx-audio-swift's TTSModelUtils

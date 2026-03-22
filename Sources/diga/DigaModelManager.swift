@@ -1,27 +1,18 @@
 import Foundation
 import SwiftAcervo
+import SwiftVoxAlta
 
 /// Known TTS model identifiers from HuggingFace.
 enum TTSModelID {
     /// Large model (1.7B parameters) — better quality, requires 16GB+ RAM.
-    static let large = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16"
+    static let large = Qwen3TTSModelRepo.base1_7B.rawValue
     /// Small model (0.6B parameters) — fits in less RAM.
-    static let small = "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16"
+    static let small = Qwen3TTSModelRepo.base0_6B.rawValue
     /// VoiceDesign model (1.7B only) — generates voices from text descriptions.
-    static let voiceDesign = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
+    static let voiceDesign = Qwen3TTSModelRepo.voiceDesign1_7B.rawValue
 
     /// RAM threshold in bytes (16 GB) above which the large model is recommended.
     static let ramThresholdBytes: UInt64 = 16 * 1024 * 1024 * 1024
-}
-
-/// Files required for a complete model download.
-enum TTSModelFiles {
-    static let required: [String] = [
-        "config.json",
-        "tokenizer.json",
-        "tokenizer_config.json",
-        "model.safetensors",
-    ]
 }
 
 /// Progress callback type for model downloads.
@@ -101,6 +92,10 @@ actor DigaModelManager {
 
     /// Downloads a model from HuggingFace Hub if not already present, via SwiftAcervo.
     ///
+    /// Uses the Acervo Component Registry to determine which files to download.
+    /// The component ID is resolved from the HuggingFace model ID via `Qwen3TTSModelRepo`,
+    /// falling back to the raw model ID if the repo is not a known Qwen3-TTS variant.
+    ///
     /// - Parameters:
     ///   - modelId: The HuggingFace model identifier.
     ///   - progress: Optional callback invoked with download progress updates.
@@ -109,10 +104,8 @@ actor DigaModelManager {
         _ modelId: String,
         progress: DownloadProgress? = nil
     ) async throws {
-        try await Acervo.ensureAvailable(
-            modelId,
-            files: TTSModelFiles.required
-        ) { acervoProgress in
+        let componentId = Qwen3TTSModelRepo(rawValue: modelId)?.componentId ?? modelId
+        try await Acervo.ensureComponentReady(componentId) { acervoProgress in
             progress?(
                 acervoProgress.bytesDownloaded,
                 acervoProgress.totalBytes,

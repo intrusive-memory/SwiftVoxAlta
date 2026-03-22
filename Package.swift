@@ -21,7 +21,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/intrusive-memory/SwiftHablare.git", branch: "main"),
         .package(url: "https://github.com/intrusive-memory/mlx-audio-swift.git", branch: "main"),
-        .package(url: "https://github.com/intrusive-memory/SwiftAcervo.git", branch: "main"),
+        .package(path: "../SwiftAcervo"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
         .package(url: "https://github.com/intrusive-memory/vox-format.git", branch: "main"),
         .package(url: "https://github.com/mattt/EventSource.git", branch: "main"),
@@ -66,6 +66,7 @@ let package = Package(
             name: "DigaTests",
             dependencies: [
                 "diga",
+                "SwiftVoxAlta",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "SwiftAcervo", package: "SwiftAcervo"),
                 .product(name: "VoxFormat", package: "vox-format"),
