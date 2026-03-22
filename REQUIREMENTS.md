@@ -97,7 +97,7 @@ func validateMemory(for modelId: String) async throws {
 
 **Current**: `AppleSiliconInfo` enum detects M1–M5 variants, tracks Neural Engine availability.
 
-**Target**: Replace `AppleSiliconInfo` with SwiftTubería's `DeviceCapability` (see SwiftTubería §R5.3, §R16.3). `DeviceCapability.current` provides chip generation, memory, platform, and `hasNeuralAccelerators` — all the information VoxAlta currently derives from `AppleSiliconInfo`. SwiftTubería implements the Neural Accelerator detection based on the pattern from VoxAlta's existing `AppleSiliconInfo` (this is done in SwiftTubería Wave 1.3, before VoxAlta's Wave 4.3). VoxAlta only consumes the shared detection — no upstream code contribution needed.
+**Target**: Replace `AppleSiliconInfo` with SwiftTubería's `DeviceCapability` (see SwiftTubería `requirements/INFRASTRUCTURE.md` § Device Capability Detection). `DeviceCapability.current` provides chip generation, memory, platform, and `hasNeuralAccelerators` — all the information VoxAlta currently derives from `AppleSiliconInfo`. SwiftTubería implements the Neural Accelerator detection based on the pattern from VoxAlta's existing `AppleSiliconInfo` (this is done in SwiftTubería Wave 1.3, before VoxAlta's Wave 4.3). VoxAlta only consumes the shared detection — no upstream code contribution needed.
 
 ### V1.4 GPU Cache Clearing
 
