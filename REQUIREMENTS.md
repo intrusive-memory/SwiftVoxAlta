@@ -48,12 +48,12 @@ SwiftTubería integration for VoxAlta is **infrastructure adoption, not pipeline
 
 | Component | Acervo ID | Type | Size |
 |---|---|---|---|
-| Qwen3-TTS Base 1.7B | `qwen3-tts-base-1.7b` | backbone | ~3.4 GB |
-| Qwen3-TTS Base 0.6B | `qwen3-tts-base-0.6b` | backbone | ~1.2 GB |
-| Qwen3-TTS CustomVoice 1.7B | `qwen3-tts-custom-1.7b` | backbone | ~3.4 GB |
-| Qwen3-TTS CustomVoice 0.6B | `qwen3-tts-custom-0.6b` | backbone | ~1.2 GB |
-| Qwen3-TTS VoiceDesign 1.7B | `qwen3-tts-voicedesign-1.7b` | backbone | ~3.4 GB |
-| Qwen3-TTS Base 1.7B 8bit | `qwen3-tts-base-1.7b-8bit` | backbone | ~1.7 GB |
+| Qwen3-TTS Base 1.7B | `qwen3-tts-base-1.7b` | languageModel | ~3.4 GB |
+| Qwen3-TTS Base 0.6B | `qwen3-tts-base-0.6b` | languageModel | ~1.2 GB |
+| Qwen3-TTS CustomVoice 1.7B | `qwen3-tts-custom-1.7b` | languageModel | ~3.4 GB |
+| Qwen3-TTS CustomVoice 0.6B | `qwen3-tts-custom-0.6b` | languageModel | ~1.2 GB |
+| Qwen3-TTS VoiceDesign 1.7B | `qwen3-tts-voicedesign-1.7b` | languageModel | ~3.4 GB |
+| Qwen3-TTS Base 1.7B 8bit | `qwen3-tts-base-1.7b-8bit` | languageModel | ~1.7 GB |
 
 Each descriptor declares its HuggingFace repo, required files, expected sizes, and SHA-256 checksums. Downloads use `Acervo.ensureComponentReady(id)` instead of manually specifying file lists. Model access uses `AcervoManager.shared.withComponentAccess(id)` — no file paths in VoxAlta code.
 
@@ -79,11 +79,35 @@ let model = try await TTSModelUtils.loadModel(repo: descriptor.huggingFaceRepo)
 - **Headroom multiplier**: Per-consumer, not in MemoryManager. VoxAlta applies its 1.5× headroom (for KV caches, activations, speech tokenizer) before calling `MemoryManager.softCheck`/`hardValidate`. MemoryManager provides raw available memory; the multiplied value is what gets validated.
 - `VoxAltaModelManager` becomes a thin wrapper that translates between VoxAlta's model loading semantics and the MemoryManager's budget system
 
+**Example calling pattern**:
+```swift
+// In VoxAltaModelManager (actor)
+func validateMemory(for modelId: String) async throws {
+    let descriptor = Acervo.component(modelId)!
+    let requiredBytes = UInt64(Double(descriptor.minimumMemoryBytes) * 1.5)  // 1.5× headroom
+    let canFit = await MemoryManager.shared.softCheck(requiredBytes: requiredBytes)
+    if !canFit {
+        try await MemoryManager.shared.hardValidate(requiredBytes: requiredBytes)
+        // throws PipelineError.insufficientMemory if truly insufficient
+    }
+}
+```
+
 ### V1.3 Device Capability Detection
 
 **Current**: `AppleSiliconInfo` enum detects M1–M5 variants, tracks Neural Engine availability.
 
 **Target**: SwiftTubería's `DeviceCapability` provides this for all consumers. VoxAlta's M5 Neural Accelerator detection (`hasNeuralAccelerators`) should be contributed upstream to the shared detection system so all pipeline consumers benefit.
+
+### V1.4 GPU Cache Clearing
+
+After adopting SwiftTubería's MemoryManager, VoxAlta should replace direct MLX GPU calls with the shared API:
+
+| Current (VoxAlta) | Target (via MemoryManager) |
+|---|---|
+| `MLX.GPU.Stream.synchronize()` + `MLX.GPU.Memory.clearCache()` | `await MemoryManager.shared.clearGPUCache()` |
+
+`MemoryManager.clearGPUCache()` performs the same MLX calls internally but also updates its loaded-component tracking. This ensures that when both TTS and image models share the same device, the MemoryManager has an accurate picture of GPU memory state. Direct MLX calls bypass this tracking and can lead to stale memory estimates.
 
 ---
 
@@ -154,6 +178,8 @@ SwiftVoxAlta
 ```
 
 SwiftAcervo remains a direct dependency (upgraded to v2 with Component Registry). SwiftTubería provides only infrastructure services (MemoryManager, DeviceCapability). VoxAlta imports only the `Tubería` target (protocols + infrastructure), NOT `TuberíaCatalog` (diffusion components).
+
+**Import scope**: VoxAlta imports `Tubería` solely for `MemoryManager` and `DeviceCapability`. The diffusion pipeline protocols (`TextEncoder`, `Backbone`, `Decoder`, etc.) are available in the `Tubería` module but are intentionally unused — TTS generation flows through mlx-audio-swift, not through `DiffusionPipeline`. This is by design: VoxAlta connects to the infrastructure (water meter and pressure regulator) without using the pipes.
 
 ---
 
