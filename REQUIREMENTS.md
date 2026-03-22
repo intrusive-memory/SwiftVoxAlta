@@ -1,7 +1,7 @@
 # SwiftVoxAlta — Requirements (SwiftTubería Integration)
 
 **Status**: DRAFT — debate and refine before implementation.
-**Parent project**: [`PROJECT_PIPELINE.md`](../PROJECT_PIPELINE.md) — Unified MLX Inference Architecture (§5. SwiftVoxAlta, Wave 5.5–5.7)
+**Parent project**: [`PROJECT_PIPELINE.md`](../PROJECT_PIPELINE.md) — Unified MLX Inference Architecture (§4. SwiftVoxAlta, Wave 4.3–4.5)
 **Scope**: How SwiftVoxAlta adopts SwiftTubería's infrastructure services while preserving its VoiceProvider interface and TTS-specific pipeline.
 
 ---
