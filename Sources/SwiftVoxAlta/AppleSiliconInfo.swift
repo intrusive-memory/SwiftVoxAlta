@@ -84,11 +84,18 @@ public enum AppleSiliconGeneration: String, Sendable, CaseIterable {
 
     /// Whether this chip generation includes Neural Accelerators.
     ///
-    /// Delegates to `DeviceCapability.current.hasNeuralAccelerators`.
+    /// Returns `true` for M5 family chips, which are the first Apple Silicon generation
+    /// with dedicated Neural Accelerator hardware for MLX inference.
     ///
-    /// - Returns: `true` for chips where `DeviceCapability` reports Neural Accelerators.
+    /// Note: This is a per-case property reflecting the capability of the chip generation
+    /// represented by this enum case, not the hardware of the currently running machine.
     public var hasNeuralAccelerators: Bool {
-        DeviceCapability.current.hasNeuralAccelerators
+        switch self {
+        case .m5, .m5Pro, .m5Max, .m5Ultra:
+            return true
+        default:
+            return false
+        }
     }
 
     /// The current Apple Silicon generation detected on this system.

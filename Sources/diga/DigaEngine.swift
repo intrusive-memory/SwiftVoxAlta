@@ -240,7 +240,7 @@ actor DigaEngine {
         }
         // Map shorthands: the DigaCommand already resolves 0.6b/1.7b to full IDs,
         // so we check the full ID against known repos.
-        if override == TTSModelID.small {
+        if override == Qwen3TTSModelRepo.base0_6B.rawValue {
             return .base0_6B
         }
         // Default to Base 1.7B for unknown overrides

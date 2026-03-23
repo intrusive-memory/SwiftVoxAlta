@@ -129,8 +129,8 @@ struct DigaCommand: AsyncParsableCommand {
     /// Resolves the `--model` flag to a full HuggingFace model ID.
     ///
     /// Shorthand values:
-    /// - `"0.6b"` or `"0.6B"` → `TTSModelID.small`
-    /// - `"1.7b"` or `"1.7B"` → `TTSModelID.large`
+    /// - `"0.6b"` or `"0.6B"` → `Qwen3TTSModelRepo.base0_6B.rawValue`
+    /// - `"1.7b"` or `"1.7B"` → `Qwen3TTSModelRepo.base1_7B.rawValue`
     /// - Any other string containing `/` is treated as a HuggingFace model ID
     /// - `nil` returns `nil` (use auto-selection)
     ///

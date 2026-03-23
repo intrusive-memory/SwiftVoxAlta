@@ -87,29 +87,14 @@ public enum Qwen3TTSModelRepo: String, CaseIterable, Sendable {
     }
 }
 
-// MARK: - Approximate Model Sizes
+// MARK: - Model Size Constants
 
-/// Approximate on-disk/memory sizes for known Qwen3-TTS model variants.
-/// Used by `validateMemory` to check whether the system has enough RAM
-/// before attempting to load a model.
+/// Memory-related constants for Qwen3-TTS model loading.
+///
+/// Model size estimates are now declared in `ComponentDescriptor.minimumMemoryBytes`
+/// for each registered variant. This enum retains only the headroom multiplier
+/// that is VoxAlta-specific (not model metadata).
 public enum Qwen3TTSModelSize {
-    /// Approximate byte sizes for known model repos.
-    /// These are conservative estimates of the memory footprint once loaded.
-    public static let knownSizes: [String: Int] = [
-        // bf16 variants
-        "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16": 3_400_000_000,
-        "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16": 3_400_000_000,
-        "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16": 1_200_000_000,
-        "mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16": 3_400_000_000,
-        "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-bf16": 1_200_000_000,
-        // 8-bit quantized variants
-        "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit": 1_700_000_000,
-        "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit": 1_700_000_000,
-        // 4-bit quantized variants
-        "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-4bit": 850_000_000,
-        "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-4bit": 850_000_000,
-    ]
-
     /// The memory headroom multiplier applied to estimated model sizes.
     /// Models need additional memory for KV caches, intermediate activations,
     /// and the speech tokenizer during generation.
@@ -330,9 +315,11 @@ public actor VoxAltaModelManager {
             await unloadModel()
         }
 
-        // Warn (but don't block) if memory looks tight — let macOS manage pressure
-        if let estimatedSize = Qwen3TTSModelSize.knownSizes[repo] {
-            await checkMemory(forModelSizeBytes: estimatedSize)
+        // Warn (but don't block) if memory looks tight — let macOS manage pressure.
+        // Model size comes from the ComponentDescriptor registered at module init.
+        if let modelRepo = Qwen3TTSModelRepo(rawValue: repo),
+           let descriptor = Acervo.component(modelRepo.componentId) {
+            await checkMemory(forModelSizeBytes: Int(descriptor.minimumMemoryBytes))
         }
 
         // Ensure the model's files are on disk via the Acervo Component Registry.

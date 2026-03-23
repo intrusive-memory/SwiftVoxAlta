@@ -110,10 +110,13 @@ struct MemoryValidationTests {
         let availableMemory = await manager.availableMemory
 
         // Only run this test if the machine currently has enough free RAM
-        // (0.6B bf16 needs ~1.2GB * 1.5 = ~1.8GB)
-        let requiredSize = Qwen3TTSModelSize.knownSizes[
-            Qwen3TTSModelRepo.base0_6B.rawValue
-        ]!
+        // (0.6B bf16 needs ~1.2GB * 1.5 = ~1.8GB).
+        // Model size comes from the ComponentDescriptor registered at module init.
+        _ = VoxAltaModelManager()  // ensure registration
+        guard let descriptor = Acervo.component(Qwen3TTSModelRepo.base0_6B.componentId) else {
+            return  // ComponentDescriptor not yet available, skip gracefully
+        }
+        let requiredSize = Int(descriptor.minimumMemoryBytes)
         let headroomNeeded = Int(Double(requiredSize) * Qwen3TTSModelSize.headroomMultiplier)
 
         if availableMemory > UInt64(headroomNeeded) {
@@ -218,13 +221,16 @@ struct ModelRepoTests {
         }
     }
 
-    @Test("All model repos have known size estimates")
-    func reposHaveKnownSizes() {
+    @Test("All model repos have positive minimumMemoryBytes in their ComponentDescriptor")
+    func reposHaveComponentMemoryEstimates() {
+        // Ensure components are registered
+        _ = VoxAltaModelManager()
         for repo in Qwen3TTSModelRepo.allCases {
-            let size = Qwen3TTSModelSize.knownSizes[repo.rawValue]
-            #expect(size != nil, "Repo \(repo.rawValue) should have a known size estimate")
-            if let size {
-                #expect(size > 0, "Size for \(repo.rawValue) should be positive")
+            let descriptor = Acervo.component(repo.componentId)
+            #expect(descriptor != nil, "Repo \(repo.rawValue) should have a registered ComponentDescriptor")
+            if let descriptor {
+                #expect(descriptor.minimumMemoryBytes > 0,
+                        "minimumMemoryBytes for \(repo.rawValue) should be positive")
             }
         }
     }
@@ -235,33 +241,31 @@ struct ModelRepoTests {
 @Suite("Qwen3TTSModelSize - Size Estimates")
 struct ModelSizeTests {
 
-    @Test("1.7B bf16 models are larger than 0.6B bf16 models")
+    @Test("1.7B bf16 models are larger than 0.6B bf16 models in ComponentDescriptors")
     func largeModelsAreLarger() {
-        let voiceDesign1_7B = Qwen3TTSModelSize.knownSizes[
-            Qwen3TTSModelRepo.voiceDesign1_7B.rawValue
-        ]!
-        let base1_7B = Qwen3TTSModelSize.knownSizes[
-            Qwen3TTSModelRepo.base1_7B.rawValue
-        ]!
-        let base0_6B = Qwen3TTSModelSize.knownSizes[
-            Qwen3TTSModelRepo.base0_6B.rawValue
-        ]!
+        // Ensure components are registered
+        _ = VoxAltaModelManager()
+        let voiceDesign1_7B = Acervo.component(Qwen3TTSModelRepo.voiceDesign1_7B.componentId)!
+            .minimumMemoryBytes
+        let base1_7B = Acervo.component(Qwen3TTSModelRepo.base1_7B.componentId)!
+            .minimumMemoryBytes
+        let base0_6B = Acervo.component(Qwen3TTSModelRepo.base0_6B.componentId)!
+            .minimumMemoryBytes
 
         #expect(voiceDesign1_7B > base0_6B)
         #expect(base1_7B > base0_6B)
     }
 
-    @Test("Quantized models are smaller than bf16 counterparts")
+    @Test("Quantized variants are smaller than bf16 base in ComponentDescriptors")
     func quantizedModelsAreSmaller() {
-        let bf16 = Qwen3TTSModelSize.knownSizes[
-            "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
-        ]!
-        let eightBit = Qwen3TTSModelSize.knownSizes[
-            "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit"
-        ]!
-        let fourBit = Qwen3TTSModelSize.knownSizes[
-            "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-4bit"
-        ]!
+        // Ensure components are registered
+        _ = VoxAltaModelManager()
+        let bf16 = Acervo.component(Qwen3TTSModelRepo.base1_7B.componentId)!
+            .minimumMemoryBytes
+        let eightBit = Acervo.component(Qwen3TTSModelRepo.base1_7B_8bit.componentId)!
+            .minimumMemoryBytes
+        let fourBit = Acervo.component(Qwen3TTSModelRepo.base1_7B_4bit.componentId)!
+            .minimumMemoryBytes
 
         #expect(bf16 > eightBit, "bf16 should be larger than 8-bit quantized")
         #expect(eightBit > fourBit, "8-bit should be larger than 4-bit quantized")

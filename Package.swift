@@ -58,6 +58,7 @@ let package = Package(
             dependencies: [
                 "SwiftVoxAlta",
                 .product(name: "SwiftAcervo", package: "SwiftAcervo"),
+                .product(name: "Tuberia", package: "SwiftTubería"),
                 .product(name: "VoxFormat", package: "vox-format"),
             ],
             swiftSettings: [

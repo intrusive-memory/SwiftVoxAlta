@@ -2,18 +2,8 @@ import Foundation
 import SwiftAcervo
 import SwiftVoxAlta
 
-/// Known TTS model identifiers from HuggingFace.
-enum TTSModelID {
-    /// Large model (1.7B parameters) — better quality, requires 16GB+ RAM.
-    static let large = Qwen3TTSModelRepo.base1_7B.rawValue
-    /// Small model (0.6B parameters) — fits in less RAM.
-    static let small = Qwen3TTSModelRepo.base0_6B.rawValue
-    /// VoiceDesign model (1.7B only) — generates voices from text descriptions.
-    static let voiceDesign = Qwen3TTSModelRepo.voiceDesign1_7B.rawValue
-
-    /// RAM threshold in bytes (16 GB) above which the large model is recommended.
-    static let ramThresholdBytes: UInt64 = 16 * 1024 * 1024 * 1024
-}
+/// RAM threshold in bytes (16 GB) above which the large model is recommended.
+private let ramThresholdBytes: UInt64 = 16 * 1024 * 1024 * 1024
 
 /// Progress callback type for model downloads.
 /// - Parameters:
@@ -81,10 +71,10 @@ actor DigaModelManager {
     /// - Parameter ramBytes: Physical memory in bytes.
     /// - Returns: The recommended model identifier.
     static func recommendedModel(forRAMBytes ramBytes: UInt64) -> String {
-        if ramBytes >= TTSModelID.ramThresholdBytes {
-            return TTSModelID.large
+        if ramBytes >= ramThresholdBytes {
+            return Qwen3TTSModelRepo.base1_7B.rawValue
         } else {
-            return TTSModelID.small
+            return Qwen3TTSModelRepo.base0_6B.rawValue
         }
     }
 
