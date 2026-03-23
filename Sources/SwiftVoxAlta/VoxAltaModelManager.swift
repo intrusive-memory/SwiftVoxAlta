@@ -7,9 +7,9 @@
 //
 
 import Foundation
-@preconcurrency import MLX
 import MLXAudioTTS
 import SwiftAcervo
+import Tuberia
 
 // MARK: - Supported Model Repos
 
@@ -327,12 +327,12 @@ public actor VoxAltaModelManager {
 
         // Unload current model if switching repos
         if cachedModel != nil {
-            unloadModel()
+            await unloadModel()
         }
 
         // Warn (but don't block) if memory looks tight — let macOS manage pressure
         if let estimatedSize = Qwen3TTSModelSize.knownSizes[repo] {
-            checkMemory(forModelSizeBytes: estimatedSize)
+            await checkMemory(forModelSizeBytes: estimatedSize)
         }
 
         // Ensure the model's files are on disk via the Acervo Component Registry.
@@ -383,7 +383,7 @@ public actor VoxAltaModelManager {
     /// After calling this method, `isModelLoaded` returns `false` and
     /// `currentModelRepo` returns `nil`. Calling `unloadModel()` when
     /// no model is loaded is a no-op.
-    public func unloadModel() {
+    public func unloadModel() async {
         cachedModel = nil
         _currentModelRepo = nil
 
@@ -391,8 +391,7 @@ public actor VoxAltaModelManager {
         // from the previous model is complete, then release cached Metal buffers.
         // Without this, loading a new model can crash in AGX::ComputeContext
         // due to stale Metal command buffers from the previous model.
-        Stream.defaultStream(.gpu).synchronize()
-        Memory.clearCache()
+        await MemoryManager.shared.clearGPUCache()
     }
 
     // MARK: - Memory Validation
@@ -402,86 +401,62 @@ public actor VoxAltaModelManager {
     /// looks tight, but does **not** throw — macOS is capable of reclaiming memory
     /// from compressed, inactive, and cached pages on demand.
     ///
+    /// Delegates to `MemoryManager.shared.softCheck(requiredBytes:)` after applying
+    /// the 1.5x headroom multiplier for KV caches, intermediate activations, and
+    /// the speech tokenizer during generation.
+    ///
     /// - Parameter requiredBytes: The estimated memory footprint of the model in bytes.
     /// - Returns: `true` if available memory comfortably fits the model, `false` if it may be tight.
     @discardableResult
-    public func checkMemory(forModelSizeBytes requiredBytes: Int) -> Bool {
-        let available = Self.queryAvailableMemory()
-        let requiredWithHeadroom = Int(Double(requiredBytes) * Qwen3TTSModelSize.headroomMultiplier)
+    public func checkMemory(forModelSizeBytes requiredBytes: Int) async -> Bool {
+        let requiredWithHeadroom = UInt64(Double(requiredBytes) * Qwen3TTSModelSize.headroomMultiplier)
+        let passed = await MemoryManager.shared.softCheck(requiredBytes: requiredWithHeadroom)
 
-        if available < requiredWithHeadroom {
-            let availMB = available / (1024 * 1024)
+        if !passed {
+            let availMB = await MemoryManager.shared.availableMemory / (1024 * 1024)
             let reqMB = requiredWithHeadroom / (1024 * 1024)
             FileHandle.standardError.write(Data(
                 "Warning: Low memory — \(availMB) MB reclaimable vs \(reqMB) MB needed. macOS will manage swap if necessary.\n".utf8
             ))
-            return false
         }
-        return true
+        return passed
     }
 
     /// Legacy throwing validation — kept for callers that require a hard gate.
     ///
+    /// Delegates to `MemoryManager.shared.hardValidate(requiredBytes:)` after applying
+    /// the 1.5x headroom multiplier. Translates `PipelineError` to `VoxAltaError`.
+    ///
     /// - Parameter requiredBytes: The estimated memory footprint of the model in bytes.
     /// - Throws: `VoxAltaError.insufficientMemory` if available memory is insufficient.
-    public func validateMemory(forModelSizeBytes requiredBytes: Int) throws {
-        let available = Self.queryAvailableMemory()
-        let requiredWithHeadroom = Int(Double(requiredBytes) * Qwen3TTSModelSize.headroomMultiplier)
-
-        guard available >= requiredWithHeadroom else {
+    public func validateMemory(forModelSizeBytes requiredBytes: Int) async throws {
+        let requiredWithHeadroom = UInt64(Double(requiredBytes) * Qwen3TTSModelSize.headroomMultiplier)
+        do {
+            try await MemoryManager.shared.hardValidate(requiredBytes: requiredWithHeadroom)
+        } catch {
+            let available = await MemoryManager.shared.availableMemory
             throw VoxAltaError.insufficientMemory(
-                available: available,
-                required: requiredWithHeadroom
+                available: Int(available),
+                required: Int(requiredWithHeadroom)
             )
         }
     }
 
     /// Returns the total physical memory of the system in bytes.
     ///
-    /// Useful for display in configuration UI to show total vs. available memory.
+    /// Delegates to `MemoryManager.shared.totalMemory`.
     public var totalPhysicalMemory: UInt64 {
-        ProcessInfo.processInfo.physicalMemory
+        get async {
+            await MemoryManager.shared.totalMemory
+        }
     }
 
     /// Returns the currently available memory in bytes.
     ///
-    /// Uses Mach VM statistics to estimate free + purgeable memory.
+    /// Delegates to `MemoryManager.shared.availableMemory`.
     public var availableMemory: UInt64 {
-        UInt64(Self.queryAvailableMemory())
-    }
-
-    /// Query reclaimable memory using Mach VM statistics.
-    ///
-    /// Includes free, purgeable, inactive, and speculative pages — all of which
-    /// macOS can reclaim on demand without terminating processes. This gives a
-    /// realistic picture of what's actually available for large allocations,
-    /// rather than just the "free" count shown by Activity Monitor.
-    private nonisolated static func queryAvailableMemory() -> Int {
-        var stats = vm_statistics64()
-        var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.size / MemoryLayout<integer_t>.size)
-        let result = withUnsafeMutablePointer(to: &stats) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
-            }
+        get async {
+            await MemoryManager.shared.availableMemory
         }
-        guard result == KERN_SUCCESS else {
-            // Fallback: use total physical memory as a rough estimate
-            return Int(ProcessInfo.processInfo.physicalMemory)
-        }
-        // Use sysctl to get page size (vm_kernel_page_size is unavailable on macOS 26)
-        let pageSize = Self.systemPageSize
-        let free = Int(stats.free_count) * pageSize
-        let inactive = Int(stats.inactive_count) * pageSize
-        let purgeable = Int(stats.purgeable_count) * pageSize
-        let speculative = Int(stats.speculative_count) * pageSize
-        return free + inactive + purgeable + speculative
-    }
-
-    /// System page size obtained via sysctl, avoiding deprecated vm_kernel_page_size.
-    private nonisolated static var systemPageSize: Int {
-        var pageSize: Int = 0
-        var size = MemoryLayout<Int>.size
-        sysctlbyname("hw.pagesize", &pageSize, &size, nil, 0)
-        return pageSize > 0 ? pageSize : 16384  // Default to 16KB (Apple Silicon)
     }
 }
