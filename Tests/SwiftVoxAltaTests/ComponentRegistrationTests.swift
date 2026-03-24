@@ -59,8 +59,7 @@ struct ComponentRegistrationTests {
                 continue
             }
             #expect(descriptor.huggingFaceRepo == repo.rawValue,
-                    "HuggingFace repo mismatch for \(repo.componentId): " +
-                    "expected '\(repo.rawValue)', got '\(descriptor.huggingFaceRepo)'")
+                    "HuggingFace repo mismatch for \(repo.componentId): expected '\(repo.rawValue)', got '\(descriptor.huggingFaceRepo)'")
         }
     }
 

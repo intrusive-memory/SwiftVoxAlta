@@ -6,6 +6,7 @@
 //
 
 import Foundation
+@preconcurrency import MLX
 @preconcurrency import MLXAudioTTS
 @preconcurrency import MLXLMCommon
 import Tuberia
