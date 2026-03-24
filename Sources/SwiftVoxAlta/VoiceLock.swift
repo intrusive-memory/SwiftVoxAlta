@@ -15,27 +15,27 @@ import Foundation
 /// and stored for future use. The app (Produciesta) persists this as `TypedDataStorage`
 /// with mimeType `"application/x-clone-prompt"`.
 public struct VoiceLock: Codable, Sendable {
-    /// The character name this voice is locked to (normalized to uppercase).
-    public let characterName: String
+  /// The character name this voice is locked to (normalized to uppercase).
+  public let characterName: String
 
-    /// The serialized clone prompt (speaker embedding) extracted from the selected voice candidate.
-    public let clonePromptData: Data
+  /// The serialized clone prompt (speaker embedding) extracted from the selected voice candidate.
+  public let clonePromptData: Data
 
-    /// The voice design instruction text that was used to generate the original candidates.
-    public let designInstruction: String
+  /// The voice design instruction text that was used to generate the original candidates.
+  public let designInstruction: String
 
-    /// The timestamp when this voice was locked.
-    public let lockedAt: Date
+  /// The timestamp when this voice was locked.
+  public let lockedAt: Date
 
-    public init(
-        characterName: String,
-        clonePromptData: Data,
-        designInstruction: String,
-        lockedAt: Date = Date()
-    ) {
-        self.characterName = characterName
-        self.clonePromptData = clonePromptData
-        self.designInstruction = designInstruction
-        self.lockedAt = lockedAt
-    }
+  public init(
+    characterName: String,
+    clonePromptData: Data,
+    designInstruction: String,
+    lockedAt: Date = Date()
+  ) {
+    self.characterName = characterName
+    self.clonePromptData = clonePromptData
+    self.designInstruction = designInstruction
+    self.lockedAt = lockedAt
+  }
 }

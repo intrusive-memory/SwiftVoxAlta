@@ -9,102 +9,102 @@ import NaturalLanguage
 /// maximum word count is emitted as its own chunk.
 enum TextChunker: Sendable {
 
-    /// The default maximum number of words per chunk.
-    /// Qwen3-TTS handles ~200 words per generation well.
-    static let defaultMaxWordsPerChunk = 200
+  /// The default maximum number of words per chunk.
+  /// Qwen3-TTS handles ~200 words per generation well.
+  static let defaultMaxWordsPerChunk = 200
 
-    /// Split text into chunks of approximately `maxWords` words,
-    /// breaking only on sentence boundaries.
-    ///
-    /// - Parameters:
-    ///   - text: The input text to chunk.
-    ///   - maxWords: Maximum words per chunk. Defaults to ``defaultMaxWordsPerChunk``.
-    /// - Returns: An array of text chunks. Returns an empty array for empty/whitespace-only input.
-    static func chunk(_ text: String, maxWords: Int = defaultMaxWordsPerChunk) -> [String] {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return []
-        }
-
-        let sentences = splitSentences(trimmed)
-
-        // If NLTokenizer found no sentences (unlikely but defensive), return the whole text.
-        guard !sentences.isEmpty else {
-            return [trimmed]
-        }
-
-        return groupSentences(sentences, maxWords: maxWords)
+  /// Split text into chunks of approximately `maxWords` words,
+  /// breaking only on sentence boundaries.
+  ///
+  /// - Parameters:
+  ///   - text: The input text to chunk.
+  ///   - maxWords: Maximum words per chunk. Defaults to ``defaultMaxWordsPerChunk``.
+  /// - Returns: An array of text chunks. Returns an empty array for empty/whitespace-only input.
+  static func chunk(_ text: String, maxWords: Int = defaultMaxWordsPerChunk) -> [String] {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+      return []
     }
 
-    // MARK: - Private
+    let sentences = splitSentences(trimmed)
 
-    /// Split text into sentences using NLTokenizer.
-    ///
-    /// - Parameter text: The input text.
-    /// - Returns: An array of sentence strings, preserving original whitespace within each sentence.
-    private static func splitSentences(_ text: String) -> [String] {
-        let tokenizer = NLTokenizer(unit: .sentence)
-        tokenizer.string = text
-
-        var sentences: [String] = []
-        tokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { range, _ in
-            let sentence = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
-            if !sentence.isEmpty {
-                sentences.append(sentence)
-            }
-            return true
-        }
-
-        // Fallback: if NLTokenizer produces nothing, treat the whole text as one sentence.
-        if sentences.isEmpty && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            sentences.append(text.trimmingCharacters(in: .whitespacesAndNewlines))
-        }
-
-        return sentences
+    // If NLTokenizer found no sentences (unlikely but defensive), return the whole text.
+    guard !sentences.isEmpty else {
+      return [trimmed]
     }
 
-    /// Group sentences into chunks that do not exceed `maxWords` words.
-    ///
-    /// A single sentence that exceeds `maxWords` on its own is placed in its
-    /// own chunk without further splitting — we never break mid-sentence.
-    ///
-    /// - Parameters:
-    ///   - sentences: An array of sentence strings.
-    ///   - maxWords: The maximum word count target per chunk.
-    /// - Returns: An array of chunk strings, each containing one or more sentences.
-    private static func groupSentences(_ sentences: [String], maxWords: Int) -> [String] {
-        var chunks: [String] = []
-        var currentSentences: [String] = []
-        var currentWordCount = 0
+    return groupSentences(sentences, maxWords: maxWords)
+  }
 
-        for sentence in sentences {
-            let sentenceWordCount = wordCount(sentence)
+  // MARK: - Private
 
-            // If adding this sentence would exceed the limit and we already have content,
-            // finalize the current chunk first.
-            if currentWordCount + sentenceWordCount > maxWords && !currentSentences.isEmpty {
-                chunks.append(currentSentences.joined(separator: " "))
-                currentSentences = []
-                currentWordCount = 0
-            }
+  /// Split text into sentences using NLTokenizer.
+  ///
+  /// - Parameter text: The input text.
+  /// - Returns: An array of sentence strings, preserving original whitespace within each sentence.
+  private static func splitSentences(_ text: String) -> [String] {
+    let tokenizer = NLTokenizer(unit: .sentence)
+    tokenizer.string = text
 
-            currentSentences.append(sentence)
-            currentWordCount += sentenceWordCount
-        }
-
-        // Flush remaining sentences.
-        if !currentSentences.isEmpty {
-            chunks.append(currentSentences.joined(separator: " "))
-        }
-
-        return chunks
+    var sentences: [String] = []
+    tokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { range, _ in
+      let sentence = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+      if !sentence.isEmpty {
+        sentences.append(sentence)
+      }
+      return true
     }
 
-    /// Count words in a string using whitespace splitting.
-    ///
-    /// - Parameter text: The text to count words in.
-    /// - Returns: The number of whitespace-separated tokens.
-    static func wordCount(_ text: String) -> Int {
-        text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+    // Fallback: if NLTokenizer produces nothing, treat the whole text as one sentence.
+    if sentences.isEmpty && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      sentences.append(text.trimmingCharacters(in: .whitespacesAndNewlines))
     }
+
+    return sentences
+  }
+
+  /// Group sentences into chunks that do not exceed `maxWords` words.
+  ///
+  /// A single sentence that exceeds `maxWords` on its own is placed in its
+  /// own chunk without further splitting — we never break mid-sentence.
+  ///
+  /// - Parameters:
+  ///   - sentences: An array of sentence strings.
+  ///   - maxWords: The maximum word count target per chunk.
+  /// - Returns: An array of chunk strings, each containing one or more sentences.
+  private static func groupSentences(_ sentences: [String], maxWords: Int) -> [String] {
+    var chunks: [String] = []
+    var currentSentences: [String] = []
+    var currentWordCount = 0
+
+    for sentence in sentences {
+      let sentenceWordCount = wordCount(sentence)
+
+      // If adding this sentence would exceed the limit and we already have content,
+      // finalize the current chunk first.
+      if currentWordCount + sentenceWordCount > maxWords && !currentSentences.isEmpty {
+        chunks.append(currentSentences.joined(separator: " "))
+        currentSentences = []
+        currentWordCount = 0
+      }
+
+      currentSentences.append(sentence)
+      currentWordCount += sentenceWordCount
+    }
+
+    // Flush remaining sentences.
+    if !currentSentences.isEmpty {
+      chunks.append(currentSentences.joined(separator: " "))
+    }
+
+    return chunks
+  }
+
+  /// Count words in a string using whitespace splitting.
+  ///
+  /// - Parameter text: The text to count words in.
+  /// - Returns: The number of whitespace-separated tokens.
+  static func wordCount(_ text: String) -> Int {
+    text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+  }
 }

@@ -9,49 +9,49 @@ import Foundation
 
 /// Output audio format for rendered speech.
 public enum AudioOutputFormat: String, Codable, Sendable {
-    case wav
-    case aiff
-    case m4a
+  case wav
+  case aiff
+  case m4a
 }
 
 /// Configuration controlling VoxAlta's model selection, candidate generation,
 /// and output format.
 public struct VoxAltaConfig: Codable, Sendable {
-    /// HuggingFace repo ID for the Qwen3-TTS VoiceDesign model (used for generating voice candidates).
-    public let designModel: String
+  /// HuggingFace repo ID for the Qwen3-TTS VoiceDesign model (used for generating voice candidates).
+  public let designModel: String
 
-    /// HuggingFace repo ID for the Qwen3-TTS Base model (used for rendering dialogue audio).
-    public let renderModel: String
+  /// HuggingFace repo ID for the Qwen3-TTS Base model (used for rendering dialogue audio).
+  public let renderModel: String
 
-    /// Model identifier for the SwiftBruja LLM used for character analysis.
-    public let analysisModel: String
+  /// Model identifier for the SwiftBruja LLM used for character analysis.
+  public let analysisModel: String
 
-    /// Number of voice candidates to generate during voice design.
-    public let candidateCount: Int
+  /// Number of voice candidates to generate during voice design.
+  public let candidateCount: Int
 
-    /// Audio output format for rendered speech.
-    public let outputFormat: AudioOutputFormat
+  /// Audio output format for rendered speech.
+  public let outputFormat: AudioOutputFormat
 
-    public init(
-        designModel: String,
-        renderModel: String,
-        analysisModel: String,
-        candidateCount: Int,
-        outputFormat: AudioOutputFormat
-    ) {
-        self.designModel = designModel
-        self.renderModel = renderModel
-        self.analysisModel = analysisModel
-        self.candidateCount = candidateCount
-        self.outputFormat = outputFormat
-    }
+  public init(
+    designModel: String,
+    renderModel: String,
+    analysisModel: String,
+    candidateCount: Int,
+    outputFormat: AudioOutputFormat
+  ) {
+    self.designModel = designModel
+    self.renderModel = renderModel
+    self.analysisModel = analysisModel
+    self.candidateCount = candidateCount
+    self.outputFormat = outputFormat
+  }
 
-    /// Default configuration using standard Qwen3-TTS models.
-    public static let `default` = VoxAltaConfig(
-        designModel: Qwen3TTSModelRepo.voiceDesign1_7B.rawValue,
-        renderModel: Qwen3TTSModelRepo.base1_7B.rawValue,
-        analysisModel: "mlx-community/Qwen3-4B-4bit",  // LLM, not a TTS model — kept as-is
-        candidateCount: 3,
-        outputFormat: .wav
-    )
+  /// Default configuration using standard Qwen3-TTS models.
+  public static let `default` = VoxAltaConfig(
+    designModel: Qwen3TTSModelRepo.voiceDesign1_7B.rawValue,
+    renderModel: Qwen3TTSModelRepo.base1_7B.rawValue,
+    analysisModel: "mlx-community/Qwen3-4B-4bit",  // LLM, not a TTS model — kept as-is
+    candidateCount: 3,
+    outputFormat: .wav
+  )
 }
