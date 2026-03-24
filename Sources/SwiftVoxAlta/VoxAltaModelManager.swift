@@ -7,9 +7,9 @@
 //
 
 import Foundation
-@preconcurrency import MLX
 import MLXAudioTTS
 import SwiftAcervo
+import Tuberia
 
 // MARK: - Supported Model Repos
 
@@ -87,34 +87,134 @@ public enum Qwen3TTSModelRepo: String, CaseIterable, Sendable {
     }
 }
 
-// MARK: - Approximate Model Sizes
+// MARK: - Model Size Constants
 
-/// Approximate on-disk/memory sizes for known Qwen3-TTS model variants.
-/// Used by `validateMemory` to check whether the system has enough RAM
-/// before attempting to load a model.
+/// Memory-related constants for Qwen3-TTS model loading.
+///
+/// Model size estimates are now declared in `ComponentDescriptor.minimumMemoryBytes`
+/// for each registered variant. This enum retains only the headroom multiplier
+/// that is VoxAlta-specific (not model metadata).
 public enum Qwen3TTSModelSize {
-    /// Approximate byte sizes for known model repos.
-    /// These are conservative estimates of the memory footprint once loaded.
-    public static let knownSizes: [String: Int] = [
-        // bf16 variants
-        "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16": 3_400_000_000,
-        "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16": 3_400_000_000,
-        "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16": 1_200_000_000,
-        "mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16": 3_400_000_000,
-        "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-bf16": 1_200_000_000,
-        // 8-bit quantized variants
-        "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit": 1_700_000_000,
-        "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit": 1_700_000_000,
-        // 4-bit quantized variants
-        "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-4bit": 850_000_000,
-        "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-4bit": 850_000_000,
-    ]
-
     /// The memory headroom multiplier applied to estimated model sizes.
     /// Models need additional memory for KV caches, intermediate activations,
     /// and the speech tokenizer during generation.
     public static let headroomMultiplier: Double = 1.5
 }
+
+// MARK: - Acervo Component Registration
+
+extension Qwen3TTSModelRepo {
+    /// The Acervo component ID for this model variant.
+    ///
+    /// Used to look up, download, and check availability of this model
+    /// via the SwiftAcervo Component Registry.
+    public var componentId: String {
+        switch self {
+        case .base1_7B:         return "qwen3-tts-base-1.7b"
+        case .base0_6B:         return "qwen3-tts-base-0.6b"
+        case .customVoice1_7B:  return "qwen3-tts-custom-1.7b"
+        case .customVoice0_6B:  return "qwen3-tts-custom-0.6b"
+        case .voiceDesign1_7B:  return "qwen3-tts-voicedesign-1.7b"
+        case .base1_7B_8bit:    return "qwen3-tts-base-1.7b-8bit"
+        case .base1_7B_4bit:    return "qwen3-tts-base-1.7b-4bit"
+        }
+    }
+}
+
+/// Required files for any Qwen3-TTS model variant.
+///
+/// These files are declared in each `ComponentDescriptor` so that
+/// `Acervo.ensureComponentReady()` knows exactly what to download.
+private let qwen3TTSRequiredFiles: [ComponentFile] = [
+    ComponentFile(relativePath: "config.json"),
+    ComponentFile(relativePath: "tokenizer.json"),
+    ComponentFile(relativePath: "tokenizer_config.json"),
+    ComponentFile(relativePath: "model.safetensors"),
+]
+
+/// All 7 Qwen3-TTS component descriptors (6 active + 1 deprecated).
+///
+/// Registered at module initialization so the Acervo Component Registry
+/// is populated before any model loading or download is attempted.
+private let qwen3TTSComponentDescriptors: [ComponentDescriptor] = [
+    ComponentDescriptor(
+        id: Qwen3TTSModelRepo.base1_7B.componentId,
+        type: .languageModel,
+        displayName: "Qwen3-TTS Base 1.7B (bf16)",
+        huggingFaceRepo: Qwen3TTSModelRepo.base1_7B.rawValue,
+        files: qwen3TTSRequiredFiles,
+        estimatedSizeBytes: 3_400_000_000,
+        minimumMemoryBytes: 3_400_000_000
+    ),
+    ComponentDescriptor(
+        id: Qwen3TTSModelRepo.base0_6B.componentId,
+        type: .languageModel,
+        displayName: "Qwen3-TTS Base 0.6B (bf16)",
+        huggingFaceRepo: Qwen3TTSModelRepo.base0_6B.rawValue,
+        files: qwen3TTSRequiredFiles,
+        estimatedSizeBytes: 1_200_000_000,
+        minimumMemoryBytes: 1_200_000_000
+    ),
+    ComponentDescriptor(
+        id: Qwen3TTSModelRepo.customVoice1_7B.componentId,
+        type: .languageModel,
+        displayName: "Qwen3-TTS CustomVoice 1.7B (bf16)",
+        huggingFaceRepo: Qwen3TTSModelRepo.customVoice1_7B.rawValue,
+        files: qwen3TTSRequiredFiles,
+        estimatedSizeBytes: 3_400_000_000,
+        minimumMemoryBytes: 3_400_000_000
+    ),
+    ComponentDescriptor(
+        id: Qwen3TTSModelRepo.customVoice0_6B.componentId,
+        type: .languageModel,
+        displayName: "Qwen3-TTS CustomVoice 0.6B (bf16)",
+        huggingFaceRepo: Qwen3TTSModelRepo.customVoice0_6B.rawValue,
+        files: qwen3TTSRequiredFiles,
+        estimatedSizeBytes: 1_200_000_000,
+        minimumMemoryBytes: 1_200_000_000
+    ),
+    ComponentDescriptor(
+        id: Qwen3TTSModelRepo.voiceDesign1_7B.componentId,
+        type: .languageModel,
+        displayName: "Qwen3-TTS VoiceDesign 1.7B (bf16)",
+        huggingFaceRepo: Qwen3TTSModelRepo.voiceDesign1_7B.rawValue,
+        files: qwen3TTSRequiredFiles,
+        estimatedSizeBytes: 3_400_000_000,
+        minimumMemoryBytes: 3_400_000_000
+    ),
+    ComponentDescriptor(
+        id: Qwen3TTSModelRepo.base1_7B_8bit.componentId,
+        type: .languageModel,
+        displayName: "Qwen3-TTS Base 1.7B (8-bit)",
+        huggingFaceRepo: Qwen3TTSModelRepo.base1_7B_8bit.rawValue,
+        files: qwen3TTSRequiredFiles,
+        estimatedSizeBytes: 1_700_000_000,
+        minimumMemoryBytes: 1_700_000_000
+    ),
+    // Deprecated: 4-bit variant has significant quality degradation.
+    // Keep registered so existing cached copies can be migrated/deleted.
+    // Excluded from UI/CLI model selection by default.
+    ComponentDescriptor(
+        id: Qwen3TTSModelRepo.base1_7B_4bit.componentId,
+        type: .languageModel,
+        displayName: "Qwen3-TTS Base 1.7B (4-bit) [Deprecated]",
+        huggingFaceRepo: Qwen3TTSModelRepo.base1_7B_4bit.rawValue,
+        files: qwen3TTSRequiredFiles,
+        estimatedSizeBytes: 850_000_000,
+        minimumMemoryBytes: 850_000_000,
+        metadata: ["deprecated": "true"]
+    ),
+]
+
+/// Module-level registration trigger.
+///
+/// This `let` is evaluated once (lazily) on first access, registering all
+/// 7 Qwen3-TTS component descriptors with the SwiftAcervo Component Registry.
+/// `VoxAltaModelManager.init()` references this to ensure registration happens
+/// before any model loading or download call.
+private let _registerQwen3TTSComponents: Void = {
+    Acervo.register(qwen3TTSComponentDescriptors)
+}()
 
 // MARK: - VoxAltaModelManager
 
@@ -153,7 +253,13 @@ public actor VoxAltaModelManager {
     private var migrationAttempted = false
 
     /// Initializes an empty model manager with no model loaded.
-    public init() {}
+    ///
+    /// Triggers Acervo component registration on first instantiation via
+    /// the module-level `_registerQwen3TTSComponents` lazy initializer.
+    public init() {
+        // Trigger lazy registration of all Qwen3-TTS ComponentDescriptors.
+        _ = _registerQwen3TTSComponents
+    }
 
     // MARK: - Acervo Integration
 
@@ -206,12 +312,20 @@ public actor VoxAltaModelManager {
 
         // Unload current model if switching repos
         if cachedModel != nil {
-            unloadModel()
+            await unloadModel()
         }
 
-        // Warn (but don't block) if memory looks tight — let macOS manage pressure
-        if let estimatedSize = Qwen3TTSModelSize.knownSizes[repo] {
-            checkMemory(forModelSizeBytes: estimatedSize)
+        // Warn (but don't block) if memory looks tight — let macOS manage pressure.
+        // Model size comes from the ComponentDescriptor registered at module init.
+        if let modelRepo = Qwen3TTSModelRepo(rawValue: repo),
+           let descriptor = Acervo.component(modelRepo.componentId) {
+            await checkMemory(forModelSizeBytes: Int(descriptor.minimumMemoryBytes))
+        }
+
+        // Ensure the model's files are on disk via the Acervo Component Registry.
+        // This replaces the implicit download-on-demand in TTSModelUtils.
+        if let modelRepo = Qwen3TTSModelRepo(rawValue: repo) {
+            try await Acervo.ensureComponentReady(modelRepo.componentId)
         }
 
         // Load via mlx-audio-swift's TTSModelUtils
@@ -256,7 +370,7 @@ public actor VoxAltaModelManager {
     /// After calling this method, `isModelLoaded` returns `false` and
     /// `currentModelRepo` returns `nil`. Calling `unloadModel()` when
     /// no model is loaded is a no-op.
-    public func unloadModel() {
+    public func unloadModel() async {
         cachedModel = nil
         _currentModelRepo = nil
 
@@ -264,8 +378,7 @@ public actor VoxAltaModelManager {
         // from the previous model is complete, then release cached Metal buffers.
         // Without this, loading a new model can crash in AGX::ComputeContext
         // due to stale Metal command buffers from the previous model.
-        Stream.defaultStream(.gpu).synchronize()
-        Memory.clearCache()
+        await MemoryManager.shared.clearGPUCache()
     }
 
     // MARK: - Memory Validation
@@ -275,86 +388,62 @@ public actor VoxAltaModelManager {
     /// looks tight, but does **not** throw — macOS is capable of reclaiming memory
     /// from compressed, inactive, and cached pages on demand.
     ///
+    /// Delegates to `MemoryManager.shared.softCheck(requiredBytes:)` after applying
+    /// the 1.5x headroom multiplier for KV caches, intermediate activations, and
+    /// the speech tokenizer during generation.
+    ///
     /// - Parameter requiredBytes: The estimated memory footprint of the model in bytes.
     /// - Returns: `true` if available memory comfortably fits the model, `false` if it may be tight.
     @discardableResult
-    public func checkMemory(forModelSizeBytes requiredBytes: Int) -> Bool {
-        let available = Self.queryAvailableMemory()
-        let requiredWithHeadroom = Int(Double(requiredBytes) * Qwen3TTSModelSize.headroomMultiplier)
+    public func checkMemory(forModelSizeBytes requiredBytes: Int) async -> Bool {
+        let requiredWithHeadroom = UInt64(Double(requiredBytes) * Qwen3TTSModelSize.headroomMultiplier)
+        let passed = await MemoryManager.shared.softCheck(requiredBytes: requiredWithHeadroom)
 
-        if available < requiredWithHeadroom {
-            let availMB = available / (1024 * 1024)
+        if !passed {
+            let availMB = await MemoryManager.shared.availableMemory / (1024 * 1024)
             let reqMB = requiredWithHeadroom / (1024 * 1024)
             FileHandle.standardError.write(Data(
                 "Warning: Low memory — \(availMB) MB reclaimable vs \(reqMB) MB needed. macOS will manage swap if necessary.\n".utf8
             ))
-            return false
         }
-        return true
+        return passed
     }
 
     /// Legacy throwing validation — kept for callers that require a hard gate.
     ///
+    /// Delegates to `MemoryManager.shared.hardValidate(requiredBytes:)` after applying
+    /// the 1.5x headroom multiplier. Translates `PipelineError` to `VoxAltaError`.
+    ///
     /// - Parameter requiredBytes: The estimated memory footprint of the model in bytes.
     /// - Throws: `VoxAltaError.insufficientMemory` if available memory is insufficient.
-    public func validateMemory(forModelSizeBytes requiredBytes: Int) throws {
-        let available = Self.queryAvailableMemory()
-        let requiredWithHeadroom = Int(Double(requiredBytes) * Qwen3TTSModelSize.headroomMultiplier)
-
-        guard available >= requiredWithHeadroom else {
+    public func validateMemory(forModelSizeBytes requiredBytes: Int) async throws {
+        let requiredWithHeadroom = UInt64(Double(requiredBytes) * Qwen3TTSModelSize.headroomMultiplier)
+        do {
+            try await MemoryManager.shared.hardValidate(requiredBytes: requiredWithHeadroom)
+        } catch {
+            let available = await MemoryManager.shared.availableMemory
             throw VoxAltaError.insufficientMemory(
-                available: available,
-                required: requiredWithHeadroom
+                available: Int(available),
+                required: Int(requiredWithHeadroom)
             )
         }
     }
 
     /// Returns the total physical memory of the system in bytes.
     ///
-    /// Useful for display in configuration UI to show total vs. available memory.
+    /// Delegates to `MemoryManager.shared.totalMemory`.
     public var totalPhysicalMemory: UInt64 {
-        ProcessInfo.processInfo.physicalMemory
+        get async {
+            await MemoryManager.shared.totalMemory
+        }
     }
 
     /// Returns the currently available memory in bytes.
     ///
-    /// Uses Mach VM statistics to estimate free + purgeable memory.
+    /// Delegates to `MemoryManager.shared.availableMemory`.
     public var availableMemory: UInt64 {
-        UInt64(Self.queryAvailableMemory())
-    }
-
-    /// Query reclaimable memory using Mach VM statistics.
-    ///
-    /// Includes free, purgeable, inactive, and speculative pages — all of which
-    /// macOS can reclaim on demand without terminating processes. This gives a
-    /// realistic picture of what's actually available for large allocations,
-    /// rather than just the "free" count shown by Activity Monitor.
-    private nonisolated static func queryAvailableMemory() -> Int {
-        var stats = vm_statistics64()
-        var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.size / MemoryLayout<integer_t>.size)
-        let result = withUnsafeMutablePointer(to: &stats) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
-            }
+        get async {
+            await MemoryManager.shared.availableMemory
         }
-        guard result == KERN_SUCCESS else {
-            // Fallback: use total physical memory as a rough estimate
-            return Int(ProcessInfo.processInfo.physicalMemory)
-        }
-        // Use sysctl to get page size (vm_kernel_page_size is unavailable on macOS 26)
-        let pageSize = Self.systemPageSize
-        let free = Int(stats.free_count) * pageSize
-        let inactive = Int(stats.inactive_count) * pageSize
-        let purgeable = Int(stats.purgeable_count) * pageSize
-        let speculative = Int(stats.speculative_count) * pageSize
-        return free + inactive + purgeable + speculative
-    }
-
-    /// System page size obtained via sysctl, avoiding deprecated vm_kernel_page_size.
-    private nonisolated static var systemPageSize: Int {
-        var pageSize: Int = 0
-        var size = MemoryLayout<Int>.size
-        sysctlbyname("hw.pagesize", &pageSize, &size, nil, 0)
-        return pageSize > 0 ? pageSize : 16384  // Default to 16KB (Apple Silicon)
     }
 }

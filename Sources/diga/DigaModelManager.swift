@@ -1,28 +1,9 @@
 import Foundation
 import SwiftAcervo
+import SwiftVoxAlta
 
-/// Known TTS model identifiers from HuggingFace.
-enum TTSModelID {
-    /// Large model (1.7B parameters) — better quality, requires 16GB+ RAM.
-    static let large = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16"
-    /// Small model (0.6B parameters) — fits in less RAM.
-    static let small = "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16"
-    /// VoiceDesign model (1.7B only) — generates voices from text descriptions.
-    static let voiceDesign = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
-
-    /// RAM threshold in bytes (16 GB) above which the large model is recommended.
-    static let ramThresholdBytes: UInt64 = 16 * 1024 * 1024 * 1024
-}
-
-/// Files required for a complete model download.
-enum TTSModelFiles {
-    static let required: [String] = [
-        "config.json",
-        "tokenizer.json",
-        "tokenizer_config.json",
-        "model.safetensors",
-    ]
-}
+/// RAM threshold in bytes (16 GB) above which the large model is recommended.
+private let ramThresholdBytes: UInt64 = 16 * 1024 * 1024 * 1024
 
 /// Progress callback type for model downloads.
 /// - Parameters:
@@ -90,16 +71,20 @@ actor DigaModelManager {
     /// - Parameter ramBytes: Physical memory in bytes.
     /// - Returns: The recommended model identifier.
     static func recommendedModel(forRAMBytes ramBytes: UInt64) -> String {
-        if ramBytes >= TTSModelID.ramThresholdBytes {
-            return TTSModelID.large
+        if ramBytes >= ramThresholdBytes {
+            return Qwen3TTSModelRepo.base1_7B.rawValue
         } else {
-            return TTSModelID.small
+            return Qwen3TTSModelRepo.base0_6B.rawValue
         }
     }
 
     // MARK: - Download
 
     /// Downloads a model from HuggingFace Hub if not already present, via SwiftAcervo.
+    ///
+    /// Uses the Acervo Component Registry to determine which files to download.
+    /// The component ID is resolved from the HuggingFace model ID via `Qwen3TTSModelRepo`,
+    /// falling back to the raw model ID if the repo is not a known Qwen3-TTS variant.
     ///
     /// - Parameters:
     ///   - modelId: The HuggingFace model identifier.
@@ -109,10 +94,8 @@ actor DigaModelManager {
         _ modelId: String,
         progress: DownloadProgress? = nil
     ) async throws {
-        try await Acervo.ensureAvailable(
-            modelId,
-            files: TTSModelFiles.required
-        ) { acervoProgress in
+        let componentId = Qwen3TTSModelRepo(rawValue: modelId)?.componentId ?? modelId
+        try await Acervo.ensureComponentReady(componentId) { acervoProgress in
             progress?(
                 acervoProgress.bytesDownloaded,
                 acervoProgress.totalBytes,

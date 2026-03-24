@@ -6,12 +6,13 @@
 //
 
 import Foundation
-import SwiftHablare
-@preconcurrency import MLXAudioTTS
 @preconcurrency import MLX
+@preconcurrency import MLXAudioTTS
 @preconcurrency import MLXLMCommon
+import SwiftHablare
+
 #if canImport(SwiftUI)
-import SwiftUI
+  import SwiftUI
 #endif
 
 /// On-device VoiceProvider implementation using Qwen3-TTS models via mlx-audio-swift.
@@ -25,418 +26,439 @@ import SwiftUI
 /// actor, both of which are inherently thread-safe.
 public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
 
-    // MARK: - Version
+  // MARK: - Version
 
-    /// Current version of the SwiftVoxAlta library
-    public static let version = "0.8.0"
+  /// Current version of the SwiftVoxAlta library
+  public static let version = "0.9.1"
 
-    // MARK: - VoiceProvider Metadata
+  // MARK: - VoiceProvider Metadata
 
-    public let providerId = "voxalta"
-    public let displayName = "VoxAlta (On-Device)"
-    public let requiresAPIKey = false
-    public let mimeType = "audio/wav"
-    public var defaultVoiceId: String? { nil }
+  public let providerId = "voxalta"
+  public let displayName = "VoxAlta (On-Device)"
+  public let requiresAPIKey = false
+  public let mimeType = "audio/wav"
+  public var defaultVoiceId: String? { nil }
 
-    // MARK: - Preset Speakers
+  // MARK: - Preset Speakers
 
-    /// CustomVoice preset speakers available without clone prompts.
-    private static let presetSpeakers: [(id: String, name: String, description: String, gender: String, mlxSpeaker: String)] = [
-        ("ryan", "Ryan", "Dynamic male voice with strong rhythmic drive", "male", "ryan"),
-        ("aiden", "Aiden", "Sunny American male voice with clear midrange", "male", "aiden"),
-        ("vivian", "Vivian", "Bright, slightly edgy young Chinese female voice", "female", "vivian"),
-        ("serena", "Serena", "Warm, gentle young Chinese female voice", "female", "serena"),
-        ("uncle_fu", "Uncle Fu", "Seasoned Chinese male voice with low, mellow timbre", "male", "uncle_fu"),
-        ("dylan", "Dylan", "Youthful Beijing male voice with clear timbre", "male", "dylan"),
-        ("eric", "Eric", "Lively Chengdu male voice with husky brightness", "male", "eric"),
-        ("anna", "Anna", "Playful Japanese female voice with light timbre", "female", "ono_anna"),
-        ("sohee", "Sohee", "Warm Korean female voice with rich emotion", "female", "sohee"),
+  /// CustomVoice preset speakers available without clone prompts.
+  private static let presetSpeakers:
+    [(id: String, name: String, description: String, gender: String, mlxSpeaker: String)] = [
+      ("ryan", "Ryan", "Dynamic male voice with strong rhythmic drive", "male", "ryan"),
+      ("aiden", "Aiden", "Sunny American male voice with clear midrange", "male", "aiden"),
+      ("vivian", "Vivian", "Bright, slightly edgy young Chinese female voice", "female", "vivian"),
+      ("serena", "Serena", "Warm, gentle young Chinese female voice", "female", "serena"),
+      (
+        "uncle_fu", "Uncle Fu", "Seasoned Chinese male voice with low, mellow timbre", "male",
+        "uncle_fu"
+      ),
+      ("dylan", "Dylan", "Youthful Beijing male voice with clear timbre", "male", "dylan"),
+      ("eric", "Eric", "Lively Chengdu male voice with husky brightness", "male", "eric"),
+      ("anna", "Anna", "Playful Japanese female voice with light timbre", "female", "ono_anna"),
+      ("sohee", "Sohee", "Warm Korean female voice with rich emotion", "female", "sohee"),
     ]
 
-    // MARK: - Internal State
+  // MARK: - Internal State
 
-    /// The model manager used for loading/unloading Qwen3-TTS models.
-    private let modelManager: VoxAltaModelManager
+  /// The model manager used for loading/unloading Qwen3-TTS models.
+  private let modelManager: VoxAltaModelManager
 
-    /// Thread-safe cache of loaded voice clone prompts.
-    private let voiceCache: VoxAltaVoiceCache
+  /// Thread-safe cache of loaded voice clone prompts.
+  private let voiceCache: VoxAltaVoiceCache
 
-    /// The Base model variant to use for voice cloning audio generation.
-    private let baseModelRepo: Qwen3TTSModelRepo
+  /// The Base model variant to use for voice cloning audio generation.
+  private let baseModelRepo: Qwen3TTSModelRepo
 
-    /// The CustomVoice model variant to use for preset speaker generation.
-    private let customVoiceModelRepo: Qwen3TTSModelRepo
+  /// The CustomVoice model variant to use for preset speaker generation.
+  private let customVoiceModelRepo: Qwen3TTSModelRepo
 
-    /// Generation parameters controlling sampling behavior for audio synthesis.
-    public let generationSettings: GenerationSettings
+  /// Generation parameters controlling sampling behavior for audio synthesis.
+  public let generationSettings: GenerationSettings
 
-    // MARK: - Initialization
+  // MARK: - Initialization
 
-    /// Create a new VoxAlta voice provider.
-    ///
-    /// - Parameters:
-    ///   - modelManager: The model manager to use for TTS model operations. Defaults to a new instance.
-    ///   - baseModelRepo: The Base model variant to use for voice cloning. Defaults to `.base1_7B` (3.4GB).
-    ///   - customVoiceModelRepo: The CustomVoice model variant for preset speakers. Defaults to `.customVoice1_7B` (3.4GB).
-    ///   - generationSettings: Sampling parameters for audio generation. Defaults to `.default`.
-    public init(
-        modelManager: VoxAltaModelManager = VoxAltaModelManager(),
-        baseModelRepo: Qwen3TTSModelRepo = .base1_7B,
-        customVoiceModelRepo: Qwen3TTSModelRepo = .customVoice1_7B,
-        generationSettings: GenerationSettings = .default
-    ) {
-        self.modelManager = modelManager
-        self.voiceCache = VoxAltaVoiceCache()
-        self.baseModelRepo = baseModelRepo
-        self.customVoiceModelRepo = customVoiceModelRepo
-        self.generationSettings = generationSettings
+  /// Create a new VoxAlta voice provider.
+  ///
+  /// - Parameters:
+  ///   - modelManager: The model manager to use for TTS model operations. Defaults to a new instance.
+  ///   - baseModelRepo: The Base model variant to use for voice cloning. Defaults to `.base1_7B` (3.4GB).
+  ///   - customVoiceModelRepo: The CustomVoice model variant for preset speakers. Defaults to `.customVoice1_7B` (3.4GB).
+  ///   - generationSettings: Sampling parameters for audio generation. Defaults to `.default`.
+  public init(
+    modelManager: VoxAltaModelManager = VoxAltaModelManager(),
+    baseModelRepo: Qwen3TTSModelRepo = .base1_7B,
+    customVoiceModelRepo: Qwen3TTSModelRepo = .customVoice1_7B,
+    generationSettings: GenerationSettings = .default
+  ) {
+    self.modelManager = modelManager
+    self.voiceCache = VoxAltaVoiceCache()
+    self.baseModelRepo = baseModelRepo
+    self.customVoiceModelRepo = customVoiceModelRepo
+    self.generationSettings = generationSettings
+  }
+
+  // MARK: - VoiceProvider Protocol
+
+  /// Check if the provider is configured.
+  ///
+  /// Returns `true` because VoxAlta models are downloaded on demand.
+  /// No API key or pre-configuration is required.
+  public func isConfigured() async -> Bool {
+    true
+  }
+
+  /// Fetch currently loaded voices.
+  ///
+  /// Returns preset speakers and voices that have been loaded via `loadVoice(id:clonePromptData:)`.
+  /// Unlike cloud-based providers, VoxAlta does not fetch from a remote catalog.
+  ///
+  /// - Parameter languageCode: The language code to associate with returned voices.
+  /// - Returns: An array of `Voice` objects representing preset speakers and loaded voices.
+  public func fetchVoices(languageCode: String) async throws -> [Voice] {
+    // Start with preset speakers
+    var voices = Self.presetSpeakers.map { speaker in
+      Voice(
+        id: speaker.id,
+        name: speaker.name,
+        description: speaker.description,
+        providerId: providerId,
+        language: languageCode,
+        gender: speaker.gender
+      )
     }
 
-    // MARK: - VoiceProvider Protocol
-
-    /// Check if the provider is configured.
-    ///
-    /// Returns `true` because VoxAlta models are downloaded on demand.
-    /// No API key or pre-configuration is required.
-    public func isConfigured() async -> Bool {
-        true
-    }
-
-    /// Fetch currently loaded voices.
-    ///
-    /// Returns preset speakers and voices that have been loaded via `loadVoice(id:clonePromptData:)`.
-    /// Unlike cloud-based providers, VoxAlta does not fetch from a remote catalog.
-    ///
-    /// - Parameter languageCode: The language code to associate with returned voices.
-    /// - Returns: An array of `Voice` objects representing preset speakers and loaded voices.
-    public func fetchVoices(languageCode: String) async throws -> [Voice] {
-        // Start with preset speakers
-        var voices = Self.presetSpeakers.map { speaker in
-            Voice(
-                id: speaker.id,
-                name: speaker.name,
-                description: speaker.description,
-                providerId: providerId,
-                language: languageCode,
-                gender: speaker.gender
-            )
-        }
-
-        // Append cached custom voices
-        let cached = await voiceCache.allVoices()
-        voices.append(contentsOf: cached.map { entry in
-            Voice(
-                id: entry.id,
-                name: entry.id,
-                description: "VoxAlta on-device voice",
-                providerId: providerId,
-                language: languageCode,
-                gender: entry.voice.gender
-            )
-        })
-
-        return voices
-    }
-
-    /// Generate speech audio from text using a loaded voice.
-    ///
-    /// Convenience wrapper that creates a bare `GenerationContext` from the text
-    /// and delegates to `generateAudio(context:voiceId:languageCode:)`.
-    ///
-    /// - Parameters:
-    ///   - text: The text to synthesize.
-    ///   - voiceId: The voice identifier (character name) to use.
-    ///   - languageCode: The language code for generation (e.g., "en").
-    /// - Returns: WAV format audio data (24kHz, 16-bit PCM, mono).
-    /// - Throws: `VoxAltaError.voiceNotLoaded` if the voice is not in the cache,
-    ///           or other errors from model loading and audio generation.
-    public func generateAudio(text: String, voiceId: String, languageCode: String) async throws -> Data {
-        let context = GenerationContext(phrase: text)
-        return try await generateAudio(context: context, voiceId: voiceId, languageCode: languageCode)
-    }
-
-    /// Generate speech audio from text with a performance direction.
-    ///
-    /// Like `generateAudio(text:voiceId:languageCode:)` but injects an instruct
-    /// hint (e.g., "speak softly", "with excitement") into the generation context.
-    ///
-    /// - Parameters:
-    ///   - text: The text to synthesize.
-    ///   - voiceId: The voice identifier (character name) to use.
-    ///   - languageCode: The language code for generation (e.g., "en").
-    ///   - instruct: Performance direction for the TTS model.
-    /// - Returns: WAV format audio data (24kHz, 16-bit PCM, mono).
-    /// - Throws: `VoxAltaError.voiceNotLoaded` if the voice is not in the cache,
-    ///           or other errors from model loading and audio generation.
-    public func generateAudio(text: String, voiceId: String, languageCode: String, instruct: String?) async throws -> Data {
-        let context = GenerationContext(phrase: text, instruct: instruct)
-        return try await generateAudio(context: context, voiceId: voiceId, languageCode: languageCode)
-    }
-
-    /// Generate speech audio from a generation context using a loaded voice.
-    ///
-    /// The voice must have been previously loaded via `loadVoice(id:clonePromptData:)`.
-    /// Audio is generated using the Base model with the stored clone prompt for
-    /// consistent voice identity.
-    ///
-    /// - Parameters:
-    ///   - context: The generation context containing the phrase and optional metadata.
-    ///   - voiceId: The voice identifier (character name) to use.
-    ///   - languageCode: The language code for generation (e.g., "en").
-    /// - Returns: WAV format audio data (24kHz, 16-bit PCM, mono).
-    /// - Throws: `VoxAltaError.voiceNotLoaded` if the voice is not in the cache,
-    ///           or other errors from model loading and audio generation.
-    public func generateAudio(context: GenerationContext, voiceId: String, languageCode: String) async throws -> Data {
-        // Route 1: CustomVoice preset speaker (fast path)
-        if let speaker = presetSpeaker(for: voiceId) {
-            return try await generateWithPresetSpeaker(
-                text: context.phrase,
-                speakerName: speaker.mlxSpeaker,
-                language: languageCode,
-                instruct: context.instruct
-            )
-        }
-
-        // Route 2: Clone prompt (custom voice)
-        guard let cached = await voiceCache.get(id: voiceId) else {
-            throw VoxAltaError.voiceNotLoaded(voiceId)
-        }
-
-        let dataHash = cached.clonePromptData.prefix(16).map { String(format: "%02x", $0) }.joined()
-        FileHandle.standardError.write(Data("[VoxAltaVoiceProvider] 🎤 Fetched voice '\(voiceId)' from cache (data hash: \(dataHash), size: \(cached.clonePromptData.count) bytes)\n".utf8))
-
-        // Build a VoiceLock from the cached clone prompt data
-        let voiceLock = VoiceLock(
-            characterName: voiceId,
-            clonePromptData: cached.clonePromptData,
-            designInstruction: ""  // Not needed for generation
+    // Append cached custom voices
+    let cached = await voiceCache.allVoices()
+    voices.append(
+      contentsOf: cached.map { entry in
+        Voice(
+          id: entry.id,
+          name: entry.id,
+          description: "VoxAlta on-device voice",
+          providerId: providerId,
+          language: languageCode,
+          gender: entry.voice.gender
         )
+      })
 
-        // Pass the cache to enable clone prompt caching
-        return try await VoiceLockManager.generateAudio(
-            context: context,
-            voiceLock: voiceLock,
-            language: languageCode,
-            modelManager: modelManager,
-            modelRepo: baseModelRepo,
-            cache: voiceCache,
-            settings: generationSettings
-        )
+    return voices
+  }
+
+  /// Generate speech audio from text using a loaded voice.
+  ///
+  /// Convenience wrapper that creates a bare `GenerationContext` from the text
+  /// and delegates to `generateAudio(context:voiceId:languageCode:)`.
+  ///
+  /// - Parameters:
+  ///   - text: The text to synthesize.
+  ///   - voiceId: The voice identifier (character name) to use.
+  ///   - languageCode: The language code for generation (e.g., "en").
+  /// - Returns: WAV format audio data (24kHz, 16-bit PCM, mono).
+  /// - Throws: `VoxAltaError.voiceNotLoaded` if the voice is not in the cache,
+  ///           or other errors from model loading and audio generation.
+  public func generateAudio(text: String, voiceId: String, languageCode: String) async throws
+    -> Data
+  {
+    let context = GenerationContext(phrase: text)
+    return try await generateAudio(context: context, voiceId: voiceId, languageCode: languageCode)
+  }
+
+  /// Generate speech audio from text with a performance direction.
+  ///
+  /// Like `generateAudio(text:voiceId:languageCode:)` but injects an instruct
+  /// hint (e.g., "speak softly", "with excitement") into the generation context.
+  ///
+  /// - Parameters:
+  ///   - text: The text to synthesize.
+  ///   - voiceId: The voice identifier (character name) to use.
+  ///   - languageCode: The language code for generation (e.g., "en").
+  ///   - instruct: Performance direction for the TTS model.
+  /// - Returns: WAV format audio data (24kHz, 16-bit PCM, mono).
+  /// - Throws: `VoxAltaError.voiceNotLoaded` if the voice is not in the cache,
+  ///           or other errors from model loading and audio generation.
+  public func generateAudio(text: String, voiceId: String, languageCode: String, instruct: String?)
+    async throws -> Data
+  {
+    let context = GenerationContext(phrase: text, instruct: instruct)
+    return try await generateAudio(context: context, voiceId: voiceId, languageCode: languageCode)
+  }
+
+  /// Generate speech audio from a generation context using a loaded voice.
+  ///
+  /// The voice must have been previously loaded via `loadVoice(id:clonePromptData:)`.
+  /// Audio is generated using the Base model with the stored clone prompt for
+  /// consistent voice identity.
+  ///
+  /// - Parameters:
+  ///   - context: The generation context containing the phrase and optional metadata.
+  ///   - voiceId: The voice identifier (character name) to use.
+  ///   - languageCode: The language code for generation (e.g., "en").
+  /// - Returns: WAV format audio data (24kHz, 16-bit PCM, mono).
+  /// - Throws: `VoxAltaError.voiceNotLoaded` if the voice is not in the cache,
+  ///           or other errors from model loading and audio generation.
+  public func generateAudio(context: GenerationContext, voiceId: String, languageCode: String)
+    async throws -> Data
+  {
+    // Route 1: CustomVoice preset speaker (fast path)
+    if let speaker = presetSpeaker(for: voiceId) {
+      return try await generateWithPresetSpeaker(
+        text: context.phrase,
+        speakerName: speaker.mlxSpeaker,
+        language: languageCode,
+        instruct: context.instruct
+      )
     }
 
-    /// Generate processed audio with duration measurement.
-    ///
-    /// Generates audio via `generateAudio`, then computes the duration from the WAV data.
-    /// The returned `ProcessedAudio` uses `"audio/wav"` as the MIME type since VoxAlta
-    /// outputs WAV directly without transcoding.
-    ///
-    /// - Parameters:
-    ///   - text: The text to synthesize.
-    ///   - voiceId: The voice identifier (character name) to use.
-    ///   - languageCode: The language code for generation.
-    /// - Returns: A `ProcessedAudio` containing the WAV data and measured duration.
-    public func generateProcessedAudio(
-        text: String,
-        voiceId: String,
-        languageCode: String
-    ) async throws -> ProcessedAudio {
-        let audioData = try await generateAudio(text: text, voiceId: voiceId, languageCode: languageCode)
-        let duration = Self.measureWAVDuration(audioData)
-
-        // DIAGNOSTIC: Log actual WAV data size vs expected size from duration
-        let expectedSize = Int(duration * 24000) * 2 + 44  // samples * bytes_per_sample + header
-        FileHandle.standardError.write(Data("[VoxAlta] WAV data: \(audioData.count) bytes, expected from duration: \(expectedSize) bytes, duration: \(String(format: "%.2f", duration))s\n".utf8))
-
-        return ProcessedAudio(
-            audioData: audioData,
-            durationSeconds: duration,
-            trimmedStart: 0,
-            trimmedEnd: 0,
-            mimeType: mimeType
-        )
+    // Route 2: Clone prompt (custom voice)
+    guard let cached = await voiceCache.get(id: voiceId) else {
+      throw VoxAltaError.voiceNotLoaded(voiceId)
     }
 
-    /// Estimate the duration of audio that would be generated from the given text.
-    ///
-    /// Uses a simple heuristic: word count divided by 150 words per minute.
-    ///
-    /// - Parameters:
-    ///   - text: The text to estimate duration for.
-    ///   - voiceId: The voice identifier (unused for estimation).
-    /// - Returns: Estimated duration in seconds.
-    public func estimateDuration(text: String, voiceId: String) async -> TimeInterval {
-        let wordCount = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
-        let wordsPerMinute: Double = 150.0
-        return Double(wordCount) / wordsPerMinute * 60.0
+    let dataHash = cached.clonePromptData.prefix(16).map { String(format: "%02x", $0) }.joined()
+    FileHandle.standardError.write(
+      Data(
+        "[VoxAltaVoiceProvider] 🎤 Fetched voice '\(voiceId)' from cache (data hash: \(dataHash), size: \(cached.clonePromptData.count) bytes)\n"
+          .utf8))
+
+    // Build a VoiceLock from the cached clone prompt data
+    let voiceLock = VoiceLock(
+      characterName: voiceId,
+      clonePromptData: cached.clonePromptData,
+      designInstruction: ""  // Not needed for generation
+    )
+
+    // Pass the cache to enable clone prompt caching
+    return try await VoiceLockManager.generateAudio(
+      context: context,
+      voiceLock: voiceLock,
+      language: languageCode,
+      modelManager: modelManager,
+      modelRepo: baseModelRepo,
+      cache: voiceCache,
+      settings: generationSettings
+    )
+  }
+
+  /// Generate processed audio with duration measurement.
+  ///
+  /// Generates audio via `generateAudio`, then computes the duration from the WAV data.
+  /// The returned `ProcessedAudio` uses `"audio/wav"` as the MIME type since VoxAlta
+  /// outputs WAV directly without transcoding.
+  ///
+  /// - Parameters:
+  ///   - text: The text to synthesize.
+  ///   - voiceId: The voice identifier (character name) to use.
+  ///   - languageCode: The language code for generation.
+  /// - Returns: A `ProcessedAudio` containing the WAV data and measured duration.
+  public func generateProcessedAudio(
+    text: String,
+    voiceId: String,
+    languageCode: String
+  ) async throws -> ProcessedAudio {
+    let audioData = try await generateAudio(
+      text: text, voiceId: voiceId, languageCode: languageCode)
+    let duration = Self.measureWAVDuration(audioData)
+
+    // DIAGNOSTIC: Log actual WAV data size vs expected size from duration
+    let expectedSize = Int(duration * 24000) * 2 + 44  // samples * bytes_per_sample + header
+    FileHandle.standardError.write(
+      Data(
+        "[VoxAlta] WAV data: \(audioData.count) bytes, expected from duration: \(expectedSize) bytes, duration: \(String(format: "%.2f", duration))s\n"
+          .utf8))
+
+    return ProcessedAudio(
+      audioData: audioData,
+      durationSeconds: duration,
+      trimmedStart: 0,
+      trimmedEnd: 0,
+      mimeType: mimeType
+    )
+  }
+
+  /// Estimate the duration of audio that would be generated from the given text.
+  ///
+  /// Uses a simple heuristic: word count divided by 150 words per minute.
+  ///
+  /// - Parameters:
+  ///   - text: The text to estimate duration for.
+  ///   - voiceId: The voice identifier (unused for estimation).
+  /// - Returns: Estimated duration in seconds.
+  public func estimateDuration(text: String, voiceId: String) async -> TimeInterval {
+    let wordCount = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+    let wordsPerMinute: Double = 150.0
+    return Double(wordCount) / wordsPerMinute * 60.0
+  }
+
+  /// Check if a specific voice is available (loaded) in the cache.
+  ///
+  /// - Parameter voiceId: The voice identifier to check.
+  /// - Returns: `true` if the voice is a preset speaker or has been loaded, `false` otherwise.
+  public func isVoiceAvailable(voiceId: String) async -> Bool {
+    // Preset speakers are always available
+    if isPresetSpeaker(voiceId) {
+      return true
     }
 
-    /// Check if a specific voice is available (loaded) in the cache.
-    ///
-    /// - Parameter voiceId: The voice identifier to check.
-    /// - Returns: `true` if the voice is a preset speaker or has been loaded, `false` otherwise.
-    public func isVoiceAvailable(voiceId: String) async -> Bool {
-        // Preset speakers are always available
-        if isPresetSpeaker(voiceId) {
-            return true
-        }
+    // Check cache for custom voices
+    let cached = await voiceCache.get(id: voiceId)
+    return cached != nil
+  }
 
-        // Check cache for custom voices
-        let cached = await voiceCache.get(id: voiceId)
-        return cached != nil
-    }
-
-    #if canImport(SwiftUI)
+  #if canImport(SwiftUI)
     /// Build the SwiftUI configuration panel for VoxAlta.
     ///
     /// Returns a minimal placeholder view. Configuration is handled externally
     /// by the application (Produciesta) through the voice design workflow.
     @MainActor
     public func makeConfigurationView(onConfigured: @escaping (Bool) -> Void) -> AnyView {
-        AnyView(
-            VStack(spacing: 12) {
-                Text("VoxAlta (On-Device)")
-                    .font(.headline)
-                Text("On-device voice generation using Qwen3-TTS. No API key required.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                Button("Done") {
-                    onConfigured(true)
-                }
-            }
-            .padding()
-        )
-    }
-    #endif
-
-    // MARK: - VoxAlta-Specific API
-
-    /// Load a voice into the cache for use with `generateAudio`.
-    ///
-    /// This must be called before attempting to generate audio for a given voice ID.
-    /// The clone prompt data is typically obtained from a `VoiceLock` created during
-    /// the voice design workflow.
-    ///
-    /// - Parameters:
-    ///   - id: The voice identifier (typically a character name, e.g., "ELENA").
-    ///   - clonePromptData: The serialized clone prompt data from a `VoiceLock`.
-    ///   - gender: Optional gender descriptor for the voice.
-    public func loadVoice(id: String, clonePromptData: Data, gender: String? = nil) async {
-        await voiceCache.store(id: id, data: clonePromptData, gender: gender)
-    }
-
-    /// Unload a voice from the cache.
-    ///
-    /// - Parameter id: The voice identifier to remove.
-    public func unloadVoice(id: String) async {
-        await voiceCache.remove(id: id)
-    }
-
-    /// Unload all voices from the cache.
-    public func unloadAllVoices() async {
-        await voiceCache.removeAll()
-    }
-
-    // MARK: - Private Helpers (Preset Speakers)
-
-    /// Check if a voice ID corresponds to a preset speaker.
-    ///
-    /// - Parameter voiceId: The voice identifier to check.
-    /// - Returns: `true` if the voice ID matches a preset speaker, `false` otherwise.
-    private func isPresetSpeaker(_ voiceId: String) -> Bool {
-        Self.presetSpeakers.contains { $0.id == voiceId }
-    }
-
-    /// Get preset speaker details by ID.
-    private func presetSpeaker(for voiceId: String) -> (id: String, name: String, description: String, gender: String, mlxSpeaker: String)? {
-        Self.presetSpeakers.first { $0.id == voiceId }
-    }
-
-    /// Generate audio using a CustomVoice preset speaker.
-    ///
-    /// - Parameters:
-    ///   - text: The text to synthesize.
-    ///   - speakerName: The preset speaker ID (e.g., "ryan").
-    ///   - language: The language code for generation.
-    ///   - instruct: Optional performance direction for the TTS model.
-    /// - Returns: WAV format audio data (24kHz, 16-bit PCM, mono).
-    private func generateWithPresetSpeaker(
-        text: String,
-        speakerName: String,
-        language: String,
-        instruct: String? = nil
-    ) async throws -> Data {
-        let model = try await modelManager.loadModel(customVoiceModelRepo)
-
-        guard let qwenModel = model as? Qwen3TTSModel else {
-            throw VoxAltaError.modelNotAvailable(
-                "Loaded model is not a Qwen3TTSModel. Got \(type(of: model))."
-            )
+      AnyView(
+        VStack(spacing: 12) {
+          Text("VoxAlta (On-Device)")
+            .font(.headline)
+          Text("On-device voice generation using Qwen3-TTS. No API key required.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+          Button("Done") {
+            onConfigured(true)
+          }
         }
+        .padding()
+      )
+    }
+  #endif
 
-        let audioArray = try await qwenModel.generate(
-            text: text,
-            voice: speakerName,
-            refAudio: nil,
-            refText: nil,
-            language: language,
-            instruct: instruct,
-            generationParameters: GenerateParameters()
-        )
+  // MARK: - VoxAlta-Specific API
 
-        return try AudioConversion.mlxArrayToWAVData(audioArray, sampleRate: qwenModel.sampleRate)
+  /// Load a voice into the cache for use with `generateAudio`.
+  ///
+  /// This must be called before attempting to generate audio for a given voice ID.
+  /// The clone prompt data is typically obtained from a `VoiceLock` created during
+  /// the voice design workflow.
+  ///
+  /// - Parameters:
+  ///   - id: The voice identifier (typically a character name, e.g., "ELENA").
+  ///   - clonePromptData: The serialized clone prompt data from a `VoiceLock`.
+  ///   - gender: Optional gender descriptor for the voice.
+  public func loadVoice(id: String, clonePromptData: Data, gender: String? = nil) async {
+    await voiceCache.store(id: id, data: clonePromptData, gender: gender)
+  }
+
+  /// Unload a voice from the cache.
+  ///
+  /// - Parameter id: The voice identifier to remove.
+  public func unloadVoice(id: String) async {
+    await voiceCache.remove(id: id)
+  }
+
+  /// Unload all voices from the cache.
+  public func unloadAllVoices() async {
+    await voiceCache.removeAll()
+  }
+
+  // MARK: - Private Helpers (Preset Speakers)
+
+  /// Check if a voice ID corresponds to a preset speaker.
+  ///
+  /// - Parameter voiceId: The voice identifier to check.
+  /// - Returns: `true` if the voice ID matches a preset speaker, `false` otherwise.
+  private func isPresetSpeaker(_ voiceId: String) -> Bool {
+    Self.presetSpeakers.contains { $0.id == voiceId }
+  }
+
+  /// Get preset speaker details by ID.
+  private func presetSpeaker(for voiceId: String) -> (
+    id: String, name: String, description: String, gender: String, mlxSpeaker: String
+  )? {
+    Self.presetSpeakers.first { $0.id == voiceId }
+  }
+
+  /// Generate audio using a CustomVoice preset speaker.
+  ///
+  /// - Parameters:
+  ///   - text: The text to synthesize.
+  ///   - speakerName: The preset speaker ID (e.g., "ryan").
+  ///   - language: The language code for generation.
+  ///   - instruct: Optional performance direction for the TTS model.
+  /// - Returns: WAV format audio data (24kHz, 16-bit PCM, mono).
+  private func generateWithPresetSpeaker(
+    text: String,
+    speakerName: String,
+    language: String,
+    instruct: String? = nil
+  ) async throws -> Data {
+    let model = try await modelManager.loadModel(customVoiceModelRepo)
+
+    guard let qwenModel = model as? Qwen3TTSModel else {
+      throw VoxAltaError.modelNotAvailable(
+        "Loaded model is not a Qwen3TTSModel. Got \(type(of: model))."
+      )
     }
 
-    // MARK: - Private Helpers
+    let audioArray = try await qwenModel.generate(
+      text: text,
+      voice: speakerName,
+      refAudio: nil,
+      refText: nil,
+      language: language,
+      instruct: instruct,
+      generationParameters: GenerateParameters()
+    )
 
-    /// Measure the duration of WAV audio data by parsing the header.
-    ///
-    /// Computes duration as: `dataChunkSize / (sampleRate * numChannels * bytesPerSample)`.
-    /// Returns 0 if the WAV data cannot be parsed.
-    ///
-    /// - Parameter data: WAV format audio data.
-    /// - Returns: Duration in seconds, or 0 if the data cannot be parsed.
-    static func measureWAVDuration(_ data: Data) -> Double {
-        // Minimum WAV header is 44 bytes
-        guard data.count >= 44 else { return 0 }
+    return try AudioConversion.mlxArrayToWAVData(audioArray, sampleRate: qwenModel.sampleRate)
+  }
 
-        // Validate RIFF/WAVE markers
-        guard String(data: data[0..<4], encoding: .ascii) == "RIFF",
-              String(data: data[8..<12], encoding: .ascii) == "WAVE" else {
-            return 0
-        }
+  // MARK: - Private Helpers
 
-        // Parse chunks to find fmt and data
-        var offset = 12
-        var sampleRate: UInt32 = 0
-        var numChannels: UInt16 = 0
-        var bitsPerSample: UInt16 = 0
-        var dataSize: UInt32 = 0
+  /// Measure the duration of WAV audio data by parsing the header.
+  ///
+  /// Computes duration as: `dataChunkSize / (sampleRate * numChannels * bytesPerSample)`.
+  /// Returns 0 if the WAV data cannot be parsed.
+  ///
+  /// - Parameter data: WAV format audio data.
+  /// - Returns: Duration in seconds, or 0 if the data cannot be parsed.
+  static func measureWAVDuration(_ data: Data) -> Double {
+    // Minimum WAV header is 44 bytes
+    guard data.count >= 44 else { return 0 }
 
-        while offset + 8 <= data.count {
-            let chunkID = String(data: data[offset..<(offset + 4)], encoding: .ascii) ?? ""
-            let chunkSize = data.withUnsafeBytes { buffer in
-                buffer.load(fromByteOffset: offset + 4, as: UInt32.self).littleEndian
-            }
-
-            if chunkID == "fmt " && chunkSize >= 16 {
-                data.withUnsafeBytes { buffer in
-                    numChannels = buffer.load(fromByteOffset: offset + 10, as: UInt16.self).littleEndian
-                    sampleRate = buffer.load(fromByteOffset: offset + 12, as: UInt32.self).littleEndian
-                    bitsPerSample = buffer.load(fromByteOffset: offset + 22, as: UInt16.self).littleEndian
-                }
-            } else if chunkID == "data" {
-                dataSize = chunkSize
-            }
-
-            offset += 8 + Int(chunkSize)
-            if offset % 2 != 0 { offset += 1 }
-        }
-
-        guard sampleRate > 0, numChannels > 0, bitsPerSample > 0 else { return 0 }
-
-        let bytesPerSample = Double(bitsPerSample) / 8.0
-        let bytesPerSecond = Double(sampleRate) * Double(numChannels) * bytesPerSample
-        return Double(dataSize) / bytesPerSecond
+    // Validate RIFF/WAVE markers
+    guard String(data: data[0..<4], encoding: .ascii) == "RIFF",
+      String(data: data[8..<12], encoding: .ascii) == "WAVE"
+    else {
+      return 0
     }
+
+    // Parse chunks to find fmt and data
+    var offset = 12
+    var sampleRate: UInt32 = 0
+    var numChannels: UInt16 = 0
+    var bitsPerSample: UInt16 = 0
+    var dataSize: UInt32 = 0
+
+    while offset + 8 <= data.count {
+      let chunkID = String(data: data[offset..<(offset + 4)], encoding: .ascii) ?? ""
+      let chunkSize = data.withUnsafeBytes { buffer in
+        buffer.load(fromByteOffset: offset + 4, as: UInt32.self).littleEndian
+      }
+
+      if chunkID == "fmt " && chunkSize >= 16 {
+        data.withUnsafeBytes { buffer in
+          numChannels = buffer.load(fromByteOffset: offset + 10, as: UInt16.self).littleEndian
+          sampleRate = buffer.load(fromByteOffset: offset + 12, as: UInt32.self).littleEndian
+          bitsPerSample = buffer.load(fromByteOffset: offset + 22, as: UInt16.self).littleEndian
+        }
+      } else if chunkID == "data" {
+        dataSize = chunkSize
+      }
+
+      offset += 8 + Int(chunkSize)
+      if offset % 2 != 0 { offset += 1 }
+    }
+
+    guard sampleRate > 0, numChannels > 0, bitsPerSample > 0 else { return 0 }
+
+    let bytesPerSample = Double(bitsPerSample) / 8.0
+    let bytesPerSecond = Double(sampleRate) * Double(numChannels) * bytesPerSample
+    return Double(dataSize) / bytesPerSecond
+  }
 }

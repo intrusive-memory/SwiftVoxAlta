@@ -3,16 +3,21 @@
 //  SwiftVoxAlta
 //
 //  Apple Silicon generation detection for runtime optimization hints.
-//  Detects M1 through M5 chips to identify Neural Accelerator availability.
+//  Thin wrapper around SwiftTubería's DeviceCapability.
 //
 
 import Foundation
+import Tuberia
 
 /// Apple Silicon generation enumeration.
 ///
 /// Used to detect which Apple Silicon generation is running on the current system,
 /// primarily to identify whether M5 Neural Accelerators are available for MLX
 /// performance optimizations.
+///
+/// This enum preserves the full public API surface for backward compatibility
+/// with callers in Produciesta, SwiftEchada, and other consumers. Internally,
+/// all detection logic delegates to `DeviceCapability.current`.
 public enum AppleSiliconGeneration: String, Sendable, CaseIterable {
     /// Apple M1 (2020) - First Apple Silicon Mac
     case m1 = "M1"
@@ -77,12 +82,13 @@ public enum AppleSiliconGeneration: String, Sendable, CaseIterable {
     /// Unknown or unrecognized Apple Silicon chip
     case unknown = "Unknown"
 
-    /// Whether this chip generation includes M5 Neural Accelerators.
+    /// Whether this chip generation includes Neural Accelerators.
     ///
-    /// Neural Accelerators are hardware acceleration units introduced in M5 (2025)
-    /// that provide significant performance improvements for MLX workloads on macOS 26.2+.
+    /// Returns `true` for M5 family chips, which are the first Apple Silicon generation
+    /// with dedicated Neural Accelerator hardware for MLX inference.
     ///
-    /// - Returns: `true` for M5/M5 Pro/M5 Max/M5 Ultra, `false` otherwise
+    /// Note: This is a per-case property reflecting the capability of the chip generation
+    /// represented by this enum case, not the hardware of the currently running machine.
     public var hasNeuralAccelerators: Bool {
         switch self {
         case .m5, .m5Pro, .m5Max, .m5Ultra:
@@ -94,84 +100,47 @@ public enum AppleSiliconGeneration: String, Sendable, CaseIterable {
 
     /// The current Apple Silicon generation detected on this system.
     ///
-    /// This property queries the CPU brand string via `sysctlbyname` to determine
-    /// which Apple Silicon chip is running. Detection is performed once at first access
-    /// and cached for the lifetime of the process.
+    /// Delegates chip detection to `DeviceCapability.current.chipGeneration` and
+    /// maps to the local `AppleSiliconGeneration` enum. Detection is cached by
+    /// `DeviceCapability.current` (a static let) for the lifetime of the process.
     ///
-    /// - Returns: The detected `AppleSiliconGeneration`, or `.unknown` if detection fails
+    /// - Returns: The detected `AppleSiliconGeneration`, or `.unknown` if detection fails.
     public static var current: AppleSiliconGeneration {
-        _current
+        mapFromDeviceCapability(DeviceCapability.current.chipGeneration)
     }
 
-    /// Cached detection result.
-    private static let _current: AppleSiliconGeneration = {
-        detectGeneration()
-    }()
+    // MARK: - Internal Mapping
 
-    /// Detect the Apple Silicon generation by querying the CPU brand string.
+    /// Maps a `DeviceCapability.AppleSiliconGeneration` case to `AppleSiliconGeneration`.
     ///
-    /// Uses `sysctlbyname("machdep.cpu.brand_string")` to read the CPU identifier
-    /// string (e.g., "Apple M5 Pro") and matches it against known patterns.
-    ///
-    /// - Returns: The detected generation, or `.unknown` if no match
-    private static func detectGeneration() -> AppleSiliconGeneration {
-        var size = 0
-        // First call to get the required buffer size
-        sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0)
-
-        guard size > 0 else {
-            return .unknown
-        }
-
-        // Allocate buffer and retrieve the brand string
-        var brandString = [CChar](repeating: 0, count: size)
-        sysctlbyname("machdep.cpu.brand_string", &brandString, &size, nil, 0)
-
-        let cpuBrand = String(cString: brandString).trimmingCharacters(in: .whitespaces)
-
-        // Match against known patterns (order matters - check longer strings first)
-        if cpuBrand.contains("M5 Ultra") {
-            return .m5Ultra
-        } else if cpuBrand.contains("M5 Max") {
-            return .m5Max
-        } else if cpuBrand.contains("M5 Pro") {
-            return .m5Pro
-        } else if cpuBrand.contains("M5") {
-            return .m5
-        } else if cpuBrand.contains("M4 Ultra") {
-            return .m4Ultra
-        } else if cpuBrand.contains("M4 Max") {
-            return .m4Max
-        } else if cpuBrand.contains("M4 Pro") {
-            return .m4Pro
-        } else if cpuBrand.contains("M4") {
-            return .m4
-        } else if cpuBrand.contains("M3 Ultra") {
-            return .m3Ultra
-        } else if cpuBrand.contains("M3 Max") {
-            return .m3Max
-        } else if cpuBrand.contains("M3 Pro") {
-            return .m3Pro
-        } else if cpuBrand.contains("M3") {
-            return .m3
-        } else if cpuBrand.contains("M2 Ultra") {
-            return .m2Ultra
-        } else if cpuBrand.contains("M2 Max") {
-            return .m2Max
-        } else if cpuBrand.contains("M2 Pro") {
-            return .m2Pro
-        } else if cpuBrand.contains("M2") {
-            return .m2
-        } else if cpuBrand.contains("M1 Ultra") {
-            return .m1Ultra
-        } else if cpuBrand.contains("M1 Max") {
-            return .m1Max
-        } else if cpuBrand.contains("M1 Pro") {
-            return .m1Pro
-        } else if cpuBrand.contains("M1") {
-            return .m1
-        } else {
-            return .unknown
+    /// DeviceCapability uses lowercase raw values (e.g., `"m1Pro"`) while
+    /// AppleSiliconGeneration uses human-readable raw values (e.g., `"M1 Pro"`).
+    /// The mapping is by case identity, not raw value comparison.
+    internal static func mapFromDeviceCapability(
+        _ dc: DeviceCapability.AppleSiliconGeneration
+    ) -> AppleSiliconGeneration {
+        switch dc {
+        case .m1:       return .m1
+        case .m1Pro:    return .m1Pro
+        case .m1Max:    return .m1Max
+        case .m1Ultra:  return .m1Ultra
+        case .m2:       return .m2
+        case .m2Pro:    return .m2Pro
+        case .m2Max:    return .m2Max
+        case .m2Ultra:  return .m2Ultra
+        case .m3:       return .m3
+        case .m3Pro:    return .m3Pro
+        case .m3Max:    return .m3Max
+        case .m3Ultra:  return .m3Ultra
+        case .m4:       return .m4
+        case .m4Pro:    return .m4Pro
+        case .m4Max:    return .m4Max
+        case .m4Ultra:  return .m4Ultra
+        case .m5:       return .m5
+        case .m5Pro:    return .m5Pro
+        case .m5Max:    return .m5Max
+        case .m5Ultra:  return .m5Ultra
+        case .unknown:  return .unknown
         }
     }
 }

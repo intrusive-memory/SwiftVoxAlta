@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import Testing
+import SwiftVoxAlta
 @testable import diga
 
 // MARK: - Sprint 7: CLI Integration + Fallback Tests
@@ -130,7 +131,7 @@ struct CLIModelFlagTests {
         let modelValue = "0.6b"
         switch modelValue.lowercased() {
         case "0.6b":
-            #expect(TTSModelID.small == "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16")
+            #expect(Qwen3TTSModelRepo.base0_6B.rawValue == "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16")
         default:
             Issue.record("Expected 0.6b to match")
         }
@@ -146,7 +147,7 @@ struct CLIModelFlagTests {
         let modelValue = "1.7b"
         switch modelValue.lowercased() {
         case "1.7b":
-            #expect(TTSModelID.large == "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16")
+            #expect(Qwen3TTSModelRepo.base1_7B.rawValue == "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16")
         default:
             Issue.record("Expected 1.7b to match")
         }

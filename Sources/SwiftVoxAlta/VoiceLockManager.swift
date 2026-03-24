@@ -6,9 +6,10 @@
 //
 
 import Foundation
-@preconcurrency import MLXAudioTTS
 @preconcurrency import MLX
+@preconcurrency import MLXAudioTTS
 @preconcurrency import MLXLMCommon
+import Tuberia
 
 /// Internal logger for VoiceLockManager clone prompt caching.
 /// Writes to stderr to match the project-wide logging convention.
@@ -95,9 +96,10 @@ public enum VoiceLockManager: Sendable {
             )
         }
 
-        // Flush GPU state after speaker encoder pass
-        Stream.defaultStream(.gpu).synchronize()
-        Memory.clearCache()
+        // Flush GPU state after speaker encoder pass.
+        // Without this, loading a new model can crash in AGX::ComputeContext
+        // due to stale Metal command buffers from the previous model.
+        await MemoryManager.shared.clearGPUCache()
 
         // Serialize clone prompt to Data
         let clonePromptData: Data
@@ -264,8 +266,8 @@ public enum VoiceLockManager: Sendable {
         // Flush GPU state so the next generation starts with a clean context.
         // Without this, stale Metal buffers from the KV cache and intermediate
         // activations can bleed into subsequent calls, causing inconsistent quality.
-        Stream.defaultStream(.gpu).synchronize()
-        Memory.clearCache()
+        // AGX crash prevention: clears stale Metal command buffers between generations.
+        await MemoryManager.shared.clearGPUCache()
 
         // Convert to WAV Data
         do {
