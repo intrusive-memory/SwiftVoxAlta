@@ -2,7 +2,7 @@
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.8.0
+**Current Version**: 0.9.1
 
 ---
 
@@ -107,7 +107,7 @@ SwiftVoxAlta/
 │       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
 │       ├── DigaModelManager.swift     # Model download and RAM-based auto-selection
 │       ├── TextChunker.swift          # Sentence-boundary chunking (NLTokenizer)
-│       ├── Version.swift              # Version constant (0.8.0)
+│       ├── Version.swift              # Version constant (0.9.1)
 │       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # 13 test files (library)
@@ -157,7 +157,7 @@ Implements SwiftHablare's `VoiceProvider` protocol with dual-mode routing.
 
 ```swift
 public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
-    public static let version = "0.8.0"
+    public static let version = "0.9.1"
 
     // VoiceProvider protocol properties
     public let providerId = "voxalta"
@@ -642,7 +642,7 @@ On CI (`GITHUB_ACTIONS` set):
 ## Release Process
 
 1. Bump version in `Sources/diga/Version.swift` and `VoxAltaVoiceProvider.swift`
-2. Tag on `main` (e.g., `v0.8.0`)
+2. Tag on `main` (e.g., `v0.9.1`)
 3. GitHub Release triggers `.github/workflows/release.yml`
 4. Release workflow: `make release` -> tarball (`diga-{version}-arm64-macos.tar.gz`) -> upload assets -> dispatch to `intrusive-memory/homebrew-tap`
 5. Homebrew tap auto-updates formula with new URL and SHA256
