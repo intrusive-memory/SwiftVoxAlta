@@ -329,4 +329,3 @@ struct VoxAltaProviderDescriptorTests {
     #expect(provider1 !== provider2)
   }
 }
-

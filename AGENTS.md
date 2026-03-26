@@ -2,7 +2,7 @@
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.9.1
+**Current Version**: 0.9.2
 
 ---
 
@@ -105,13 +105,12 @@ SwiftVoxAlta/
 │       ├── BuiltinVoices.swift        # 9 built-in CustomVoice preset speakers
 │       ├── DigaCommand.swift          # CLI entry point (@main, ArgumentParser)
 │       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
-│       ├── DigaModelManager.swift     # Model download and RAM-based auto-selection
 │       ├── TextChunker.swift          # Sentence-boundary chunking (NLTokenizer)
-│       ├── Version.swift              # Version constant (0.9.1)
+│       ├── Version.swift              # Version constant (0.9.2)
 │       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
-│   ├── SwiftVoxAltaTests/             # 13 test files (library)
-│   └── DigaTests/                     # 11 test files (CLI)
+│   ├── SwiftVoxAltaTests/             # 11 test files (library)
+│   └── DigaTests/                     # 8 test files (CLI)
 ├── .github/workflows/
 │   ├── tests.yml                      # CI: unit tests on PR (macos-26)
 │   └── release.yml                    # CD: build tarball, upload assets, trigger Homebrew tap
@@ -157,7 +156,7 @@ Implements SwiftHablare's `VoiceProvider` protocol with dual-mode routing.
 
 ```swift
 public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
-    public static let version = "0.9.1"
+    public static let version = "0.9.2"
 
     // VoiceProvider protocol properties
     public let providerId = "voxalta"
@@ -496,7 +495,6 @@ The `instruct` parameter is per-phrase and conditions audio generation suggestiv
 | Type | Purpose |
 |------|---------|
 | `DigaEngine` (actor) | Orchestrates model loading, voice resolution, chunked synthesis |
-| `DigaModelManager` (actor) | Model download, RAM-based auto-selection (16GB threshold) |
 | `VoiceStore` (struct) | JSON-based voice registry at `~/.diga/voices/index.json` |
 | `StoredVoice` (struct) | Voice entry: name, type, designDescription, clonePromptPath, createdAt |
 | `VoiceType` (enum) | `.builtin`, `.designed`, `.cloned`, `.preset` |
@@ -642,7 +640,7 @@ On CI (`GITHUB_ACTIONS` set):
 ## Release Process
 
 1. Bump version in `Sources/diga/Version.swift` and `VoxAltaVoiceProvider.swift`
-2. Tag on `main` (e.g., `v0.9.1`)
+2. Tag on `main` (e.g., `v0.9.2`)
 3. GitHub Release triggers `.github/workflows/release.yml`
 4. Release workflow: `make release` -> tarball (`diga-{version}-arm64-macos.tar.gz`) -> upload assets -> dispatch to `intrusive-memory/homebrew-tap`
 5. Homebrew tap auto-updates formula with new URL and SHA256
