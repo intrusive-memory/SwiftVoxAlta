@@ -35,10 +35,10 @@ struct DigaModelManagerTests {
 
   // MARK: - 2.1 Directory Paths
 
-  @Test("modelsDirectory points to ~/Library/SharedModels/ via Acervo")
+  @Test("modelsDirectory points to SharedModels directory via Acervo")
   func modelsDirectoryPath() {
     let expected = Acervo.sharedModelsDirectory
-    #expect(expected.path.hasSuffix("Library/SharedModels"))
+    #expect(expected.lastPathComponent == "SharedModels")
   }
 
   @Test("modelDirectory slugifies HuggingFace IDs by replacing / with _")

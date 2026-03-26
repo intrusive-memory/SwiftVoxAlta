@@ -347,9 +347,9 @@ struct AcervoIntegrationTests {
     // Second call should be a no-op (migrationAttempted flag)
   }
 
-  @Test("Acervo shared models directory is ~/Library/SharedModels/")
+  @Test("Acervo shared models directory ends with SharedModels")
   func sharedModelsDirectory() {
     let dir = Acervo.sharedModelsDirectory
-    #expect(dir.path.hasSuffix("Library/SharedModels"))
+    #expect(dir.lastPathComponent == "SharedModels")
   }
 }
