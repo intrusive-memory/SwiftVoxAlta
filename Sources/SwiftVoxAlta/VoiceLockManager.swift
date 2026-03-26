@@ -14,9 +14,9 @@ import Tuberia
 /// Internal logger for VoiceLockManager clone prompt caching.
 /// Writes to stderr to match the project-wide logging convention.
 private enum VoiceLockManagerLogger {
-    static func log(_ message: String) {
-        FileHandle.standardError.write(Data("[VoiceLockManager] \(message)\n".utf8))
-    }
+  static func log(_ message: String) {
+    FileHandle.standardError.write(Data("[VoiceLockManager] \(message)\n".utf8))
+  }
 }
 
 /// Manages creation and use of `VoiceLock` instances for voice cloning.
@@ -31,251 +31,260 @@ private enum VoiceLockManagerLogger {
 /// voice reproduction.
 public enum VoiceLockManager: Sendable {
 
-    /// Default reference text for clone prompt extraction when no custom sentence is provided.
-    static let defaultReferenceSampleText = "Hello, this is a voice sample for testing purposes."
+  /// Default reference text for clone prompt extraction when no custom sentence is provided.
+  static let defaultReferenceSampleText = "Hello, this is a voice sample for testing purposes."
 
-    // MARK: - Lock Creation
+  // MARK: - Lock Creation
 
-    /// Create a VoiceLock from candidate audio by extracting a voice clone prompt.
-    ///
-    /// Loads a Base model (which supports voice cloning), converts the candidate
-    /// WAV audio to an MLXArray, and uses the model's speaker encoder to extract
-    /// a reusable clone prompt. The clone prompt is serialized and stored in the
-    /// returned `VoiceLock`.
-    ///
-    /// - Parameters:
-    ///   - characterName: The character name to associate with this voice lock.
-    ///   - candidateAudio: WAV format Data of the selected voice candidate.
-    ///   - designInstruction: The voice description text used to generate the candidate.
-    ///   - modelManager: The model manager used to load the Base model.
-    ///   - sampleSentence: The text that was spoken in the candidate audio. If nil,
-    ///     falls back to the default reference text.
-    ///   - modelRepo: The Base model variant to use for cloning. Defaults to `.base1_7B`.
-    /// - Returns: A `VoiceLock` containing the serialized clone prompt.
-    /// - Throws: `VoxAltaError.cloningFailed` if clone prompt extraction fails,
-    ///           `VoxAltaError.modelNotAvailable` if the Base model cannot be loaded.
-    public static func createLock(
-        characterName: String,
-        candidateAudio: Data,
-        designInstruction: String,
-        modelManager: VoxAltaModelManager,
-        sampleSentence: String? = nil,
-        modelRepo: Qwen3TTSModelRepo = .base1_7B
-    ) async throws -> VoiceLock {
-        // Load Base model (supports voice cloning)
-        let model = try await modelManager.loadModel(modelRepo)
+  /// Create a VoiceLock from candidate audio by extracting a voice clone prompt.
+  ///
+  /// Loads a Base model (which supports voice cloning), converts the candidate
+  /// WAV audio to an MLXArray, and uses the model's speaker encoder to extract
+  /// a reusable clone prompt. The clone prompt is serialized and stored in the
+  /// returned `VoiceLock`.
+  ///
+  /// - Parameters:
+  ///   - characterName: The character name to associate with this voice lock.
+  ///   - candidateAudio: WAV format Data of the selected voice candidate.
+  ///   - designInstruction: The voice description text used to generate the candidate.
+  ///   - modelManager: The model manager used to load the Base model.
+  ///   - sampleSentence: The text that was spoken in the candidate audio. If nil,
+  ///     falls back to the default reference text.
+  ///   - modelRepo: The Base model variant to use for cloning. Defaults to `.base1_7B`.
+  /// - Returns: A `VoiceLock` containing the serialized clone prompt.
+  /// - Throws: `VoxAltaError.cloningFailed` if clone prompt extraction fails,
+  ///           `VoxAltaError.modelNotAvailable` if the Base model cannot be loaded.
+  public static func createLock(
+    characterName: String,
+    candidateAudio: Data,
+    designInstruction: String,
+    modelManager: VoxAltaModelManager,
+    sampleSentence: String? = nil,
+    modelRepo: Qwen3TTSModelRepo = .base1_7B
+  ) async throws -> VoiceLock {
+    // Load Base model (supports voice cloning)
+    let model = try await modelManager.loadModel(modelRepo)
 
-        // Cast to Qwen3TTSModel for clone prompt API
-        guard let qwenModel = model as? Qwen3TTSModel else {
-            throw VoxAltaError.cloningFailed(
-                "Loaded model is not a Qwen3TTSModel. Got \(type(of: model))."
-            )
-        }
-
-        // Convert WAV Data to MLXArray
-        let refAudio: MLXArray
-        do {
-            refAudio = try AudioConversion.wavDataToMLXArray(candidateAudio)
-        } catch {
-            throw VoxAltaError.cloningFailed(
-                "Failed to parse candidate WAV audio: \(error.localizedDescription)"
-            )
-        }
-
-        // Create voice clone prompt
-        let clonePrompt: VoiceClonePrompt
-        do {
-            clonePrompt = try qwenModel.createVoiceClonePrompt(
-                refAudio: refAudio,
-                refText: sampleSentence ?? defaultReferenceSampleText,
-                language: "en"
-            )
-        } catch {
-            throw VoxAltaError.cloningFailed(
-                "Failed to create voice clone prompt for '\(characterName)': \(error.localizedDescription)"
-            )
-        }
-
-        // Flush GPU state after speaker encoder pass.
-        // Without this, loading a new model can crash in AGX::ComputeContext
-        // due to stale Metal command buffers from the previous model.
-        await MemoryManager.shared.clearGPUCache()
-
-        // Serialize clone prompt to Data
-        let clonePromptData: Data
-        do {
-            clonePromptData = try clonePrompt.serialize()
-        } catch {
-            throw VoxAltaError.cloningFailed(
-                "Failed to serialize voice clone prompt: \(error.localizedDescription)"
-            )
-        }
-
-        return VoiceLock(
-            characterName: characterName,
-            clonePromptData: clonePromptData,
-            designInstruction: designInstruction,
-            lockedAt: Date()
-        )
+    // Cast to Qwen3TTSModel for clone prompt API
+    guard let qwenModel = model as? Qwen3TTSModel else {
+      throw VoxAltaError.cloningFailed(
+        "Loaded model is not a Qwen3TTSModel. Got \(type(of: model))."
+      )
     }
 
-    // MARK: - Audio Generation from Lock (Context Envelope)
+    // Convert WAV Data to MLXArray
+    let refAudio: MLXArray
+    do {
+      refAudio = try AudioConversion.wavDataToMLXArray(candidateAudio)
+    } catch {
+      throw VoxAltaError.cloningFailed(
+        "Failed to parse candidate WAV audio: \(error.localizedDescription)"
+      )
+    }
 
-    /// Generate speech audio using a locked voice identity and a generation context.
-    ///
-    /// Logs the envelope size, extracts the `instruct` hint from metadata (if present),
-    /// and delegates to the text-based `generateAudio`. The instruct hint is forwarded
-    /// to Qwen3-TTS as a performance direction (e.g., "Speak softly, sotto voce").
-    ///
-    /// - Parameters:
-    ///   - context: The generation context containing the phrase and optional metadata.
-    ///   - voiceLock: The voice lock containing the serialized clone prompt.
-    ///   - language: The language code for generation. Defaults to "en".
-    ///   - modelManager: The model manager used to load the Base model.
-    ///   - modelRepo: The Base model variant to use for generation. Defaults to `.base1_7B`.
-    ///   - cache: Optional voice cache for clone prompt caching.
-    ///   - settings: Generation parameters controlling sampling behavior.
-    /// - Returns: WAV format Data of the generated speech audio (24kHz, 16-bit PCM, mono).
-    /// - Throws: `VoxAltaError.cloningFailed` if generation fails,
-    ///           `VoxAltaError.modelNotAvailable` if the Base model cannot be loaded.
-    public static func generateAudio(
-        context: GenerationContext,
-        voiceLock: VoiceLock,
-        language: String = "en",
-        modelManager: VoxAltaModelManager,
-        modelRepo: Qwen3TTSModelRepo = .base1_7B,
-        cache: VoxAltaVoiceCache? = nil,
-        settings: GenerationSettings = .default
-    ) async throws -> Data {
+    // Create voice clone prompt
+    let clonePrompt: VoiceClonePrompt
+    do {
+      clonePrompt = try qwenModel.createVoiceClonePrompt(
+        refAudio: refAudio,
+        refText: sampleSentence ?? defaultReferenceSampleText,
+        language: "en"
+      )
+    } catch {
+      throw VoxAltaError.cloningFailed(
+        "Failed to create voice clone prompt for '\(characterName)': \(error.localizedDescription)"
+      )
+    }
+
+    // Flush GPU state after speaker encoder pass.
+    // Without this, loading a new model can crash in AGX::ComputeContext
+    // due to stale Metal command buffers from the previous model.
+    await MemoryManager.shared.clearGPUCache()
+
+    // Serialize clone prompt to Data
+    let clonePromptData: Data
+    do {
+      clonePromptData = try clonePrompt.serialize()
+    } catch {
+      throw VoxAltaError.cloningFailed(
+        "Failed to serialize voice clone prompt: \(error.localizedDescription)"
+      )
+    }
+
+    return VoiceLock(
+      characterName: characterName,
+      clonePromptData: clonePromptData,
+      designInstruction: designInstruction,
+      lockedAt: Date()
+    )
+  }
+
+  // MARK: - Audio Generation from Lock (Context Envelope)
+
+  /// Generate speech audio using a locked voice identity and a generation context.
+  ///
+  /// Logs the envelope size, extracts the `instruct` hint from metadata (if present),
+  /// and delegates to the text-based `generateAudio`. The instruct hint is forwarded
+  /// to Qwen3-TTS as a performance direction (e.g., "Speak softly, sotto voce").
+  ///
+  /// - Parameters:
+  ///   - context: The generation context containing the phrase and optional metadata.
+  ///   - voiceLock: The voice lock containing the serialized clone prompt.
+  ///   - language: The language code for generation. Defaults to "en".
+  ///   - modelManager: The model manager used to load the Base model.
+  ///   - modelRepo: The Base model variant to use for generation. Defaults to `.base1_7B`.
+  ///   - cache: Optional voice cache for clone prompt caching.
+  ///   - settings: Generation parameters controlling sampling behavior.
+  /// - Returns: WAV format Data of the generated speech audio (24kHz, 16-bit PCM, mono).
+  /// - Throws: `VoxAltaError.cloningFailed` if generation fails,
+  ///           `VoxAltaError.modelNotAvailable` if the Base model cannot be loaded.
+  public static func generateAudio(
+    context: GenerationContext,
+    voiceLock: VoiceLock,
+    language: String = "en",
+    modelManager: VoxAltaModelManager,
+    modelRepo: Qwen3TTSModelRepo = .base1_7B,
+    cache: VoxAltaVoiceCache? = nil,
+    settings: GenerationSettings = .default
+  ) async throws -> Data {
+    VoiceLockManagerLogger.log(
+      "Envelope for '\(voiceLock.characterName)': \(context.serializedSize) bytes, \(context.metadata.count) metadata key(s)"
+    )
+    if let instruct = context.instruct {
+      VoiceLockManagerLogger.log("Instruct hint for '\(voiceLock.characterName)': \(instruct)")
+    }
+    return try await generateAudio(
+      text: context.phrase,
+      voiceLock: voiceLock,
+      language: language,
+      instruct: context.instruct,
+      modelManager: modelManager,
+      modelRepo: modelRepo,
+      cache: cache,
+      settings: settings
+    )
+  }
+
+  // MARK: - Audio Generation from Lock (Text)
+
+  /// Generate speech audio using a locked voice identity.
+  ///
+  /// Deserializes the clone prompt from the voice lock and uses it to generate
+  /// audio with a Base model. The resulting audio reproduces the locked voice
+  /// identity consistently across calls.
+  ///
+  /// If a cache is provided, the clone prompt is retrieved from the cache if available
+  /// (avoiding deserialization overhead). On cache miss, the clone prompt is deserialized
+  /// and stored in the cache for subsequent calls.
+  ///
+  /// - Parameters:
+  ///   - text: The text to synthesize.
+  ///   - voiceLock: The voice lock containing the serialized clone prompt.
+  ///   - language: The language code for generation. Defaults to "en".
+  ///   - instruct: Optional performance direction for the TTS model (e.g., "Speak softly").
+  ///     Forwarded to Qwen3-TTS as the `instruct` parameter to influence vocal delivery.
+  ///   - modelManager: The model manager used to load the Base model.
+  ///   - modelRepo: The Base model variant to use for generation. Defaults to `.base1_7B`.
+  ///   - cache: Optional voice cache for clone prompt caching. If provided, reduces
+  ///            deserialization overhead on repeated calls.
+  ///   - settings: Generation parameters controlling sampling behavior.
+  /// - Returns: WAV format Data of the generated speech audio (24kHz, 16-bit PCM, mono).
+  /// - Throws: `VoxAltaError.cloningFailed` if generation fails,
+  ///           `VoxAltaError.modelNotAvailable` if the Base model cannot be loaded.
+  public static func generateAudio(
+    text: String,
+    voiceLock: VoiceLock,
+    language: String = "en",
+    instruct: String? = nil,
+    modelManager: VoxAltaModelManager,
+    modelRepo: Qwen3TTSModelRepo = .base1_7B,
+    cache: VoxAltaVoiceCache? = nil,
+    settings: GenerationSettings = .default
+  ) async throws -> Data {
+    // Load Base model
+    let model = try await modelManager.loadModel(modelRepo)
+
+    // Cast to Qwen3TTSModel
+    guard let qwenModel = model as? Qwen3TTSModel else {
+      throw VoxAltaError.cloningFailed(
+        "Loaded model is not a Qwen3TTSModel. Got \(type(of: model))."
+      )
+    }
+
+    // Check cache for deserialized clone prompt first
+    let clonePrompt: VoiceClonePrompt
+    let dataHash = voiceLock.clonePromptData.prefix(16).map { String(format: "%02x", $0) }.joined()
+    VoiceLockManagerLogger.log(
+      "🔍 Generating for '\(voiceLock.characterName)' (data hash: \(dataHash), size: \(voiceLock.clonePromptData.count) bytes)"
+    )
+
+    if let cache = cache, let cached = await cache.getClonePrompt(id: voiceLock.characterName) {
+      clonePrompt = cached
+      VoiceLockManagerLogger.log(
+        "✅ Clone prompt cache HIT for '\(voiceLock.characterName)' - reusing deserialized clone prompt"
+      )
+    } else {
+      // Cache miss - deserialize clone prompt
+      do {
+        clonePrompt = try VoiceClonePrompt.deserialize(from: voiceLock.clonePromptData)
         VoiceLockManagerLogger.log(
-            "Envelope for '\(voiceLock.characterName)': \(context.serializedSize) bytes, \(context.metadata.count) metadata key(s)"
+          "⚠️  Clone prompt cache MISS for '\(voiceLock.characterName)' - deserializing now")
+      } catch {
+        throw VoxAltaError.cloningFailed(
+          "Failed to deserialize voice clone prompt for '\(voiceLock.characterName)': \(error.localizedDescription)"
         )
-        if let instruct = context.instruct {
-            VoiceLockManagerLogger.log("Instruct hint for '\(voiceLock.characterName)': \(instruct)")
-        }
-        return try await generateAudio(
-            text: context.phrase,
-            voiceLock: voiceLock,
-            language: language,
-            instruct: context.instruct,
-            modelManager: modelManager,
-            modelRepo: modelRepo,
-            cache: cache,
-            settings: settings
-        )
+      }
+
+      // Store in cache for next time
+      if let cache = cache {
+        await cache.storeClonePrompt(id: voiceLock.characterName, clonePrompt: clonePrompt)
+        VoiceLockManagerLogger.log(
+          "💾 Stored clone prompt in cache for '\(voiceLock.characterName)'")
+      }
     }
 
-    // MARK: - Audio Generation from Lock (Text)
-
-    /// Generate speech audio using a locked voice identity.
-    ///
-    /// Deserializes the clone prompt from the voice lock and uses it to generate
-    /// audio with a Base model. The resulting audio reproduces the locked voice
-    /// identity consistently across calls.
-    ///
-    /// If a cache is provided, the clone prompt is retrieved from the cache if available
-    /// (avoiding deserialization overhead). On cache miss, the clone prompt is deserialized
-    /// and stored in the cache for subsequent calls.
-    ///
-    /// - Parameters:
-    ///   - text: The text to synthesize.
-    ///   - voiceLock: The voice lock containing the serialized clone prompt.
-    ///   - language: The language code for generation. Defaults to "en".
-    ///   - instruct: Optional performance direction for the TTS model (e.g., "Speak softly").
-    ///     Forwarded to Qwen3-TTS as the `instruct` parameter to influence vocal delivery.
-    ///   - modelManager: The model manager used to load the Base model.
-    ///   - modelRepo: The Base model variant to use for generation. Defaults to `.base1_7B`.
-    ///   - cache: Optional voice cache for clone prompt caching. If provided, reduces
-    ///            deserialization overhead on repeated calls.
-    ///   - settings: Generation parameters controlling sampling behavior.
-    /// - Returns: WAV format Data of the generated speech audio (24kHz, 16-bit PCM, mono).
-    /// - Throws: `VoxAltaError.cloningFailed` if generation fails,
-    ///           `VoxAltaError.modelNotAvailable` if the Base model cannot be loaded.
-    public static func generateAudio(
-        text: String,
-        voiceLock: VoiceLock,
-        language: String = "en",
-        instruct: String? = nil,
-        modelManager: VoxAltaModelManager,
-        modelRepo: Qwen3TTSModelRepo = .base1_7B,
-        cache: VoxAltaVoiceCache? = nil,
-        settings: GenerationSettings = .default
-    ) async throws -> Data {
-        // Load Base model
-        let model = try await modelManager.loadModel(modelRepo)
-
-        // Cast to Qwen3TTSModel
-        guard let qwenModel = model as? Qwen3TTSModel else {
-            throw VoxAltaError.cloningFailed(
-                "Loaded model is not a Qwen3TTSModel. Got \(type(of: model))."
-            )
-        }
-
-        // Check cache for deserialized clone prompt first
-        let clonePrompt: VoiceClonePrompt
-        let dataHash = voiceLock.clonePromptData.prefix(16).map { String(format: "%02x", $0) }.joined()
-        VoiceLockManagerLogger.log("🔍 Generating for '\(voiceLock.characterName)' (data hash: \(dataHash), size: \(voiceLock.clonePromptData.count) bytes)")
-
-        if let cache = cache, let cached = await cache.getClonePrompt(id: voiceLock.characterName) {
-            clonePrompt = cached
-            VoiceLockManagerLogger.log("✅ Clone prompt cache HIT for '\(voiceLock.characterName)' - reusing deserialized clone prompt")
-        } else {
-            // Cache miss - deserialize clone prompt
-            do {
-                clonePrompt = try VoiceClonePrompt.deserialize(from: voiceLock.clonePromptData)
-                VoiceLockManagerLogger.log("⚠️  Clone prompt cache MISS for '\(voiceLock.characterName)' - deserializing now")
-            } catch {
-                throw VoxAltaError.cloningFailed(
-                    "Failed to deserialize voice clone prompt for '\(voiceLock.characterName)': \(error.localizedDescription)"
-                )
-            }
-
-            // Store in cache for next time
-            if let cache = cache {
-                await cache.storeClonePrompt(id: voiceLock.characterName, clonePrompt: clonePrompt)
-                VoiceLockManagerLogger.log("💾 Stored clone prompt in cache for '\(voiceLock.characterName)'")
-            }
-        }
-
-        // Log generation parameters
-        VoiceLockManagerLogger.log("🎛️  Generation params: temp=\(settings.temperature), topP=\(settings.topP), repPenalty=\(settings.repetitionPenalty), maxTokens=\(settings.maxTokens)")
-        if let instruct = instruct {
-            VoiceLockManagerLogger.log("📝 Instruct: \"\(instruct)\"")
-        }
-        VoiceLockManagerLogger.log("🗣️  Text (\(text.count) chars): \"\(text.prefix(100))\(text.count > 100 ? "..." : "")\"")
-
-        // Generate audio with clone prompt
-        let audioArray: MLXArray
-        do {
-            audioArray = try qwenModel.generateWithClonePrompt(
-                text: text,
-                clonePrompt: clonePrompt,
-                language: language,
-                instruct: instruct,
-                temperature: settings.temperature,
-                topP: settings.topP,
-                repetitionPenalty: settings.repetitionPenalty,
-                maxTokens: settings.maxTokens
-            )
-        } catch {
-            throw VoxAltaError.cloningFailed(
-                "Failed to generate audio for '\(voiceLock.characterName)': \(error.localizedDescription)"
-            )
-        }
-
-        // Flush GPU state so the next generation starts with a clean context.
-        // Without this, stale Metal buffers from the KV cache and intermediate
-        // activations can bleed into subsequent calls, causing inconsistent quality.
-        // AGX crash prevention: clears stale Metal command buffers between generations.
-        await MemoryManager.shared.clearGPUCache()
-
-        // Convert to WAV Data
-        do {
-            return try AudioConversion.mlxArrayToWAVData(audioArray, sampleRate: qwenModel.sampleRate)
-        } catch {
-            throw VoxAltaError.audioExportFailed(
-                "Failed to convert generated audio to WAV: \(error.localizedDescription)"
-            )
-        }
+    // Log generation parameters
+    VoiceLockManagerLogger.log(
+      "🎛️  Generation params: temp=\(settings.temperature), topP=\(settings.topP), repPenalty=\(settings.repetitionPenalty), maxTokens=\(settings.maxTokens)"
+    )
+    if let instruct = instruct {
+      VoiceLockManagerLogger.log("📝 Instruct: \"\(instruct)\"")
     }
+    VoiceLockManagerLogger.log(
+      "🗣️  Text (\(text.count) chars): \"\(text.prefix(100))\(text.count > 100 ? "..." : "")\"")
+
+    // Generate audio with clone prompt
+    let audioArray: MLXArray
+    do {
+      audioArray = try qwenModel.generateWithClonePrompt(
+        text: text,
+        clonePrompt: clonePrompt,
+        language: language,
+        instruct: instruct,
+        temperature: settings.temperature,
+        topP: settings.topP,
+        repetitionPenalty: settings.repetitionPenalty,
+        maxTokens: settings.maxTokens
+      )
+    } catch {
+      throw VoxAltaError.cloningFailed(
+        "Failed to generate audio for '\(voiceLock.characterName)': \(error.localizedDescription)"
+      )
+    }
+
+    // Flush GPU state so the next generation starts with a clean context.
+    // Without this, stale Metal buffers from the KV cache and intermediate
+    // activations can bleed into subsequent calls, causing inconsistent quality.
+    // AGX crash prevention: clears stale Metal command buffers between generations.
+    await MemoryManager.shared.clearGPUCache()
+
+    // Convert to WAV Data
+    do {
+      return try AudioConversion.mlxArrayToWAVData(audioArray, sampleRate: qwenModel.sampleRate)
+    } catch {
+      throw VoxAltaError.audioExportFailed(
+        "Failed to convert generated audio to WAV: \(error.localizedDescription)"
+      )
+    }
+  }
 }
