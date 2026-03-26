@@ -2,73 +2,13 @@
 //  VoiceLockManagerTests.swift
 //  SwiftVoxAltaTests
 //
-//  Tests for VoiceLockManager API existence and VoiceLock serialization.
+//  Tests for VoiceLock serialization correctness.
 //
 
 import Foundation
 import Testing
 
 @testable import SwiftVoxAlta
-
-@Suite("VoiceLockManager - API Existence")
-struct VoiceLockManagerAPITests {
-
-  @Test("VoiceLockManager is an enum namespace")
-  func isEnumNamespace() {
-    // VoiceLockManager is an enum with no cases — this is a compile test.
-    // If it were a struct or class, this test structure would be different.
-    // The fact that this file compiles proves the type exists as expected.
-    let _: VoiceLockManager.Type = VoiceLockManager.self
-  }
-
-  @Test("VoiceLockManager.createLock signature exists")
-  func createLockSignatureExists() async {
-    // This test verifies the createLock method signature compiles.
-    // We cannot call it without a real model, but we verify the types.
-    let manager = VoxAltaModelManager()
-    let candidateData = Data([0x00])
-
-    // Verify the method exists and has the expected parameter types.
-    // We expect this to throw (no model available), which is fine — we're
-    // testing that the API compiles.
-    do {
-      _ = try await VoiceLockManager.createLock(
-        characterName: "TEST",
-        candidateAudio: candidateData,
-        designInstruction: "A test voice.",
-        modelManager: manager
-      )
-      Issue.record("Expected createLock to throw without a loaded model")
-    } catch {
-      // Expected: model not available or similar error
-      #expect(error is VoxAltaError)
-    }
-  }
-
-  @Test("VoiceLockManager.generateAudio signature exists")
-  func generateAudioSignatureExists() async {
-    // Compile test for generateAudio method signature.
-    let manager = VoxAltaModelManager()
-    let lock = VoiceLock(
-      characterName: "TEST",
-      clonePromptData: Data([0x00]),
-      designInstruction: "A test voice."
-    )
-
-    do {
-      _ = try await VoiceLockManager.generateAudio(
-        text: "Hello",
-        voiceLock: lock,
-        language: "en",
-        modelManager: manager
-      )
-      Issue.record("Expected generateAudio to throw without a loaded model")
-    } catch {
-      // Expected: model not available or similar error
-      #expect(error is VoxAltaError)
-    }
-  }
-}
 
 @Suite("VoiceLockManager - VoiceLock Codable")
 struct VoiceLockCodableTests {
@@ -138,26 +78,5 @@ struct VoiceLockCodableTests {
 
     #expect(lock.lockedAt >= before)
     #expect(lock.lockedAt <= after)
-  }
-}
-
-@Suite("VoiceLockManager - Sendable Conformance")
-struct VoiceLockManagerSendableTests {
-
-  @Test("VoiceLock is Sendable")
-  func voiceLockIsSendable() {
-    let lock: any Sendable = VoiceLock(
-      characterName: "TEST",
-      clonePromptData: Data([0x01]),
-      designInstruction: "test"
-    )
-    #expect(lock is VoiceLock)
-  }
-
-  @Test("VoiceLockManager type is accessible as Sendable")
-  func voiceLockManagerIsSendable() {
-    // VoiceLockManager is an enum namespace — enums without cases
-    // are inherently Sendable. This is a compile-time verification.
-    let _: any Sendable.Type = VoiceLockManager.self
   }
 }

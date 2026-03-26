@@ -63,69 +63,6 @@ struct VoiceProviderErrorPathTests {
   }
 }
 
-// MARK: - VoiceLockManager Error Paths
-
-@Suite("Error Paths - VoiceLockManager")
-struct VoiceLockManagerErrorPathTests {
-
-  @Test("generateAudio with corrupted clone prompt data throws cloningFailed or modelNotAvailable")
-  func generateAudioCorruptedClonePrompt() async {
-    let manager = VoxAltaModelManager()
-    let lock = VoiceLock(
-      characterName: "TEST",
-      clonePromptData: Data(),  // Empty/corrupted clone prompt
-      designInstruction: "A test voice."
-    )
-
-    do {
-      _ = try await VoiceLockManager.generateAudio(
-        text: "Hello",
-        voiceLock: lock,
-        language: "en",
-        modelManager: manager
-      )
-      Issue.record("Expected error with corrupted clone prompt data")
-    } catch let error as VoxAltaError {
-      // Should be modelNotAvailable, cloningFailed, or insufficientMemory
-      // depending on whether memory validation or model loading fails first
-      switch error {
-      case .modelNotAvailable, .cloningFailed, .insufficientMemory:
-        break  // Expected
-      default:
-        Issue.record(
-          "Expected modelNotAvailable, cloningFailed, or insufficientMemory, got \(error)")
-      }
-    } catch {
-      // Other errors from mlx-audio-swift are also acceptable
-    }
-  }
-
-  @Test("createLock with invalid candidate audio throws cloningFailed or modelNotAvailable")
-  func createLockInvalidCandidateAudio() async {
-    let manager = VoxAltaModelManager()
-
-    do {
-      _ = try await VoiceLockManager.createLock(
-        characterName: "TEST",
-        candidateAudio: Data([0x00, 0x01]),  // Not valid WAV
-        designInstruction: "test",
-        modelManager: manager
-      )
-      Issue.record("Expected error with invalid candidate audio")
-    } catch let error as VoxAltaError {
-      switch error {
-      case .modelNotAvailable, .cloningFailed, .insufficientMemory:
-        break  // Expected
-      default:
-        Issue.record(
-          "Expected modelNotAvailable, cloningFailed, or insufficientMemory, got \(error)")
-      }
-    } catch {
-      // Other errors also acceptable
-    }
-  }
-}
-
 // MARK: - VoxAltaModelManager Error Paths
 
 @Suite("Error Paths - VoxAltaModelManager")

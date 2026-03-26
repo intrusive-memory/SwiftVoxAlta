@@ -189,9 +189,6 @@ actor DigaEngine {
 
   // MARK: - Properties
 
-  /// Manages TTS model downloads and availability checks (used for pre-flight checks).
-  private let modelManager: DigaModelManager
-
   /// Persists custom voice definitions to disk.
   private let voiceStore: VoiceStore
 
@@ -220,7 +217,6 @@ actor DigaEngine {
     modelOverride: String? = nil,
     voxAltaModelManager: VoxAltaModelManager = VoxAltaModelManager()
   ) {
-    self.modelManager = DigaModelManager()
     self.voiceStore = voiceStore
     self.modelOverride = modelOverride
     self.voxAltaModelManager = voxAltaModelManager

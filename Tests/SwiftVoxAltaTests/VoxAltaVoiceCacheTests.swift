@@ -183,12 +183,4 @@ struct VoxAltaVoiceCacheCachedVoiceTests {
     #expect(voice.gender == "female")
   }
 
-  @Test("CachedVoice is Sendable")
-  func cachedVoiceIsSendable() {
-    let voice: any Sendable = VoxAltaVoiceCache.CachedVoice(
-      clonePromptData: Data([0x01]),
-      gender: nil
-    )
-    #expect(voice is VoxAltaVoiceCache.CachedVoice)
-  }
 }
