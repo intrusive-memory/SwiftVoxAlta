@@ -15,47 +15,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Cache HuggingFace Hub
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/huggingface/hub
-          key: huggingface-${{ runner.os }}-mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16-v1
-          restore-keys: |
-            huggingface-${{ runner.os }}-mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16-
-
-      - name: Download model from HuggingFace
-        run: |
-          pip3 install --quiet --break-system-packages huggingface_hub
-          python3 -c "
-          from huggingface_hub import snapshot_download
-          path = snapshot_download(
-              repo_id='mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16'
-          )
-          print(f'Model cached at: {path}')
-          "
-
-      - name: Symlink to SharedModels directory
-        run: |
-          # Find the model in HuggingFace cache
-          HF_CACHE="$HOME/.cache/huggingface/hub/models--mlx-community--Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16"
-          SNAPSHOT=$(find "$HF_CACHE/snapshots" -mindepth 1 -maxdepth 1 -type d | head -1)
-
-          # Create SharedModels directory
-          mkdir -p "$HOME/Library/SharedModels"
-
-          # Symlink to where SwiftAcervo expects the model
-          TARGET="$HOME/Library/SharedModels/mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16"
-          if [ ! -e "$TARGET" ]; then
-            ln -s "$SNAPSHOT" "$TARGET"
-            echo "Symlinked: $SNAPSHOT -> $TARGET"
-          else
-            echo "Model already symlinked"
-          fi
-
-      - name: Verify model availability
-        run: |
-          ls -lh ~/Library/SharedModels/mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16/
-          du -sh ~/Library/SharedModels/mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16/
+      # Note: Qwen3-TTS model download removed — SwiftVoxAltaTests (which need it)
+      # are skipped on CI due to Metal compiler incompatibility. Only DigaTests runs.
 
       - name: Show Swift version
         run: swift --version

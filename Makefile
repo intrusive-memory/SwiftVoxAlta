@@ -70,26 +70,19 @@ ifdef GITHUB_ACTIONS
 	xcodebuild test \
 	  -scheme $(TEST_SCHEME) \
 	  -destination '$(DESTINATION)' \
-	  -only-testing:DigaTests \
-	  -skip-testing:DigaTests/DigaBinaryIntegrationTests \
-	  -skip-testing:DigaTests/DigaDualModelIntegrationTests
+	  -only-testing:DigaTests
 else
 	@echo "Local run: Running all tests (DigaTests + SwiftVoxAltaTests)"
 	xcodebuild test \
 	  -scheme $(TEST_SCHEME) \
-	  -destination '$(DESTINATION)' \
-	  -skip-testing:DigaTests/DigaBinaryIntegrationTests \
-	  -skip-testing:DigaTests/DigaDualModelIntegrationTests
+	  -destination '$(DESTINATION)'
 endif
 
 # Integration tests (requires binary + cached voices)
+# TODO: Create DigaBinaryIntegrationTests and DigaDualModelIntegrationTests test suites
 test-integration: install
-	@echo "Running integration tests (requires diga binary + cached voices)..."
-	xcodebuild test \
-	  -scheme $(TEST_SCHEME) \
-	  -destination '$(DESTINATION)' \
-	  -only-testing:DigaTests/DigaBinaryIntegrationTests \
-	  -only-testing:DigaTests/DigaDualModelIntegrationTests
+	@echo "No integration test suites defined yet."
+	@echo "Create DigaBinaryIntegrationTests and/or DigaDualModelIntegrationTests in DigaTests to use this target."
 
 # All tests (unit + integration)
 test: test-unit test-integration
