@@ -141,7 +141,7 @@ private let qwen3TTSComponentDescriptors: [ComponentDescriptor] = [
     id: Qwen3TTSModelRepo.base1_7B.componentId,
     type: .languageModel,
     displayName: "Qwen3-TTS Base 1.7B (bf16)",
-    huggingFaceRepo: Qwen3TTSModelRepo.base1_7B.rawValue,
+    repoId: Qwen3TTSModelRepo.base1_7B.rawValue,
     files: qwen3TTSRequiredFiles,
     estimatedSizeBytes: 3_400_000_000,
     minimumMemoryBytes: 3_400_000_000
@@ -150,7 +150,7 @@ private let qwen3TTSComponentDescriptors: [ComponentDescriptor] = [
     id: Qwen3TTSModelRepo.base0_6B.componentId,
     type: .languageModel,
     displayName: "Qwen3-TTS Base 0.6B (bf16)",
-    huggingFaceRepo: Qwen3TTSModelRepo.base0_6B.rawValue,
+    repoId: Qwen3TTSModelRepo.base0_6B.rawValue,
     files: qwen3TTSRequiredFiles,
     estimatedSizeBytes: 1_200_000_000,
     minimumMemoryBytes: 1_200_000_000
@@ -159,7 +159,7 @@ private let qwen3TTSComponentDescriptors: [ComponentDescriptor] = [
     id: Qwen3TTSModelRepo.customVoice1_7B.componentId,
     type: .languageModel,
     displayName: "Qwen3-TTS CustomVoice 1.7B (bf16)",
-    huggingFaceRepo: Qwen3TTSModelRepo.customVoice1_7B.rawValue,
+    repoId: Qwen3TTSModelRepo.customVoice1_7B.rawValue,
     files: qwen3TTSRequiredFiles,
     estimatedSizeBytes: 3_400_000_000,
     minimumMemoryBytes: 3_400_000_000
@@ -168,7 +168,7 @@ private let qwen3TTSComponentDescriptors: [ComponentDescriptor] = [
     id: Qwen3TTSModelRepo.customVoice0_6B.componentId,
     type: .languageModel,
     displayName: "Qwen3-TTS CustomVoice 0.6B (bf16)",
-    huggingFaceRepo: Qwen3TTSModelRepo.customVoice0_6B.rawValue,
+    repoId: Qwen3TTSModelRepo.customVoice0_6B.rawValue,
     files: qwen3TTSRequiredFiles,
     estimatedSizeBytes: 1_200_000_000,
     minimumMemoryBytes: 1_200_000_000
@@ -177,7 +177,7 @@ private let qwen3TTSComponentDescriptors: [ComponentDescriptor] = [
     id: Qwen3TTSModelRepo.voiceDesign1_7B.componentId,
     type: .languageModel,
     displayName: "Qwen3-TTS VoiceDesign 1.7B (bf16)",
-    huggingFaceRepo: Qwen3TTSModelRepo.voiceDesign1_7B.rawValue,
+    repoId: Qwen3TTSModelRepo.voiceDesign1_7B.rawValue,
     files: qwen3TTSRequiredFiles,
     estimatedSizeBytes: 3_400_000_000,
     minimumMemoryBytes: 3_400_000_000
@@ -186,7 +186,7 @@ private let qwen3TTSComponentDescriptors: [ComponentDescriptor] = [
     id: Qwen3TTSModelRepo.base1_7B_8bit.componentId,
     type: .languageModel,
     displayName: "Qwen3-TTS Base 1.7B (8-bit)",
-    huggingFaceRepo: Qwen3TTSModelRepo.base1_7B_8bit.rawValue,
+    repoId: Qwen3TTSModelRepo.base1_7B_8bit.rawValue,
     files: qwen3TTSRequiredFiles,
     estimatedSizeBytes: 1_700_000_000,
     minimumMemoryBytes: 1_700_000_000
@@ -198,7 +198,7 @@ private let qwen3TTSComponentDescriptors: [ComponentDescriptor] = [
     id: Qwen3TTSModelRepo.base1_7B_4bit.componentId,
     type: .languageModel,
     displayName: "Qwen3-TTS Base 1.7B (4-bit) [Deprecated]",
-    huggingFaceRepo: Qwen3TTSModelRepo.base1_7B_4bit.rawValue,
+    repoId: Qwen3TTSModelRepo.base1_7B_4bit.rawValue,
     files: qwen3TTSRequiredFiles,
     estimatedSizeBytes: 850_000_000,
     minimumMemoryBytes: 850_000_000,
