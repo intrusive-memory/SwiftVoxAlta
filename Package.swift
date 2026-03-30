@@ -19,10 +19,10 @@ let package = Package(
     ),
   ],
   dependencies: [
-    .package(url: "https://github.com/intrusive-memory/SwiftHablare.git", from: "5.7.3"),
-    .package(url: "https://github.com/intrusive-memory/mlx-audio-swift.git", from: "0.3.2"),
+    .package(url: "https://github.com/intrusive-memory/SwiftHablare.git", from: "5.7.4"),
+    .package(url: "https://github.com/intrusive-memory/mlx-audio-swift.git", from: "0.3.3"),
     .package(url: "https://github.com/intrusive-memory/SwiftAcervo.git", from: "0.5.4"),
-    .package(url: "https://github.com/intrusive-memory/SwiftTuberia.git", from: "0.2.1"),
+    .package(url: "https://github.com/intrusive-memory/SwiftTuberia.git", from: "0.2.2"),
     .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
     .package(url: "https://github.com/intrusive-memory/vox-format.git", from: "0.3.1"),
     .package(url: "https://github.com/mattt/EventSource.git", from: "1.4.1"),
