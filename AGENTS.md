@@ -2,7 +2,7 @@
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.9.5
+**Current Version**: 0.9.7
 
 ---
 
@@ -106,7 +106,7 @@ SwiftVoxAlta/
 │       ├── DigaCommand.swift          # CLI entry point (@main, ArgumentParser)
 │       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
 │       ├── TextChunker.swift          # Sentence-boundary chunking (NLTokenizer)
-│       ├── Version.swift              # Version constant (0.9.5)
+│       ├── Version.swift              # Version constant (0.9.7)
 │       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # 11 test files (library)
@@ -156,7 +156,7 @@ Implements SwiftHablare's `VoiceProvider` protocol with dual-mode routing.
 
 ```swift
 public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
-    public static let version = "0.9.5"
+    public static let version = "0.9.7"
 
     // VoiceProvider protocol properties
     public let providerId = "voxalta"
@@ -648,6 +648,16 @@ On CI (`GITHUB_ACTIONS` set):
 ---
 
 ## Recent Changes
+
+### v0.9.7
+
+- **fix**: Replace tokenizer.json with vocab.json in required files list
+- Qwen3-TTS models use BPE tokenizer format (vocab.json + merges.txt), not tokenizer.json
+- Fixes fileNotInManifest errors on every voice generation attempt
+
+### v0.9.6
+
+- Bump SwiftTuberia dependency to 0.2.6
 
 ### v0.9.5
 
