@@ -127,7 +127,7 @@ extension Qwen3TTSModelRepo {
 /// `Acervo.ensureComponentReady()` knows exactly what to download.
 private let qwen3TTSRequiredFiles: [ComponentFile] = [
   ComponentFile(relativePath: "config.json"),
-  ComponentFile(relativePath: "tokenizer.json"),
+  ComponentFile(relativePath: "vocab.json"),
   ComponentFile(relativePath: "tokenizer_config.json"),
   ComponentFile(relativePath: "model.safetensors"),
 ]
