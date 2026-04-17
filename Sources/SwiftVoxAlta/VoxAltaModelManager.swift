@@ -125,11 +125,21 @@ extension Qwen3TTSModelRepo {
 ///
 /// These files are declared in each `ComponentDescriptor` so that
 /// `Acervo.ensureComponentReady()` knows exactly what to download.
+/// Includes all core model config, tokenizer files (for tokenizer.json generation),
+/// model weights (including index for sharded models), and speech tokenizer components.
 private let qwen3TTSRequiredFiles: [ComponentFile] = [
   ComponentFile(relativePath: "config.json"),
-  ComponentFile(relativePath: "vocab.json"),
+  ComponentFile(relativePath: "generation_config.json"),
+  ComponentFile(relativePath: "preprocessor_config.json"),
   ComponentFile(relativePath: "tokenizer_config.json"),
+  ComponentFile(relativePath: "vocab.json"),
+  ComponentFile(relativePath: "merges.txt"),
   ComponentFile(relativePath: "model.safetensors"),
+  ComponentFile(relativePath: "model.safetensors.index.json"),
+  ComponentFile(relativePath: "speech_tokenizer/config.json"),
+  ComponentFile(relativePath: "speech_tokenizer/configuration.json"),
+  ComponentFile(relativePath: "speech_tokenizer/model.safetensors"),
+  ComponentFile(relativePath: "speech_tokenizer/preprocessor_config.json"),
 ]
 
 /// All 7 Qwen3-TTS component descriptors (6 active + 1 deprecated).
