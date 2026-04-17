@@ -19,12 +19,17 @@ let package = Package(
     ),
   ],
   dependencies: [
-    .package(url: "https://github.com/intrusive-memory/SwiftHablare.git", .upToNextMajor(from: "5.7.5")),
-    .package(url: "https://github.com/intrusive-memory/mlx-audio-swift.git", .upToNextMajor(from: "0.3.4")),
-    .package(url: "https://github.com/intrusive-memory/SwiftAcervo.git", .upToNextMajor(from: "0.7.0")),
-    .package(url: "https://github.com/intrusive-memory/SwiftTuberia.git", .upToNextMajor(from: "0.3.6")),
+    .package(
+      url: "https://github.com/intrusive-memory/SwiftHablare.git", .upToNextMajor(from: "5.7.5")),
+    .package(
+      url: "https://github.com/intrusive-memory/mlx-audio-swift.git", .upToNextMajor(from: "0.3.5")),
+    .package(
+      url: "https://github.com/intrusive-memory/SwiftAcervo.git", .upToNextMajor(from: "0.7.1")),
+    .package(
+      url: "https://github.com/intrusive-memory/SwiftTuberia.git", .upToNextMajor(from: "0.3.6")),
     .package(url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "1.7.1")),
-    .package(url: "https://github.com/intrusive-memory/vox-format.git", .upToNextMajor(from: "0.3.1")),
+    .package(
+      url: "https://github.com/intrusive-memory/vox-format.git", .upToNextMajor(from: "0.3.1")),
   ],
   targets: [
     .target(
