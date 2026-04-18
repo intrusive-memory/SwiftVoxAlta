@@ -1,0 +1,194 @@
+name: Ensure TTS Models on CDN (Midnight)
+
+# Uploads SwiftVoxAlta TTS models to Cloudflare R2 CDN with SwiftAcervo-compatible
+# manifests. Idempotent: if manifest already exists on CDN, skips download and upload.
+#
+# Models: Qwen3-TTS (2 variants), Kokoro, Piper (8 variants), LlamaSpeak
+# Total size: ~3-4 GB across all 7 TTS components
+#
+# Disk constraint: ~14 GB free on runner. Models downloaded sequentially:
+# download → SHA-256 → upload → delete → next model
+
+on:
+  schedule:
+    # Midnight UTC every day
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  ensure-tts-models-cdn:
+    name: Ensure TTS Models on CDN
+    runs-on: macos-26
+    timeout-minutes: 240
+
+    strategy:
+      matrix:
+        model:
+          - id: "voxalta-qwen3-tts-0.6b-base"
+            repo: "mlx-community/Qwen3-TTS-0.6B-Base"
+            slug: "mlx-community_Qwen3-TTS-0.6B-Base"
+          - id: "voxalta-qwen3-tts-0.6b-openspokenquestion"
+            repo: "mlx-community/Qwen3-TTS-0.6B-OpenSpokenQuestion"
+            slug: "mlx-community_Qwen3-TTS-0.6B-OpenSpokenQuestion"
+          - id: "voxalta-kokoro-82m"
+            repo: "hexgrad/Kokoro-82M"
+            slug: "hexgrad_Kokoro-82M"
+          - id: "voxalta-piper-en-us-amy-medium"
+            repo: "rhasspy/piper-voices"
+            slug: "rhasspy_piper-en-US-amy-medium"
+          - id: "voxalta-piper-en-us-ryan-low"
+            repo: "rhasspy/piper-voices"
+            slug: "rhasspy_piper-en-US-ryan-low"
+          - id: "voxalta-llamaspeak"
+            repo: "mlx-community/LlamaSpeak"
+            slug: "mlx-community_LlamaSpeak"
+
+    env:
+      CDN_BASE: ${{ secrets.CDN_BASE_URL }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check if manifest exists on CDN
+        id: check-manifest
+        run: |
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${{ env.CDN_BASE }}/models/${{ matrix.model.slug }}/manifest.json")
+          echo "status=$HTTP_STATUS" >> $GITHUB_OUTPUT
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ Model manifest already on CDN — skipping upload"
+          else
+            echo "⬇️ Model manifest not found (HTTP $HTTP_STATUS) — will download and upload"
+          fi
+
+      - name: Download model files from HuggingFace
+        if: steps.check-manifest.outputs.status != '200'
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/model_download/${{ matrix.model.slug }}
+          cd /tmp/model_download/${{ matrix.model.slug }}
+
+          echo "Downloading ${{ matrix.model.id }} from ${{ matrix.model.repo }}"
+
+          # Download all model files via HuggingFace CLI
+          huggingface-cli download ${{ matrix.model.repo }} \
+            --local-dir . \
+            --repo-type model \
+            --cache-dir /tmp/hf_cache
+
+      - name: Generate manifest with SHA-256
+        if: steps.check-manifest.outputs.status != '200'
+        run: |
+          set -euo pipefail
+          cd /tmp/model_download/${{ matrix.model.slug }}
+
+          # Create manifest.json with SHA-256 for all files
+          {
+            echo "{"
+            echo '  "model_id": "${{ matrix.model.id }}",'
+            echo '  "model_repo": "${{ matrix.model.repo }}",'
+            echo '  "files": ['
+
+            first=true
+            for file in $(find . -type f | sort); do
+              if [ "$file" = "./manifest.json" ]; then continue; fi
+
+              filename="${file#./}"
+              filesize=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null)
+              sha256=$(shasum -a 256 "$file" | awk '{print $1}')
+
+              if [ "$first" = false ]; then
+                echo ","
+              fi
+              first=false
+
+              echo "    {"
+              echo "      \"name\": \"$filename\","
+              echo "      \"size\": $filesize,"
+              echo "      \"sha256\": \"$sha256\""
+              echo "    }" | tr -d '\n'
+            done
+
+            echo ""
+            echo "  ]"
+            echo "}"
+          } > manifest.json
+
+          echo "Generated manifest:"
+          cat manifest.json
+
+      - name: Upload to R2 CDN
+        if: steps.check-manifest.outputs.status != '200'
+        run: |
+          set -euo pipefail
+          cd /tmp/model_download/${{ matrix.model.slug }}
+
+          echo "Uploading ${{ matrix.model.slug }} to CDN..."
+
+          # Upload manifest first
+          curl -X PUT \
+            -H "Authorization: Bearer ${{ env.R2_ACCESS_KEY_ID }}:${{ env.R2_SECRET_ACCESS_KEY }}" \
+            --data-binary @manifest.json \
+            "${{ env.CDN_BASE }}/models/${{ matrix.model.slug }}/manifest.json"
+
+          echo "Manifest uploaded"
+
+          # Upload all model files
+          for file in $(find . -type f ! -name "manifest.json" | sort); do
+            filename="${file#./}"
+            echo "Uploading $filename..."
+
+            curl -X PUT \
+              --data-binary @"$file" \
+              "${{ env.CDN_BASE }}/models/${{ matrix.model.slug }}/$filename"
+          done
+
+          echo "All files uploaded to CDN"
+
+      - name: Verify upload
+        if: steps.check-manifest.outputs.status != '200'
+        run: |
+          set -euo pipefail
+          cd /tmp/model_download/${{ matrix.model.slug }}
+
+          echo "Verifying uploaded manifest..."
+          VERIFY_STATUS=$(curl -s -o /tmp/manifest_verify.json -w "%{http_code}" \
+            "${{ env.CDN_BASE }}/models/${{ matrix.model.slug }}/manifest.json")
+
+          if [ "$VERIFY_STATUS" = "200" ]; then
+            echo "✅ Manifest verified on CDN"
+
+            # Verify checksums match
+            REMOTE_SHA=$(jq -r '.files[0].sha256' /tmp/manifest_verify.json)
+            LOCAL_SHA=$(jq -r '.files[0].sha256' manifest.json)
+
+            if [ "$REMOTE_SHA" = "$LOCAL_SHA" ]; then
+              echo "✅ Checksums match"
+            else
+              echo "❌ Checksum mismatch!"
+              exit 1
+            fi
+          else
+            echo "❌ Manifest verification failed (HTTP $VERIFY_STATUS)"
+            exit 1
+          fi
+
+      - name: Cleanup local cache
+        if: steps.check-manifest.outputs.status != '200'
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/model_download/${{ matrix.model.slug }}
+          rm -rf /tmp/hf_cache
+
+      - name: Skip notification
+        if: steps.check-manifest.outputs.status == '200'
+        run: echo "⏭️ Skipped upload (model already on CDN)"
+
+      - name: Success notification
+        if: steps.check-manifest.outputs.status != '200'
+        run: echo "✅ Model ${{ matrix.model.slug }} uploaded and verified on CDN"
