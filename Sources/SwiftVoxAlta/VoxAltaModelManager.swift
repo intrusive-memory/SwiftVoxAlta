@@ -302,12 +302,64 @@ public actor VoxAltaModelManager {
     Acervo.isModelAvailable(modelId)
   }
 
+  /// Internal method to validate a model via v2 Acervo access patterns.
+  ///
+  /// This method uses `AcervoManager.shared.withComponentAccess()` to validate that
+  /// all model files are present and (if defined) have correct checksums. After validation,
+  /// the model is loaded via TTSModelUtils.
+  ///
+  /// The withComponentAccess closure performs file presence and checksum validation
+  /// automatically via SwiftAcervo before any file access occurs, ensuring the
+  /// component's integrity before loading.
+  ///
+  /// - Parameter componentId: The Acervo component ID for the model.
+  /// - Parameter repo: The HuggingFace repository identifier.
+  /// - Returns: The loaded `SpeechGenerationModel` instance.
+  /// - Throws: `VoxAltaError.modelNotAvailable` if validation or loading fails.
+  private func _loadModelWithComponentValidation(
+    componentId: String,
+    repo: String
+  ) async throws -> any SpeechGenerationModel {
+    // First, validate the component's files and checksums via Acervo.
+    // The withComponentAccess closure validates presence and integrity,
+    // then returns immediately without needing the handle.
+    do {
+      try await AcervoManager.shared.withComponentAccess(componentId) { @Sendable _ in
+        // Validation happens on closure entry (file presence + checksums if defined).
+        // We don't need to use the handle for file operations since TTSModelUtils
+        // will access the Acervo-managed directory directly.
+        ()
+      }
+    } catch {
+      throw VoxAltaError.modelNotAvailable(
+        "Failed to validate model component '\(componentId)': \(error.localizedDescription)"
+      )
+    }
+
+    // After validation succeeds, load the model via TTSModelUtils.
+    // Files are guaranteed to exist and be valid at this point.
+    let model: any SpeechGenerationModel
+    do {
+      model = try await TTSModelUtils.loadModel(modelRepo: repo)
+    } catch {
+      throw VoxAltaError.modelNotAvailable(
+        "Failed to load model from '\(repo)': \(error.localizedDescription)"
+      )
+    }
+
+    return model
+  }
+
   /// Loads a Qwen3-TTS model from the given HuggingFace repository.
   ///
   /// On the first call, the model is downloaded (if not already cached on disk)
   /// and loaded into memory. Subsequent calls with the same `repo` return the
   /// cached instance immediately. If called with a different `repo`, the
   /// currently loaded model is unloaded first.
+  ///
+  /// File access is protected via v2 Acervo access patterns: `ensureComponentReady()`
+  /// ensures downloads, then `_loadModelWithComponentValidation()` validates file presence
+  /// and checksums before loading.
   ///
   /// - Parameter repo: The HuggingFace model repository identifier
   ///   (e.g., `"mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"`).
@@ -327,29 +379,30 @@ public actor VoxAltaModelManager {
       await unloadModel()
     }
 
+    // Resolve the component ID for this model variant
+    guard let modelRepo = Qwen3TTSModelRepo(rawValue: repo) else {
+      throw VoxAltaError.modelNotAvailable(
+        "Unknown Qwen3-TTS repository: '\(repo)'"
+      )
+    }
+
+    let componentId = modelRepo.componentId
+
     // Warn (but don't block) if memory looks tight — let macOS manage pressure.
     // Model size comes from the ComponentDescriptor registered at module init.
-    if let modelRepo = Qwen3TTSModelRepo(rawValue: repo),
-      let descriptor = Acervo.component(modelRepo.componentId)
-    {
+    if let descriptor = Acervo.component(componentId) {
       await checkMemory(forModelSizeBytes: Int(descriptor.minimumMemoryBytes))
     }
 
-    // Ensure the model's files are on disk via the Acervo Component Registry.
-    // This replaces the implicit download-on-demand in TTSModelUtils.
-    if let modelRepo = Qwen3TTSModelRepo(rawValue: repo) {
-      try await Acervo.ensureComponentReady(modelRepo.componentId)
-    }
+    // Step 1: Ensure the model's files are downloaded via Acervo Component Registry.
+    // This happens outside the validation closure since download may be expensive.
+    try await Acervo.ensureComponentReady(componentId)
 
-    // Load via mlx-audio-swift's TTSModelUtils
-    let model: any SpeechGenerationModel
-    do {
-      model = try await TTSModelUtils.loadModel(modelRepo: repo)
-    } catch {
-      throw VoxAltaError.modelNotAvailable(
-        "Failed to load model from '\(repo)': \(error.localizedDescription)"
-      )
-    }
+    // Step 2: Load the model with v2 access patterns (file presence and checksums validated).
+    let model = try await _loadModelWithComponentValidation(
+      componentId: componentId,
+      repo: repo
+    )
 
     // Cache the loaded model
     cachedModel = model
