@@ -4,8 +4,8 @@
 //
 //  Verifies that SwiftVoxAlta registers a ComponentDescriptor for every
 //  Qwen3-TTS variant with correct metadata. Download, checksum validation,
-//  caching, and file-presence checks are owned by SwiftAcervo and
-//  CDNAvailabilityTests and are not retested here.
+//  caching, file-presence, and CDN availability are owned by SwiftAcervo
+//  and are not retested here.
 //
 
 import Foundation

@@ -8,7 +8,7 @@ BIN_DIR = ./bin
 DESTINATION = platform=macOS,arch=arm64
 DERIVED_DATA = $(HOME)/Library/Developer/Xcode/DerivedData
 
-.PHONY: all build release install clean test test-unit test-integration test-cdn setup-voices resolve lint help
+.PHONY: all build release install clean test test-unit test-integration setup-voices resolve lint help
 
 all: install
 
@@ -75,18 +75,8 @@ else
 	@echo "Local run: Running all tests (DigaTests + SwiftVoxAltaTests)"
 	xcodebuild test \
 	  -scheme $(TEST_SCHEME) \
-	  -destination '$(DESTINATION)' \
-	  -skip-testing:SwiftVoxAltaTests/CDNAvailabilityTests
+	  -destination '$(DESTINATION)'
 endif
-
-# CDN availability tests (requires network access; downloads config.json only)
-# Validates that all 7 Qwen3-TTS models are reachable on the Acervo CDN.
-test-cdn:
-	@echo "Running CDN availability tests (network required)..."
-	xcodebuild test \
-	  -scheme $(TEST_SCHEME) \
-	  -destination '$(DESTINATION)' \
-	  -only-testing:SwiftVoxAltaTests/CDNAvailabilityTests
 
 # Integration tests (requires binary + cached voices)
 # TODO: Create DigaBinaryIntegrationTests and DigaDualModelIntegrationTests test suites
@@ -129,7 +119,6 @@ help:
 	@echo "  test            - Run all tests (unit + integration)"
 	@echo "  test-unit       - Run fast unit tests only (no binary required)"
 	@echo "  test-integration - Run binary integration tests (requires binary + voices)"
-	@echo "  test-cdn        - Check all Qwen3-TTS models are available on CDN (requires network)"
 	@echo "  setup-voices    - One-time setup: generate voices for local testing"
 	@echo "  clean           - Clean build artifacts"
 	@echo "  help            - Show this help"
