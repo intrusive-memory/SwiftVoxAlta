@@ -121,39 +121,19 @@ extension Qwen3TTSModelRepo {
   }
 }
 
-/// Required files for any Qwen3-TTS model variant.
-///
-/// These files are declared in each `ComponentDescriptor` so that
-/// `Acervo.ensureComponentReady()` knows exactly what to download.
-/// Includes all core model config, tokenizer files (for tokenizer.json generation),
-/// model weights (including index for sharded models), and speech tokenizer components.
-private let qwen3TTSRequiredFiles: [ComponentFile] = [
-  ComponentFile(relativePath: "config.json"),
-  ComponentFile(relativePath: "generation_config.json"),
-  ComponentFile(relativePath: "preprocessor_config.json"),
-  ComponentFile(relativePath: "tokenizer_config.json"),
-  ComponentFile(relativePath: "vocab.json"),
-  ComponentFile(relativePath: "merges.txt"),
-  ComponentFile(relativePath: "model.safetensors"),
-  ComponentFile(relativePath: "model.safetensors.index.json"),
-  ComponentFile(relativePath: "speech_tokenizer/config.json"),
-  ComponentFile(relativePath: "speech_tokenizer/configuration.json"),
-  ComponentFile(relativePath: "speech_tokenizer/model.safetensors"),
-  ComponentFile(relativePath: "speech_tokenizer/preprocessor_config.json"),
-]
-
 /// All 7 Qwen3-TTS component descriptors (6 active + 1 deprecated).
 ///
-/// Registered at module initialization so the Acervo Component Registry
-/// is populated before any model loading or download is attempted.
+/// Bare descriptors — no `files:` or `estimatedSizeBytes:` declared. SwiftAcervo
+/// auto-hydrates each one from the CDN manifest on first call to
+/// `ensureComponentReady`, so the file list and total size are always whatever
+/// the published manifest says, never a stale local mirror. `minimumMemoryBytes`
+/// stays here because it is a VoxAlta policy decision, not model metadata.
 private let qwen3TTSComponentDescriptors: [ComponentDescriptor] = [
   ComponentDescriptor(
     id: Qwen3TTSModelRepo.base1_7B.componentId,
     type: .languageModel,
     displayName: "Qwen3-TTS Base 1.7B (bf16)",
     repoId: Qwen3TTSModelRepo.base1_7B.rawValue,
-    files: qwen3TTSRequiredFiles,
-    estimatedSizeBytes: 3_400_000_000,
     minimumMemoryBytes: 3_400_000_000
   ),
   ComponentDescriptor(
@@ -161,8 +141,6 @@ private let qwen3TTSComponentDescriptors: [ComponentDescriptor] = [
     type: .languageModel,
     displayName: "Qwen3-TTS Base 0.6B (bf16)",
     repoId: Qwen3TTSModelRepo.base0_6B.rawValue,
-    files: qwen3TTSRequiredFiles,
-    estimatedSizeBytes: 1_200_000_000,
     minimumMemoryBytes: 1_200_000_000
   ),
   ComponentDescriptor(
@@ -170,8 +148,6 @@ private let qwen3TTSComponentDescriptors: [ComponentDescriptor] = [
     type: .languageModel,
     displayName: "Qwen3-TTS CustomVoice 1.7B (bf16)",
     repoId: Qwen3TTSModelRepo.customVoice1_7B.rawValue,
-    files: qwen3TTSRequiredFiles,
-    estimatedSizeBytes: 3_400_000_000,
     minimumMemoryBytes: 3_400_000_000
   ),
   ComponentDescriptor(
@@ -179,8 +155,6 @@ private let qwen3TTSComponentDescriptors: [ComponentDescriptor] = [
     type: .languageModel,
     displayName: "Qwen3-TTS CustomVoice 0.6B (bf16)",
     repoId: Qwen3TTSModelRepo.customVoice0_6B.rawValue,
-    files: qwen3TTSRequiredFiles,
-    estimatedSizeBytes: 1_200_000_000,
     minimumMemoryBytes: 1_200_000_000
   ),
   ComponentDescriptor(
@@ -188,8 +162,6 @@ private let qwen3TTSComponentDescriptors: [ComponentDescriptor] = [
     type: .languageModel,
     displayName: "Qwen3-TTS VoiceDesign 1.7B (bf16)",
     repoId: Qwen3TTSModelRepo.voiceDesign1_7B.rawValue,
-    files: qwen3TTSRequiredFiles,
-    estimatedSizeBytes: 3_400_000_000,
     minimumMemoryBytes: 3_400_000_000
   ),
   ComponentDescriptor(
@@ -197,8 +169,6 @@ private let qwen3TTSComponentDescriptors: [ComponentDescriptor] = [
     type: .languageModel,
     displayName: "Qwen3-TTS Base 1.7B (8-bit)",
     repoId: Qwen3TTSModelRepo.base1_7B_8bit.rawValue,
-    files: qwen3TTSRequiredFiles,
-    estimatedSizeBytes: 1_700_000_000,
     minimumMemoryBytes: 1_700_000_000
   ),
   // Deprecated: 4-bit variant has significant quality degradation.
@@ -209,8 +179,6 @@ private let qwen3TTSComponentDescriptors: [ComponentDescriptor] = [
     type: .languageModel,
     displayName: "Qwen3-TTS Base 1.7B (4-bit) [Deprecated]",
     repoId: Qwen3TTSModelRepo.base1_7B_4bit.rawValue,
-    files: qwen3TTSRequiredFiles,
-    estimatedSizeBytes: 850_000_000,
     minimumMemoryBytes: 850_000_000,
     metadata: ["deprecated": "true"]
   ),
@@ -302,52 +270,78 @@ public actor VoxAltaModelManager {
     Acervo.isModelAvailable(modelId)
   }
 
-  /// Internal method to validate a model via v2 Acervo access patterns.
+  /// Validates a component's files via SwiftAcervo and then loads the model.
   ///
-  /// This method uses `AcervoManager.shared.withComponentAccess()` to validate that
-  /// all model files are present and (if defined) have correct checksums. After validation,
-  /// the model is loaded via TTSModelUtils.
-  ///
-  /// The withComponentAccess closure performs file presence and checksum validation
-  /// automatically via SwiftAcervo before any file access occurs, ensuring the
-  /// component's integrity before loading.
+  /// `withComponentAccess`'s closure is synchronous (`@Sendable (ComponentHandle) throws -> T`),
+  /// so the async `TTSModelUtils.loadModel` cannot run inside it. The closure is therefore used
+  /// purely to trigger SwiftAcervo's file-presence and checksum validation on entry; the load
+  /// runs immediately afterward. There is a narrow TOCTOU window between closure exit and load
+  /// — closing it cleanly requires an async-closure overload of `withComponentAccess` upstream
+  /// in SwiftAcervo (see ACERVO_AUDIT.md, Finding 2). For now the `AcervoError` switch below
+  /// surfaces any validation failure with an actionable message.
   ///
   /// - Parameter componentId: The Acervo component ID for the model.
   /// - Parameter repo: The HuggingFace repository identifier.
   /// - Returns: The loaded `SpeechGenerationModel` instance.
-  /// - Throws: `VoxAltaError.modelNotAvailable` if validation or loading fails.
+  /// - Throws: `VoxAltaError.modelNotAvailable` with a typed message derived
+  ///   from the underlying `AcervoError` case when the failure is from Acervo.
   private func _loadModelWithComponentValidation(
     componentId: String,
     repo: String
   ) async throws -> any SpeechGenerationModel {
-    // First, validate the component's files and checksums via Acervo.
-    // The withComponentAccess closure validates presence and integrity,
-    // then returns immediately without needing the handle.
     do {
       try await AcervoManager.shared.withComponentAccess(componentId) { @Sendable _ in
-        // Validation happens on closure entry (file presence + checksums if defined).
-        // We don't need to use the handle for file operations since TTSModelUtils
-        // will access the Acervo-managed directory directly.
+        // Validation happens on closure entry (file presence + checksums).
+        // The async load must run outside this sync closure.
         ()
       }
-    } catch {
-      throw VoxAltaError.modelNotAvailable(
-        "Failed to validate model component '\(componentId)': \(error.localizedDescription)"
-      )
-    }
-
-    // After validation succeeds, load the model via TTSModelUtils.
-    // Files are guaranteed to exist and be valid at this point.
-    let model: any SpeechGenerationModel
-    do {
-      model = try await TTSModelUtils.loadModel(modelRepo: repo)
+      return try await TTSModelUtils.loadModel(modelRepo: repo)
+    } catch let error as AcervoError {
+      switch error {
+      case .modelNotFound(let id):
+        throw VoxAltaError.modelNotAvailable("Model '\(id)' not found on CDN")
+      case .integrityCheckFailed(let file, _, _):
+        throw VoxAltaError.modelNotAvailable(
+          "File '\(file)' failed SHA-256 verification; re-download required"
+        )
+      case .downloadSizeMismatch(let fileName, let expected, let actual):
+        throw VoxAltaError.modelNotAvailable(
+          "File '\(fileName)' size mismatch (\(actual) vs \(expected))"
+        )
+      case .componentNotRegistered(let id):
+        throw VoxAltaError.modelNotAvailable(
+          "Unknown component '\(id)' (internal bug: forgot to register?)"
+        )
+      case .componentNotHydrated(let id):
+        throw VoxAltaError.modelNotAvailable(
+          "Component '\(id)' needs hydration before sync inspection"
+        )
+      case .offlineModeActive:
+        throw VoxAltaError.modelNotAvailable(
+          "ACERVO_OFFLINE=1 — refusing CDN fetch; model not present locally"
+        )
+      case .fileNotInManifest(let fileName, let modelId):
+        throw VoxAltaError.modelNotAvailable(
+          "Model '\(modelId)' does not include '\(fileName)' in its CDN manifest"
+        )
+      case .manifestIntegrityFailed:
+        throw VoxAltaError.modelNotAvailable(
+          "Manifest checksum mismatch; CDN copy may be corrupt"
+        )
+      case .manifestDownloadFailed(let statusCode):
+        throw VoxAltaError.modelNotAvailable(
+          "Manifest download failed (HTTP \(statusCode))"
+        )
+      default:
+        throw VoxAltaError.modelNotAvailable(
+          "SwiftAcervo error: \(error.localizedDescription)"
+        )
+      }
     } catch {
       throw VoxAltaError.modelNotAvailable(
         "Failed to load model from '\(repo)': \(error.localizedDescription)"
       )
     }
-
-    return model
   }
 
   /// Loads a Qwen3-TTS model from the given HuggingFace repository.

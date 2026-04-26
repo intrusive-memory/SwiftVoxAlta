@@ -591,6 +591,20 @@ diga -v voice.vox "Hello, world!"      # Synthesize directly (no import needed)
 └── mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16/  (~4.3GB, preset speakers)
 ```
 
+### App Group entitlement (REQUIRED for app integrators)
+
+The `~/Library/SharedModels/` path above is the App Group container `group.intrusive-memory.models`. **Every app target that links SwiftVoxAlta (or any SwiftAcervo consumer) must enable this App Group capability.** Without it, SwiftAcervo silently falls back to `~/Library/Application Support/SwiftAcervo/SharedModels/` — a per-app path that is not shared across apps, defeating the cross-app caching that is the whole point of the shared-models layout.
+
+Xcode setup (per target, including extensions):
+
+1. Target → **Signing & Capabilities** → **+ Capability** → **App Groups**.
+2. Check or add `group.intrusive-memory.models`.
+3. Rebuild.
+
+Verify at runtime by printing `Acervo.sharedModelsDirectory`. A correctly entitled app shows a path under `~/Library/Group Containers/group.intrusive-memory.models/...`. A path ending in `Application Support/SwiftAcervo/SharedModels` means the entitlement is missing.
+
+The `diga` CLI in this repo is unsigned and can't join App Groups — it uses the fallback path by design. This caveat is library-consumer's only; nothing in SwiftVoxAlta itself needs the entitlement. See [SwiftAcervo USAGE.md](https://github.com/intrusive-memory/SwiftAcervo/blob/main/USAGE.md) for the full integration checklist.
+
 ---
 
 ## Design Patterns

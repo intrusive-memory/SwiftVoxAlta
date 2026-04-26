@@ -27,18 +27,20 @@ struct ComponentDescriptorRegistrationTests {
     #expect(descriptor.type == .languageModel)
     #expect(descriptor.repoId == repo.rawValue)
     #expect(!descriptor.displayName.isEmpty)
-    #expect(descriptor.estimatedSizeBytes > 0)
     #expect(descriptor.minimumMemoryBytes > 0)
-    #expect(descriptor.files.count >= 12, "Each Qwen3-TTS variant must declare its required weight + tokenizer files")
+    // Bare descriptor: files + estimatedSizeBytes are populated lazily by
+    // SwiftAcervo on first ensureComponentReady call. A freshly registered
+    // descriptor reports needsHydration == true.
+    #expect(descriptor.needsHydration == true, "Newly registered descriptors must be bare (manifest-driven)")
+    #expect(descriptor.files.isEmpty)
   }
 
-  @Test("Base 1.7B descriptor reports the expected size and memory budget")
-  func base17BSizeMatchesExpectation() throws {
+  @Test("Base 1.7B descriptor reports the expected memory budget")
+  func base17BMemoryBudgetMatchesExpectation() throws {
     _ = VoxAltaModelManager()
 
     let descriptor = try #require(Acervo.component("qwen3-tts-base-1.7b"))
 
-    #expect(descriptor.estimatedSizeBytes == 3_400_000_000)
     #expect(descriptor.minimumMemoryBytes == 3_400_000_000)
     #expect(descriptor.metadata["deprecated"] != "true")
   }

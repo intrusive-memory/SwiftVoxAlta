@@ -21,12 +21,11 @@ let package = Package(
   dependencies: [
     .package(
       url: "https://github.com/intrusive-memory/SwiftHablare.git", .upToNextMajor(from: "5.7.5")),
+    .package(path: "../mlx-audio-swift"),
     .package(
-      url: "https://github.com/intrusive-memory/mlx-audio-swift.git", .upToNextMajor(from: "0.3.5")),
+      url: "https://github.com/intrusive-memory/SwiftAcervo.git", .upToNextMajor(from: "0.8.2")),
     .package(
-      url: "https://github.com/intrusive-memory/SwiftAcervo.git", .upToNextMajor(from: "0.7.1")),
-    .package(
-      url: "https://github.com/intrusive-memory/SwiftTuberia.git", .upToNextMajor(from: "0.3.6")),
+      url: "https://github.com/intrusive-memory/SwiftTuberia.git", .upToNextMajor(from: "0.5.0")),
     .package(url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "1.7.1")),
     .package(
       url: "https://github.com/intrusive-memory/vox-format.git", .upToNextMajor(from: "0.3.1")),
