@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Determine version tag
         id: version
@@ -74,7 +74,7 @@ jobs:
 
       - name: Upload release assets
         if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             ${{ steps.package.outputs.tarball }}
@@ -82,7 +82,7 @@ jobs:
 
       - name: Upload artifacts (workflow_dispatch)
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: diga-release
           path: |
@@ -91,7 +91,7 @@ jobs:
 
       - name: Trigger Homebrew Tap Update
         if: github.event_name == 'release'
-        uses: peter-evans/repository-dispatch@v3
+        uses: peter-evans/repository-dispatch@v4
         with:
           token: ${{ secrets.DEPLOY_TOKEN }}
           repository: intrusive-memory/homebrew-tap

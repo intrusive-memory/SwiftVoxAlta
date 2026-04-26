@@ -17,7 +17,9 @@ import Testing
 @Suite("ComponentDescriptor Registration")
 struct ComponentDescriptorRegistrationTests {
 
-  @Test("Every Qwen3-TTS variant registers a ComponentDescriptor", arguments: Qwen3TTSModelRepo.allCases)
+  @Test(
+    "Every Qwen3-TTS variant registers a ComponentDescriptor", arguments: Qwen3TTSModelRepo.allCases
+  )
   func everyVariantRegistered(repo: Qwen3TTSModelRepo) throws {
     _ = VoxAltaModelManager()
 
@@ -31,7 +33,9 @@ struct ComponentDescriptorRegistrationTests {
     // Bare descriptor: files + estimatedSizeBytes are populated lazily by
     // SwiftAcervo on first ensureComponentReady call. A freshly registered
     // descriptor reports needsHydration == true.
-    #expect(descriptor.needsHydration == true, "Newly registered descriptors must be bare (manifest-driven)")
+    #expect(
+      descriptor.needsHydration == true,
+      "Newly registered descriptors must be bare (manifest-driven)")
     #expect(descriptor.files.isEmpty)
   }
 

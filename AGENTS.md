@@ -2,7 +2,7 @@
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.9.7
+**Current Version**: 0.9.9
 
 ---
 
@@ -106,7 +106,7 @@ SwiftVoxAlta/
 │       ├── DigaCommand.swift          # CLI entry point (@main, ArgumentParser)
 │       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
 │       ├── TextChunker.swift          # Sentence-boundary chunking (NLTokenizer)
-│       ├── Version.swift              # Version constant (0.9.7)
+│       ├── Version.swift              # Version constant (0.9.9)
 │       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # 11 test files (library)
@@ -156,7 +156,7 @@ Implements SwiftHablare's `VoiceProvider` protocol with dual-mode routing.
 
 ```swift
 public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
-    public static let version = "0.9.7"
+    public static let version = "0.9.9"
 
     // VoiceProvider protocol properties
     public let providerId = "voxalta"
@@ -662,6 +662,14 @@ On CI (`GITHUB_ACTIONS` set):
 ---
 
 ## Recent Changes
+
+### v0.9.9
+
+- **feat**: Adopt SwiftAcervo v2 `withComponentAccess` for validated model loading
+- **refactor**: Manifest-first `ComponentDescriptor` model registration
+- **ci**: Standardized R2 CDN upload workflow for all 7 Qwen3-TTS models
+- **test**: Replace download-workflow tests with focused registration tests; CDN availability is SwiftAcervo's concern
+- **fix**: Restore mlx-audio-swift to git URL dependency so CI resolves cleanly
 
 ### v0.9.7
 
