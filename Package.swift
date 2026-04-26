@@ -21,7 +21,8 @@ let package = Package(
   dependencies: [
     .package(
       url: "https://github.com/intrusive-memory/SwiftHablare.git", .upToNextMajor(from: "5.7.5")),
-    .package(path: "../mlx-audio-swift"),
+    .package(
+      url: "https://github.com/intrusive-memory/mlx-audio-swift.git", .upToNextMajor(from: "0.5.0")),
     .package(
       url: "https://github.com/intrusive-memory/SwiftAcervo.git", .upToNextMajor(from: "0.8.2")),
     .package(
