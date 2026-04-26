@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # Note: Qwen3-TTS model download removed — SwiftVoxAltaTests (which need it)
       # are skipped on CI due to Metal compiler incompatibility. Only DigaTests runs.
