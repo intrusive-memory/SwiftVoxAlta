@@ -241,17 +241,20 @@ public actor VoxAltaModelManager {
 
   // MARK: - Acervo Integration
 
-  /// Migrates models from the legacy cache path (`~/Library/Caches/intrusive-memory/Models/`)
-  /// to Acervo's shared directory (`~/Library/SharedModels/`). Called once per session.
+  /// Runs Acervo's one-time migration from any legacy cache layout to whatever
+  /// shared directory Acervo currently resolves to. The destination path is
+  /// owned by Acervo (`Acervo.sharedModelsDirectory`) — VoxAlta does not assume
+  /// or hardcode it.
   public func migrateIfNeeded() {
     guard !migrationAttempted else { return }
     migrationAttempted = true
     do {
       let migrated = try Acervo.migrateFromLegacyPaths()
       if !migrated.isEmpty {
+        let destination = Acervo.sharedModelsDirectory.path
         FileHandle.standardError.write(
           Data(
-            "Migrated \(migrated.count) model(s) to ~/Library/SharedModels/\n".utf8
+            "Migrated \(migrated.count) model(s) to \(destination)\n".utf8
           ))
       }
     } catch {

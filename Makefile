@@ -79,20 +79,30 @@ else
 endif
 
 # Integration tests (requires binary + cached voices)
-# TODO: Create DigaBinaryIntegrationTests and DigaDualModelIntegrationTests test suites
+# Runs DigaBinaryIntegrationTests against the freshly installed ./bin/diga.
+# Skipped on CI by default since the Qwen3-TTS model is not cached on runners.
 test-integration: install
-	@echo "No integration test suites defined yet."
-	@echo "Create DigaBinaryIntegrationTests and/or DigaDualModelIntegrationTests in DigaTests to use this target."
+ifdef GITHUB_ACTIONS
+	@echo "CI detected: Skipping binary integration tests (no cached TTS model on runners)"
+else
+	@echo "Running binary integration tests against ./bin/diga..."
+	xcodebuild test \
+	  -scheme $(TEST_SCHEME) \
+	  -destination '$(DESTINATION)' \
+	  -only-testing:DigaTests/DigaBinaryIntegrationTests
+endif
 
 # All tests (unit + integration)
 test: test-unit test-integration
 	@echo "All tests complete!"
 
 # One-time setup for local development (downloads CustomVoice model)
+# The destination directory is chosen by SwiftAcervo at runtime; see
+# `Acervo.sharedModelsDirectory` for the resolved path.
 setup-voices: install
 	@echo "Downloading CustomVoice model (~3.4GB, first run only)..."
 	@./bin/diga -v ryan -o /tmp/warmup.wav "test" && rm -f /tmp/warmup.wav
-	@echo "✓ CustomVoice model cached at ~/Library/Caches/intrusive-memory/Models/"
+	@echo "✓ CustomVoice model cached (destination managed by SwiftAcervo)."
 	@echo "  You can now run 'make test' or 'make test-integration'."
 
 # Format Swift source files
