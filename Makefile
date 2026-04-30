@@ -66,16 +66,18 @@ install: resolve
 test-unit:
 	@echo "Running unit tests..."
 ifdef GITHUB_ACTIONS
-	@echo "CI detected: Skipping SwiftVoxAltaTests (Metal incompatible), running only DigaTests"
+	@echo "CI detected: Skipping SwiftVoxAltaTests (Metal incompatible) and DigaBinaryIntegrationTests (no binary/model on runners)"
 	xcodebuild test \
 	  -scheme $(TEST_SCHEME) \
 	  -destination '$(DESTINATION)' \
-	  -only-testing:DigaTests
+	  -only-testing:DigaTests \
+	  -skip-testing:DigaTests/DigaBinaryIntegrationTests
 else
-	@echo "Local run: Running all tests (DigaTests + SwiftVoxAltaTests)"
+	@echo "Local run: Running all tests (DigaTests + SwiftVoxAltaTests, excluding binary integration)"
 	xcodebuild test \
 	  -scheme $(TEST_SCHEME) \
-	  -destination '$(DESTINATION)'
+	  -destination '$(DESTINATION)' \
+	  -skip-testing:DigaTests/DigaBinaryIntegrationTests
 endif
 
 # Integration tests (requires binary + cached voices)
