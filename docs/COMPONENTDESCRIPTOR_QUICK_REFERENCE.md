@@ -275,7 +275,7 @@ func testDownload() async throws {
 
 | Item | Location |
 |------|----------|
-| **Downloaded models** | `~/Library/SharedModels/intrusive-memory_YourLibrary/` |
+| **Downloaded models** | Resolved at runtime via `Acervo.sharedModelsDirectory` |
 | **Model metadata** | `Acervo.component(componentId)` |
 | **Model path** | `Acervo.modelPath(for: componentId)` |
 | **Deprecated flag** | `metadata: ["deprecated": "true"]` |

@@ -36,7 +36,7 @@ Output: 24kHz WAV audio. Streaming latency: ~97ms first packet.
 SwiftVoxAlta depends on SwiftBruja for the LLM analysis pass. Before any voice is generated, the script text must be analyzed to extract character profiles, summaries, and voice design instructions. SwiftBruja provides that inference capability.
 
 Shared infrastructure:
-- Model cache at `~/Library/Caches/intrusive-memory/Models/` (LLM models under `LLM/`, TTS models under `TTS/`)
+- Model cache directory owned by SwiftAcervo — resolved at runtime via `Acervo.sharedModelsDirectory` (App Group container when entitled, Application Support fallback otherwise). VoxAlta does not assume or hardcode a path.
 - Memory management patterns (validate before load, auto-tune parameters)
 - HuggingFace download pipeline
 - Actor-based concurrency model

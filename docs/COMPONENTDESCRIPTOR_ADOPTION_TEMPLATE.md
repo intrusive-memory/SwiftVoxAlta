@@ -525,7 +525,7 @@ Memory usage = Model Size × 1.5× (for caches and activations)
 
 1. **Registration**: All models registered when `YourModelManager` is initialized
 2. **Download**: Call `loadModel(repo:)` to download (first time) and load model
-3. **Caching**: Downloaded models cached in `~/Library/SharedModels/` for reuse
+3. **Caching**: Downloaded models cached via SwiftAcervo (path resolved at runtime by `Acervo.sharedModelsDirectory` — never assume a specific location)
 4. **Sharing**: Other tools can access cached models via Acervo API
 
 See the [ComponentDescriptor Pattern Guide](../docs/COMPONENTDESCRIPTOR_ADOPTION_TEMPLATE.md) 
@@ -561,7 +561,8 @@ The following models are deprecated and will be removed in a future release:
 - **Your Model Legacy**: Use "Your Model Small" instead
 
 Existing cached copies will continue to work, but new downloads are not recommended.
-To clean up deprecated models, delete from `~/Library/SharedModels/`.
+To clean up deprecated models, delete the corresponding subdirectory from
+`Acervo.sharedModelsDirectory` (resolve at runtime — do not hardcode the path).
 ```
 
 ---

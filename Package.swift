@@ -1,6 +1,21 @@
 // swift-tools-version: 6.2
 
+import Foundation
 import PackageDescription
+
+// In CI we always pin to released remotes. Locally, prefer a sibling checkout
+// at ../<name> if present so in-flight changes can be exercised end-to-end
+// without publishing a release. Falls back to the remote pin if the sibling
+// directory is missing, so fresh clones still build.
+let useLocalSiblings = ProcessInfo.processInfo.environment["CI"] != "true"
+
+func sibling(_ name: String, remote: String, from version: Version) -> Package.Dependency {
+  let localPath = "../\(name)"
+  if useLocalSiblings && FileManager.default.fileExists(atPath: localPath) {
+    return .package(path: localPath)
+  }
+  return .package(url: remote, .upToNextMajor(from: version))
+}
 
 let package = Package(
   name: "SwiftVoxAlta",
@@ -19,17 +34,32 @@ let package = Package(
     ),
   ],
   dependencies: [
-    .package(
-      url: "https://github.com/intrusive-memory/SwiftHablare.git", .upToNextMajor(from: "5.7.5")),
-    .package(
-      url: "https://github.com/intrusive-memory/mlx-audio-swift.git", .upToNextMajor(from: "0.5.0")),
-    .package(
-      url: "https://github.com/intrusive-memory/SwiftAcervo.git", .upToNextMajor(from: "0.8.2")),
-    .package(
-      url: "https://github.com/intrusive-memory/SwiftTuberia.git", .upToNextMajor(from: "0.5.0")),
+    sibling(
+      "SwiftHablare",
+      remote: "https://github.com/intrusive-memory/SwiftHablare.git",
+      from: "5.7.5"
+    ),
+    sibling(
+      "mlx-audio-swift",
+      remote: "https://github.com/intrusive-memory/mlx-audio-swift.git",
+      from: "0.5.1"
+    ),
+    sibling(
+      "SwiftAcervo",
+      remote: "https://github.com/intrusive-memory/SwiftAcervo.git",
+      from: "0.8.4"
+    ),
+    sibling(
+      "SwiftTuberia",
+      remote: "https://github.com/intrusive-memory/SwiftTuberia.git",
+      from: "0.6.0"
+    ),
     .package(url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "1.7.1")),
-    .package(
-      url: "https://github.com/intrusive-memory/vox-format.git", .upToNextMajor(from: "0.3.1")),
+    sibling(
+      "vox-format",
+      remote: "https://github.com/intrusive-memory/vox-format.git",
+      from: "0.3.1"
+    ),
   ],
   targets: [
     .target(
