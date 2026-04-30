@@ -2,7 +2,7 @@
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.10.0
+**Current Version**: 0.10.1
 
 ---
 
@@ -106,7 +106,7 @@ SwiftVoxAlta/
 │       ├── DigaCommand.swift          # CLI entry point (@main, ArgumentParser)
 │       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
 │       ├── TextChunker.swift          # Sentence-boundary chunking (NLTokenizer)
-│       ├── Version.swift              # Version constant (0.10.0)
+│       ├── Version.swift              # Version constant (0.10.1)
 │       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # 11 test files (library)
@@ -156,7 +156,7 @@ Implements SwiftHablare's `VoiceProvider` protocol with dual-mode routing.
 
 ```swift
 public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
-    public static let version = "0.10.0"
+    public static let version = "0.10.1"
 
     // VoiceProvider protocol properties
     public let providerId = "voxalta"
@@ -663,6 +663,12 @@ On CI (`GITHUB_ACTIONS` set):
 
 ## Recent Changes
 
+### v0.10.1
+
+- **docs**: Rewrite `ARCHITECTURE.md` and trim `ACERVO_AUDIT.md` to reflect current architecture and Acervo v2 reality
+- **docs**: Audit hygiene cleanup; move Character Studio out of VoxAlta scope (lives in SwiftEchada)
+- **chore**: Bump library version to 0.10.1
+
 ### v0.10.0
 
 - **chore**: Adopt sibling dependency pattern for intrusive-memory/* deps; bump intrusive-memory dependency versions
@@ -713,6 +719,5 @@ On CI (`GITHUB_ACTIONS` set):
 | [docs/AVAILABLE_VOICES.md](docs/AVAILABLE_VOICES.md) | Built-in voices with descriptions |
 | [docs/BUILDING.md](docs/BUILDING.md) | Build from source, test suites |
 | [docs/CLI.md](docs/CLI.md) | CLI usage and voice management |
-| [docs/CHARACTER-STUDIO.md](docs/CHARACTER-STUDIO.md) | Character voice studio concept |
 | [docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md) | Open design questions |
 | [docs/PRODUCIESTA_INTEGRATION.md](docs/PRODUCIESTA_INTEGRATION.md) | Integration with Produciesta app |
