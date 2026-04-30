@@ -2,7 +2,7 @@
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.9.9
+**Current Version**: 0.10.0
 
 ---
 
@@ -106,7 +106,7 @@ SwiftVoxAlta/
 │       ├── DigaCommand.swift          # CLI entry point (@main, ArgumentParser)
 │       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
 │       ├── TextChunker.swift          # Sentence-boundary chunking (NLTokenizer)
-│       ├── Version.swift              # Version constant (0.9.9)
+│       ├── Version.swift              # Version constant (0.10.0)
 │       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # 11 test files (library)
@@ -156,7 +156,7 @@ Implements SwiftHablare's `VoiceProvider` protocol with dual-mode routing.
 
 ```swift
 public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
-    public static let version = "0.9.9"
+    public static let version = "0.10.0"
 
     // VoiceProvider protocol properties
     public let providerId = "voxalta"
@@ -662,6 +662,13 @@ On CI (`GITHUB_ACTIONS` set):
 ---
 
 ## Recent Changes
+
+### v0.10.0
+
+- **chore**: Adopt sibling dependency pattern for intrusive-memory/* deps; bump intrusive-memory dependency versions
+- **test**: Add Diga binary integration suite (`DigaBinaryIntegrationTests`); delegate model paths to SwiftAcervo
+- **ci**: Exclude `DigaBinaryIntegrationTests` from `test-unit` (binary/model not provisioned on CI runners)
+- **docs**: Stop hardcoding model cache paths in active docs; defer to `Acervo.sharedModelsDirectory`
 
 ### v0.9.9
 
