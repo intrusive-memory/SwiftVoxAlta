@@ -713,6 +713,5 @@ On CI (`GITHUB_ACTIONS` set):
 | [docs/AVAILABLE_VOICES.md](docs/AVAILABLE_VOICES.md) | Built-in voices with descriptions |
 | [docs/BUILDING.md](docs/BUILDING.md) | Build from source, test suites |
 | [docs/CLI.md](docs/CLI.md) | CLI usage and voice management |
-| [docs/CHARACTER-STUDIO.md](docs/CHARACTER-STUDIO.md) | Character voice studio concept |
 | [docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md) | Open design questions |
 | [docs/PRODUCIESTA_INTEGRATION.md](docs/PRODUCIESTA_INTEGRATION.md) | Integration with Produciesta app |

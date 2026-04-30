@@ -2,7 +2,8 @@
 
 **Original audit:** 2026-04-23 (against SwiftAcervo `0.8.0`)
 **Re-evaluated:** 2026-04-26 (against SwiftAcervo `0.8.2`)
-**SwiftAcervo dependency bumped:** `0.7.2` → `0.8.0` → `0.8.2`
+**Findings 1, 3, 4 closed:** 2026-04-30 (against SwiftAcervo `0.8.4`, shipped in v0.10.0)
+**SwiftAcervo dependency bumped:** `0.7.2` → `0.8.0` → `0.8.2` → `0.8.4`
 **Reference:** [SwiftAcervo `USAGE.md`](https://github.com/intrusive-memory/SwiftAcervo/blob/main/USAGE.md) (manifest-first contract)
 
 ---
@@ -11,14 +12,14 @@
 
 SwiftVoxAlta uses the **Level 3 (Registered Components)** integration pattern from `USAGE.md`. That is the correct level for a curated-catalog library like this one (7 Qwen3-TTS variants with display names, slugs, and memory budgets).
 
-The audit's recommendations have not been implemented yet — the four open findings below all still describe the current state of `Sources/SwiftVoxAlta/VoxAltaModelManager.swift`. Nothing on the SwiftAcervo side has shifted the target: 0.8.1 was a pure additive release (offline-mode env-var gate, see §0 below) and 0.8.2 was CI/test-stability with no public API changes. The recommended pattern remains exactly what's described here.
+As of 2026-04-30 (v0.10.0), Findings 1, 3, and 4 are resolved in `Sources/SwiftVoxAlta/VoxAltaModelManager.swift`, the registration tests in `Tests/SwiftVoxAltaTests/ComponentDescriptorRegistrationTests.swift`, and `AGENTS.md`. The detailed sections below have been kept as historical context for the rationale; see **Resolution notes** under each finding for the commit-anchored summary of what shipped. Finding 2 remains **Blocked (upstream)** — closing the TOCTOU window cleanly requires an async-closure overload of `withComponentAccess` in SwiftAcervo itself.
 
 | Finding | Severity | Status | Action |
 |---|---|---|---|
-| Declared 12-file list is now redundant boilerplate | Medium | **Open** | Drop `files:` / `estimatedSizeBytes` from all 7 `ComponentDescriptor`s; let the manifest hydrate on first use |
+| Declared 12-file list is now redundant boilerplate | Medium | **Resolved** (v0.10.0) | Bare `ComponentDescriptor`s registered for all 7 variants; `qwen3TTSRequiredFiles` deleted; tests assert `needsHydration == true` and `files.isEmpty` pre-hydration |
 | `withComponentAccess` closure is a no-op; model load happens outside the access scope (TOCTOU window) | Medium | **Blocked (upstream)** | The closure is sync (`(ComponentHandle) throws -> T`); the async load can't go inside it. Needs an async-closure overload of `withComponentAccess` in SwiftAcervo before VoxAlta can close the window |
-| `AcervoError` cases collapsed into a single `modelNotAvailable` string | Low | **Open** | Switch on `AcervoError` (now including `.offlineModeActive` from 0.8.1) to produce actionable messages |
-| App Group entitlement (`group.intrusive-memory.models`) undocumented for downstream consumers | Low (library), Medium (docs) | **Open** | Add a note to `AGENTS.md` so app consumers know they must enable this capability |
+| `AcervoError` cases collapsed into a single `modelNotAvailable` string | Low | **Resolved** (v0.10.0) | Full discriminated `AcervoError` switch in `_loadModelWithComponentValidation`, including `.offlineModeActive`, `.componentNotHydrated`, `.fileNotInManifest`, `.manifestIntegrityFailed`, `.manifestDownloadFailed` |
+| App Group entitlement (`group.intrusive-memory.models`) undocumented for downstream consumers | Low (library), Medium (docs) | **Resolved** (v0.10.0) | "App Group entitlement (REQUIRED for app integrators)" section in `AGENTS.md` documents the capability, the silent fallback symptom, and a runtime verification recipe via `Acervo.sharedModelsDirectory` |
 | `swift-transformers` + `swift-tokenizers` `Tokenizers` target collision blocked `xcodebuild -resolvePackageDependencies` | ~~Medium~~ | **Resolved** (2026-04-23) | Bumped `SwiftTuberia` `^0.4.0` → `^0.5.0`; v0.5.0 had already migrated to `DePasqualeOrg/swift-tokenizers` with the Swift trait, matching the Bruja stack |
 
 ---
@@ -203,7 +204,9 @@ Tests assert structural invariants of the registered descriptors (id, type, repo
 
 ## 3. Findings
 
-### Finding 1 — Adopt bare `ComponentDescriptor` (recommended default in v0.8.0+) — **Open**
+### Finding 1 — Adopt bare `ComponentDescriptor` (recommended default in v0.8.0+) — **Resolved (v0.10.0)**
+
+**Resolution notes (2026-04-30):** all 7 descriptors in `VoxAltaModelManager.swift` (lines 131-185) are now bare — only `id`, `type`, `displayName`, `repoId`, `minimumMemoryBytes`, and `metadata` (for the deprecated 4-bit variant) are declared. The `qwen3TTSRequiredFiles` array was deleted. `Tests/SwiftVoxAltaTests/ComponentDescriptorRegistrationTests.swift` asserts `descriptor.needsHydration == true` and `descriptor.files.isEmpty` for newly registered descriptors, and the manifest-drift size assertion was dropped. Below is the original analysis kept as historical context.
 
 **Current:** each of the 7 descriptors declares a 12-file list and an `estimatedSizeBytes`. Both fields duplicate what the CDN manifest will authoritatively say; if the published model ever changes shape (a new file, a renamed tokenizer), the declared list drifts and SwiftAcervo emits a drift warning and uses the manifest anyway.
 
@@ -263,7 +266,9 @@ The closure is **synchronous** (`(ComponentHandle) throws -> T`, not `async thro
 
 The current code takes path 3 by default and adds a doc comment pointing at this finding. If VoxAlta starts being driven by code that does concurrent `Acervo.deleteModel` calls, escalate to path 1.
 
-### Finding 3 — Discriminate `AcervoError` cases in error translation — **Open**
+### Finding 3 — Discriminate `AcervoError` cases in error translation — **Resolved (v0.10.0)**
+
+**Resolution notes (2026-04-30):** `_loadModelWithComponentValidation` in `VoxAltaModelManager.swift:291-348` now performs a full `catch let error as AcervoError` switch with a dedicated arm per case, including `.offlineModeActive`, `.componentNotHydrated`, `.fileNotInManifest`, `.manifestIntegrityFailed`, and `.manifestDownloadFailed`. The fallback `default` arm catches any future `AcervoError` cases. Original analysis kept below.
 
 **Current:** both the `withComponentAccess` failure and the `TTSModelUtils.loadModel` failure collapse into the same `VoxAltaError.modelNotAvailable(stringified-error)` bucket. A SHA-256 mismatch and a missing file produce the same user-facing message.
 
@@ -298,7 +303,9 @@ The current code takes path 3 by default and adds a doc comment pointing at this
 
 Low priority — this is ergonomics, not correctness.
 
-### Finding 4 — App Group entitlement is a downstream concern, but undocumented here — **Open**
+### Finding 4 — App Group entitlement is a downstream concern, but undocumented here — **Resolved (v0.10.0)**
+
+**Resolution notes (2026-04-30):** `AGENTS.md` now contains an "App Group entitlement (REQUIRED for app integrators)" section that documents the `group.intrusive-memory.models` capability requirement, the silent fallback symptom, the per-target setup steps, and a runtime verification recipe via `Acervo.sharedModelsDirectory`. The `diga` CLI's unsigned-fallback behavior is explicitly called out so it isn't mistaken for a bug. Original analysis kept below.
 
 **Context:** USAGE.md step 2 makes `group.intrusive-memory.models` a **required** capability for cross-app model sharing. Without it, each app falls back to `~/Library/Application Support/SwiftAcervo/SharedModels/` — non-shared, and the whole point of SwiftAcervo is defeated.
 
@@ -361,12 +368,12 @@ multiple packages ('swift-tokenizers', 'swift-transformers') declare targets wit
 
 ---
 
-## 5. Recommended next steps (if you want to adopt v0.8.0 fully)
+## 5. Status of original next-steps list
 
-1. **Migrate to bare descriptors** (Finding 1) — 15-line diff in `VoxAltaModelManager.swift`, 3 test assertions to update.
-2. **Move `TTSModelUtils.loadModel` inside `withComponentAccess`** (Finding 2) — one-line move, validates the TOCTOU guard is actually doing work.
-3. **Add `AcervoError` switch in the error-translation layer** (Finding 3) — roughly 15 lines.
-4. **Add "App Group entitlement" note to `AGENTS.md`** (Finding 4) — docs only.
-5. **(Optional) Add disk-space precheck** — `ModelDownloadManager.validateCanDownload(_:)` before `ensureComponentReady`. Deferred — not called out by the user.
+1. ~~**Migrate to bare descriptors** (Finding 1)~~ — ✅ shipped in v0.10.0.
+2. **Move `TTSModelUtils.loadModel` inside `withComponentAccess`** (Finding 2) — still blocked upstream; no consumer-side fix possible until SwiftAcervo grows an async-closure overload.
+3. ~~**Add `AcervoError` switch in the error-translation layer** (Finding 3)~~ — ✅ shipped in v0.10.0.
+4. ~~**Add "App Group entitlement" note to `AGENTS.md`** (Finding 4)~~ — ✅ shipped in v0.10.0.
+5. **(Optional) Add disk-space precheck** — `ModelDownloadManager.validateCanDownload(_:)` before `ensureComponentReady`. Still open; not a regression. Cheap to add when someone's already in `VoxAltaModelManager.loadModel`.
 
-Findings 1-3 are mechanical and non-breaking for callers. Finding 4 is pure docs. All four together would bring SwiftVoxAlta fully onto the v0.8.0 manifest-first idiom.
+SwiftVoxAlta is now on the v0.8.x manifest-first idiom end-to-end except for the upstream-blocked TOCTOU guard.
