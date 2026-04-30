@@ -455,7 +455,7 @@ Error: Failed to download model: mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-b
 - Check internet connection
 - Verify HuggingFace is accessible
 - Ensure sufficient disk space (~5 GB per model)
-- Models cache at `~/Library/SharedModels/`
+- Models cache to the SwiftAcervo-managed directory; query the resolved path with `Acervo.sharedModelsDirectory`
 
 ### Insufficient Memory
 

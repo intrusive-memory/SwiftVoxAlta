@@ -51,7 +51,7 @@ SwiftVoxAlta/
 
 **VoxAlta.swift** -- The public facade. All public methods are static, delegating to internal managers. Mirrors SwiftBruja's `Bruja` enum pattern.
 
-**VoxAltaModelManager.swift** -- Actor managing TTS model downloads, loading, and caching. Stores models under `~/Library/Caches/intrusive-memory/Models/TTS/`. Handles both VoiceDesign and Base model variants. Shares the download pipeline pattern with SwiftBruja's BrujaModelManager.
+**VoxAltaModelManager.swift** -- Actor managing TTS model downloads, loading, and caching. Storage location is owned by SwiftAcervo (`Acervo.sharedModelsDirectory` at runtime — App Group container when entitled, otherwise an Application Support fallback). Handles both VoiceDesign and Base model variants. Shares the download pipeline pattern with SwiftBruja's BrujaModelManager.
 
 **VoxAltaMemory.swift** -- Memory validation before model loads. TTS has different memory characteristics than LLM inference (potentially two models loaded simultaneously during design + render phases), so thresholds are calibrated accordingly.
 

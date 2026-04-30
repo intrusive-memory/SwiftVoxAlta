@@ -357,7 +357,7 @@ This checklist breaks down the ComponentDescriptor adoption into 5 phases with c
 **Success Criteria**:
 - [ ] Integration test written
 - [ ] Test passes (download + load works)
-- [ ] Manual verification: files cached in ~/Library/SharedModels/
+- [ ] Manual verification: files cached at the runtime-resolved `Acervo.sharedModelsDirectory`
 - [ ] Second run uses cache (faster)
 
 **Reference**: SwiftVoxAlta doesn't have download tests (CDN cost), but pattern shown above
@@ -467,7 +467,8 @@ This checklist breaks down the ComponentDescriptor adoption into 5 phases with c
   - **YourModel Legacy**: Use YourModel Small instead
 
   Existing cached models will continue to work, but new downloads 
-  are not recommended. To remove: delete from ~/Library/SharedModels/
+  are not recommended. To remove: delete the corresponding subdirectory
+  from `Acervo.sharedModelsDirectory` (resolved at runtime).
   ```
 - [ ] Create migration guide if needed
 
@@ -566,8 +567,10 @@ print("Actual model size: \(actualSize / 1_000_000_000) GB")
 **Solution**: Verify SwiftAcervo configuration:
 
 ```swift
-let modelPath = Acervo.modelPath(for: "your-model-id")
-print("Model path: \(modelPath)")  // Should be ~/Library/SharedModels/
+let modelPath = try Acervo.modelDirectory(for: "your-model-id")
+print("Model path: \(modelPath.path)")
+// Resolved by Acervo at runtime — App Group container when entitled,
+// otherwise an Application Support fallback. Never assume a fixed path.
 ```
 
 ---

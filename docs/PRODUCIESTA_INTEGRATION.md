@@ -242,7 +242,7 @@ func testAudioDuration() async throws {
 
 On the first audio generation call:
 - Qwen3-TTS-1.7B-CustomVoice model downloads from HuggingFace (~4.2 GB)
-- Model cached at `~/Library/SharedModels/` via SwiftAcervo
+- Model cached via SwiftAcervo (cache directory resolved at runtime by `Acervo.sharedModelsDirectory`)
 - Loading takes 30-60 seconds total (download + initialization)
 
 **Recommendation**: Pre-warm the model during app startup or initial setup:
@@ -331,13 +331,15 @@ do {
 **Check**:
 1. Internet connectivity is active
 2. HuggingFace is accessible (no network restrictions)
-3. Disk space available in `~/Library/SharedModels/`
-4. File system permissions allow write to home directory
+3. Disk space available in the SwiftAcervo cache directory (query with `Acervo.sharedModelsDirectory`)
+4. The current user has write permission on that directory
 
 **Manual recovery**:
-```bash
-# Clear cached models and retry
-rm -rf ~/Library/SharedModels/mlx-community/Qwen3-TTS*
+```swift
+// Resolve the actual path Acervo is using, then clear from there.
+let cacheDir = Acervo.sharedModelsDirectory.path
+print("Acervo cache: \(cacheDir)")
+// rm -rf "<cacheDir>/mlx-community_Qwen3-TTS*"  (paths are slugified — see Acervo.slugify)
 ```
 
 ## Integration with Produciesta Storage
