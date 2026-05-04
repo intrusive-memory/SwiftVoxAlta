@@ -106,18 +106,12 @@ public enum Qwen3TTSModelSize {
 extension Qwen3TTSModelRepo {
   /// The Acervo component ID for this model variant.
   ///
-  /// Used to look up, download, and check availability of this model
-  /// via the SwiftAcervo Component Registry.
+  /// Equal to `Acervo.slugify(rawValue)`, which is also the CDN slug under which
+  /// the model's manifest is served (`<R2_PUBLIC_URL>/models/<slug>/manifest.json`).
+  /// Keeping component ID == slugified repo ID == CDN slug eliminates triple-naming
+  /// between SwiftVoxAlta, mlx-audio-swift, and the CDN.
   public var componentId: String {
-    switch self {
-    case .base1_7B: return "qwen3-tts-base-1.7b"
-    case .base0_6B: return "qwen3-tts-base-0.6b"
-    case .customVoice1_7B: return "qwen3-tts-custom-1.7b"
-    case .customVoice0_6B: return "qwen3-tts-custom-0.6b"
-    case .voiceDesign1_7B: return "qwen3-tts-voicedesign-1.7b"
-    case .base1_7B_8bit: return "qwen3-tts-base-1.7b-8bit"
-    case .base1_7B_4bit: return "qwen3-tts-base-1.7b-4bit"
-    }
+    Acervo.slugify(rawValue)
   }
 }
 
@@ -330,7 +324,10 @@ public actor VoxAltaModelManager {
         // The async load must run outside this sync closure.
         ()
       }
-      return try await TTSModelUtils.loadModel(modelRepo: repo)
+      // Explicit modelType avoids mlx-audio-swift's inferModelType, which checks
+      // for "qwen3_tts" (underscore) but the HF repo uses "qwen3-tts" (hyphen)
+      // and would mis-route to the non-TTS Qwen3 LLM path.
+      return try await TTSModelUtils.loadModel(modelRepo: repo, modelType: "qwen3_tts")
     } catch let error as AcervoError {
       switch error {
       case .modelNotFound(let id):
