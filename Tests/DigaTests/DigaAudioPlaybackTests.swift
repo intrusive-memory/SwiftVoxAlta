@@ -6,7 +6,7 @@ import Testing
 
 // MARK: - WAVHeaderParser Tests
 
-@Suite("WAVHeaderParser Tests")
+@Suite("WAVHeaderParser Tests", .acervoEnvironment)
 struct WAVHeaderParserTests {
 
   /// Helper: build a known WAV using the engine's WAVConcatenator.
@@ -56,7 +56,7 @@ struct WAVHeaderParserTests {
 
 // MARK: - AudioPlayback PCM Buffer Tests
 
-@Suite("AudioPlayback PCM Buffer Tests")
+@Suite("AudioPlayback PCM Buffer Tests", .acervoEnvironment)
 struct AudioPlaybackPCMBufferTests {
 
   /// Helper: build a known WAV using the engine's WAVConcatenator.
@@ -153,7 +153,7 @@ struct AudioPlaybackPCMBufferTests {
 
 // MARK: - AudioPlaybackError Tests
 
-@Suite("AudioPlaybackError Tests")
+@Suite("AudioPlaybackError Tests", .acervoEnvironment)
 struct AudioPlaybackErrorTests {
 
   // --- Test 9: Error descriptions are non-empty ---
@@ -178,7 +178,7 @@ struct AudioPlaybackErrorTests {
 
 // MARK: - CompletionCounter Tests (via streaming path validation)
 
-@Suite("AudioPlayback Streaming Tests")
+@Suite("AudioPlayback Streaming Tests", .acervoEnvironment)
 struct AudioPlaybackStreamingTests {
 
   /// Helper: build a known WAV using the engine's WAVConcatenator.
@@ -232,7 +232,7 @@ struct AudioPlaybackStreamingTests {
 
 // MARK: - DigaCommand Input Routing Tests
 
-@Suite("DigaCommand Input Routing Tests")
+@Suite("DigaCommand Input Routing Tests", .acervoEnvironment)
 struct DigaCommandInputRoutingTests {
 
   // --- Test 12: Command with positional text args triggers synthesis path ---

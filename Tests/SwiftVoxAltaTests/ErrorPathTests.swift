@@ -14,7 +14,7 @@ import Testing
 
 // MARK: - VoiceProvider Error Paths
 
-@Suite("Error Paths - VoiceProvider")
+@Suite("Error Paths - VoiceProvider", .acervoEnvironment)
 struct VoiceProviderErrorPathTests {
 
   @Test("generateAudio with unloaded voice throws voiceNotLoaded")
@@ -65,7 +65,7 @@ struct VoiceProviderErrorPathTests {
 
 // MARK: - VoxAltaModelManager Error Paths
 
-@Suite("Error Paths - VoxAltaModelManager")
+@Suite("Error Paths - VoxAltaModelManager", .acervoEnvironment)
 struct ModelManagerErrorPathTests {
 
   @Test("validateMemory with absurdly large requirement throws insufficientMemory")
@@ -105,7 +105,7 @@ struct ModelManagerErrorPathTests {
 
 // MARK: - AudioConversion Error Paths
 
-@Suite("Error Paths - AudioConversion")
+@Suite("Error Paths - AudioConversion", .acervoEnvironment)
 struct AudioConversionErrorPathTests {
 
   @Test("wavDataToMLXArray with invalid data throws audioExportFailed")

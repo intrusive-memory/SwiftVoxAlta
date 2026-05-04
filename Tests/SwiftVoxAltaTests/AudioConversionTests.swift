@@ -11,7 +11,7 @@ import Testing
 
 @testable import SwiftVoxAlta
 
-@Suite("AudioConversion - WAV Header Generation")
+@Suite("AudioConversion - WAV Header Generation", .acervoEnvironment)
 struct WAVHeaderTests {
 
   @Test("Generated WAV data starts with RIFF header")
@@ -133,7 +133,7 @@ struct WAVHeaderTests {
   }
 }
 
-@Suite("AudioConversion - Round-Trip Conversion")
+@Suite("AudioConversion - Round-Trip Conversion", .acervoEnvironment)
 struct RoundTripTests {
 
   @Test("Round-trip preserves sample count")
@@ -203,7 +203,7 @@ struct RoundTripTests {
   }
 }
 
-@Suite("AudioConversion - Edge Cases")
+@Suite("AudioConversion - Edge Cases", .acervoEnvironment)
 struct EdgeCaseTests {
 
   @Test("Empty audio produces valid WAV with zero-length data chunk")
@@ -291,7 +291,7 @@ struct EdgeCaseTests {
   }
 }
 
-@Suite("AudioConversion - buildWAVData Helper")
+@Suite("AudioConversion - buildWAVData Helper", .acervoEnvironment)
 struct BuildWAVDataTests {
 
   @Test("buildWAVData produces correct total size")

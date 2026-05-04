@@ -17,7 +17,7 @@ import Testing
 /// These start as smoke checks ("does it produce real audio?"). Spectral /
 /// timbre comparisons against a reference clip can be layered on later once
 /// determinism characteristics of mlx-audio-swift are established.
-@Suite("Diga Binary Integration Tests")
+@Suite("Diga Binary Integration Tests", .acervoEnvironment)
 struct DigaBinaryIntegrationTests {
 
   // MARK: - Path helpers

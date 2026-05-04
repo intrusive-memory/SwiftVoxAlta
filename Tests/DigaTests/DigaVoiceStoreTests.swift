@@ -5,7 +5,7 @@ import Testing
 
 // MARK: - VoiceStore Tests
 
-@Suite("VoiceStore Tests")
+@Suite("VoiceStore Tests", .acervoEnvironment)
 struct VoiceStoreTests {
 
   /// Creates a VoiceStore backed by a unique temporary directory.
@@ -170,7 +170,7 @@ struct VoiceStoreTests {
 
 // MARK: - BuiltinVoices Tests
 
-@Suite("BuiltinVoices Tests")
+@Suite("BuiltinVoices Tests", .acervoEnvironment)
 struct BuiltinVoicesTests {
 
   // --- Test 9: all() returns 9 preset voices ---
@@ -241,7 +241,7 @@ struct BuiltinVoicesTests {
 
 // MARK: - StoredVoice Codable Tests
 
-@Suite("StoredVoice Codable Tests")
+@Suite("StoredVoice Codable Tests", .acervoEnvironment)
 struct StoredVoiceCodableTests {
 
   // --- Test 15: StoredVoice Codable round-trip ---
@@ -315,7 +315,7 @@ struct StoredVoiceCodableTests {
 
 // MARK: - CLI Output Tests
 
-@Suite("CLI Voice Listing Tests")
+@Suite("CLI Voice Listing Tests", .acervoEnvironment)
 struct CLIVoiceListingTests {
 
   // --- Test 18: --voices output format verification ---

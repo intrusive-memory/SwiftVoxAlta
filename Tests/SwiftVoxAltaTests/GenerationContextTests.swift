@@ -10,7 +10,7 @@ import Testing
 
 @testable import SwiftVoxAlta
 
-@Suite("GenerationContext Tests")
+@Suite("GenerationContext Tests", .acervoEnvironment)
 struct GenerationContextTests {
 
   // MARK: - Valid Construction

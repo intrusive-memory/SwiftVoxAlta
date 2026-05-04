@@ -14,7 +14,7 @@ import Testing
 @testable import SwiftAcervo
 @testable import SwiftVoxAlta
 
-@Suite("ComponentDescriptor Registration")
+@Suite("ComponentDescriptor Registration", .acervoEnvironment)
 struct ComponentDescriptorRegistrationTests {
 
   @Test(

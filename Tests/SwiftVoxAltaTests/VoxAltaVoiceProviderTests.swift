@@ -12,7 +12,7 @@ import Testing
 
 // MARK: - Provider Metadata
 
-@Suite("VoxAltaVoiceProvider - Metadata")
+@Suite("VoxAltaVoiceProvider - Metadata", .acervoEnvironment)
 struct VoxAltaVoiceProviderMetadataTests {
 
   @Test("providerId is voxalta")
@@ -48,7 +48,7 @@ struct VoxAltaVoiceProviderMetadataTests {
 
 // MARK: - Configuration
 
-@Suite("VoxAltaVoiceProvider - Configuration")
+@Suite("VoxAltaVoiceProvider - Configuration", .acervoEnvironment)
 struct VoxAltaVoiceProviderConfigTests {
 
   @Test("isConfigured returns true")
@@ -61,7 +61,7 @@ struct VoxAltaVoiceProviderConfigTests {
 
 // MARK: - Voice Loading and Fetching
 
-@Suite("VoxAltaVoiceProvider - Voice Management")
+@Suite("VoxAltaVoiceProvider - Voice Management", .acervoEnvironment)
 struct VoxAltaVoiceProviderVoiceTests {
 
   @Test("Fetch voices returns all 9 preset speakers")
@@ -183,7 +183,7 @@ struct VoxAltaVoiceProviderVoiceTests {
 
 // MARK: - Duration Estimation
 
-@Suite("VoxAltaVoiceProvider - Duration Estimation")
+@Suite("VoxAltaVoiceProvider - Duration Estimation", .acervoEnvironment)
 struct VoxAltaVoiceProviderDurationTests {
 
   @Test("estimateDuration with known text")
@@ -229,7 +229,7 @@ struct VoxAltaVoiceProviderDurationTests {
 
 // MARK: - WAV Duration Measurement
 
-@Suite("VoxAltaVoiceProvider - WAV Duration Measurement")
+@Suite("VoxAltaVoiceProvider - WAV Duration Measurement", .acervoEnvironment)
 struct VoxAltaVoiceProviderWAVDurationTests {
 
   @Test("measureWAVDuration with valid WAV data")
@@ -278,7 +278,7 @@ struct VoxAltaVoiceProviderWAVDurationTests {
 
 // MARK: - Provider Descriptor
 
-@Suite("VoxAltaProviderDescriptor")
+@Suite("VoxAltaProviderDescriptor", .acervoEnvironment)
 struct VoxAltaProviderDescriptorTests {
 
   @Test("Descriptor has correct metadata")

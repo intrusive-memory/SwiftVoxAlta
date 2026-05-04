@@ -17,7 +17,7 @@ import Testing
 
 @testable import SwiftVoxAlta
 
-@Suite("VoxAltaModelManager — Single-flight loadModel")
+@Suite("VoxAltaModelManager — Single-flight loadModel", .acervoEnvironment)
 struct VoxAltaModelManagerSingleFlightTests {
 
   /// Concurrent `loadModel` calls for the same repo must coalesce onto a

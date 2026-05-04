@@ -14,7 +14,7 @@ import Testing
 
 // MARK: - VoiceLock Round-Trip Tests
 
-@Suite("Consistency - VoiceLock Round-Trip")
+@Suite("Consistency - VoiceLock Round-Trip", .acervoEnvironment)
 struct VoiceLockRoundTripTests {
 
   @Test("VoiceLock round-trips through JSON: all fields match")
@@ -106,7 +106,7 @@ struct VoiceLockRoundTripTests {
 
 // MARK: - AudioConversion Round-Trip Tests
 
-@Suite("Consistency - AudioConversion Round-Trip")
+@Suite("Consistency - AudioConversion Round-Trip", .acervoEnvironment)
 struct AudioConversionRoundTripTests {
 
   @Test("MLXArray to WAV to MLXArray preserves sample values within quantization error")

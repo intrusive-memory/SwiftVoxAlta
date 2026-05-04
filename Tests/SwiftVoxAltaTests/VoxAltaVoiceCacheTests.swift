@@ -10,7 +10,7 @@ import Testing
 
 @testable import SwiftVoxAlta
 
-@Suite("VoxAltaVoiceCache - Storage Operations")
+@Suite("VoxAltaVoiceCache - Storage Operations", .acervoEnvironment)
 struct VoxAltaVoiceCacheStorageTests {
 
   @Test("Store and retrieve a voice")
@@ -60,7 +60,7 @@ struct VoxAltaVoiceCacheStorageTests {
   }
 }
 
-@Suite("VoxAltaVoiceCache - Remove Operations")
+@Suite("VoxAltaVoiceCache - Remove Operations", .acervoEnvironment)
 struct VoxAltaVoiceCacheRemoveTests {
 
   @Test("Remove a stored voice")
@@ -103,7 +103,7 @@ struct VoxAltaVoiceCacheRemoveTests {
   }
 }
 
-@Suite("VoxAltaVoiceCache - Query Operations")
+@Suite("VoxAltaVoiceCache - Query Operations", .acervoEnvironment)
 struct VoxAltaVoiceCacheQueryTests {
 
   @Test("allVoiceIds returns all stored IDs")
@@ -171,7 +171,7 @@ struct VoxAltaVoiceCacheQueryTests {
   }
 }
 
-@Suite("VoxAltaVoiceCache - CachedVoice")
+@Suite("VoxAltaVoiceCache - CachedVoice", .acervoEnvironment)
 struct VoxAltaVoiceCacheCachedVoiceTests {
 
   @Test("CachedVoice initializer stores values")

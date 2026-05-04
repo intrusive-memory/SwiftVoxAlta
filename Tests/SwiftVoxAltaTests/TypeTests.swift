@@ -10,7 +10,7 @@ import Testing
 
 @testable import SwiftVoxAlta
 
-@Suite("Type Codable Round-Trip Tests")
+@Suite("Type Codable Round-Trip Tests", .acervoEnvironment)
 struct TypeTests {
 
   // MARK: - VoiceLock
