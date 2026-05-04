@@ -5,7 +5,7 @@ import VoxFormat
 @testable import SwiftVoxAlta
 @testable import diga
 
-@Suite("Diga VOX Integration Tests")
+@Suite("Diga VOX Integration Tests", .acervoEnvironment)
 struct DigaVoxIntegrationTests {
 
   private func makeTempStore() -> VoiceStore {

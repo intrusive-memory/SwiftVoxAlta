@@ -11,7 +11,7 @@ import Testing
 // 7.1 — Voice Flag Tests
 // ============================================================================
 
-@Suite("CLI Voice Flag Tests")
+@Suite("CLI Voice Flag Tests", .acervoEnvironment)
 struct CLIVoiceFlagTests {
 
   // --- Test 1: -v alex parses and selects the alex voice ---
@@ -79,7 +79,7 @@ struct CLIVoiceFlagTests {
 // 7.2 — File Input and Stdin Tests
 // ============================================================================
 
-@Suite("CLI File Input Tests")
+@Suite("CLI File Input Tests", .acervoEnvironment)
 struct CLIFileInputTests {
 
   // --- Test 5: -f /tmp/input.txt reads file path ---
@@ -117,7 +117,7 @@ struct CLIFileInputTests {
 // 7.3 — Model Flag Tests
 // ============================================================================
 
-@Suite("CLI Model Flag Tests")
+@Suite("CLI Model Flag Tests", .acervoEnvironment)
 struct CLIModelFlagTests {
 
   // --- Test 8: --model 0.6b selects the small model ---
@@ -188,7 +188,7 @@ struct CLIModelFlagTests {
 // 7.4 — Combined Flag Tests
 // ============================================================================
 
-@Suite("CLI Combined Flag Tests")
+@Suite("CLI Combined Flag Tests", .acervoEnvironment)
 struct CLICombinedFlagTests {
 
   // --- Test 17: Combined flags parse correctly: -v daniel -o /tmp/out.wav "test" ---
@@ -247,7 +247,7 @@ struct CLICombinedFlagTests {
 // 7.6 — Additional Integration Tests
 // ============================================================================
 
-@Suite("CLI Integration Verification Tests")
+@Suite("CLI Integration Verification Tests", .acervoEnvironment)
 struct CLIIntegrationVerificationTests {
 
   // --- Test 23: Model shorthand case insensitivity ---

@@ -5,7 +5,7 @@ import Testing
 
 // MARK: - TextChunker Tests
 
-@Suite("TextChunker Tests")
+@Suite("TextChunker Tests", .acervoEnvironment)
 struct TextChunkerTests {
 
   // --- Test 1: Short text produces a single chunk ---
@@ -146,7 +146,7 @@ struct TextChunkerTests {
 
 // MARK: - WAVConcatenator Tests
 
-@Suite("WAVConcatenator Tests")
+@Suite("WAVConcatenator Tests", .acervoEnvironment)
 struct WAVConcatenatorTests {
 
   /// Helper: build a small WAV file with known PCM samples.
@@ -243,7 +243,7 @@ struct WAVConcatenatorTests {
 
 // MARK: - DigaEngine Voice Resolution Tests
 
-@Suite("DigaEngine Voice Resolution Tests")
+@Suite("DigaEngine Voice Resolution Tests", .acervoEnvironment)
 struct DigaEngineVoiceResolutionTests {
 
   /// Creates a DigaEngine with a temp-backed VoiceStore.
@@ -355,7 +355,7 @@ struct DigaEngineVoiceResolutionTests {
 
 // MARK: - DigaEngine Instantiation Tests
 
-@Suite("DigaEngine Instantiation Tests")
+@Suite("DigaEngine Instantiation Tests", .acervoEnvironment)
 struct DigaEngineInstantiationTests {
 
   // --- Test 20: Engine instantiates without error ---
@@ -388,7 +388,7 @@ struct DigaEngineInstantiationTests {
 
 // MARK: - DigaEngineError Tests
 
-@Suite("DigaEngineError Tests")
+@Suite("DigaEngineError Tests", .acervoEnvironment)
 struct DigaEngineErrorTests {
 
   // --- Test 22: Error descriptions are human-readable ---
@@ -421,7 +421,7 @@ struct DigaEngineErrorTests {
 
 // MARK: - WAVConcatenator.buildWAVData Tests
 
-@Suite("WAVConcatenator Build Tests")
+@Suite("WAVConcatenator Build Tests", .acervoEnvironment)
 struct WAVConcatenatorBuildTests {
 
   // --- Test 24: buildWAVData produces valid WAV header ---

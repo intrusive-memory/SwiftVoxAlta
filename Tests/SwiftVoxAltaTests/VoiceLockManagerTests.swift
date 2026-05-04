@@ -10,7 +10,7 @@ import Testing
 
 @testable import SwiftVoxAlta
 
-@Suite("VoiceLockManager - VoiceLock Codable")
+@Suite("VoiceLockManager - VoiceLock Codable", .acervoEnvironment)
 struct VoiceLockCodableTests {
 
   @Test("VoiceLock round-trips through JSON with real-sized clone data")

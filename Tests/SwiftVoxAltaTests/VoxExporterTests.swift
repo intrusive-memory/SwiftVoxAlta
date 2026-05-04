@@ -4,7 +4,7 @@ import VoxFormat
 
 @testable import SwiftVoxAlta
 
-@Suite("VoxExporter Tests")
+@Suite("VoxExporter Tests", .acervoEnvironment)
 struct VoxExporterTests {
 
   private func makeTempDir() -> URL {

@@ -5,7 +5,7 @@ import Testing
 
 // MARK: - AudioFormat Inference Tests
 
-@Suite("AudioFormat Inference Tests")
+@Suite("AudioFormat Inference Tests", .acervoEnvironment)
 struct AudioFormatInferenceTests {
 
   // --- Test 1: .wav extension infers WAV format ---
@@ -92,7 +92,7 @@ struct AudioFormatInferenceTests {
 
 // MARK: - AudioFileWriter WAV Output Tests
 
-@Suite("AudioFileWriter WAV Output Tests")
+@Suite("AudioFileWriter WAV Output Tests", .acervoEnvironment)
 struct AudioFileWriterWAVOutputTests {
 
   /// Helper: create a minimal valid WAV with known samples.
@@ -159,7 +159,7 @@ struct AudioFileWriterWAVOutputTests {
 
 // MARK: - AudioFileWriter AIFF Output Tests
 
-@Suite("AudioFileWriter AIFF Output Tests")
+@Suite("AudioFileWriter AIFF Output Tests", .acervoEnvironment)
 struct AudioFileWriterAIFFOutputTests {
 
   /// Helper: create a minimal valid WAV with known samples.
@@ -203,7 +203,7 @@ struct AudioFileWriterAIFFOutputTests {
 
 // MARK: - AudioFileWriter M4A Output Tests
 
-@Suite("AudioFileWriter M4A Output Tests")
+@Suite("AudioFileWriter M4A Output Tests", .acervoEnvironment)
 struct AudioFileWriterM4AOutputTests {
 
   /// Helper: create a valid WAV with enough samples for AAC encoding.
@@ -248,7 +248,7 @@ struct AudioFileWriterM4AOutputTests {
 
 // MARK: - AudioFileWriter Error Handling Tests
 
-@Suite("AudioFileWriter Error Handling Tests")
+@Suite("AudioFileWriter Error Handling Tests", .acervoEnvironment)
 struct AudioFileWriterErrorTests {
 
   // --- Test 15: Writing invalid WAV data for AIFF conversion throws ---
@@ -292,7 +292,7 @@ struct AudioFileWriterErrorTests {
 
 // MARK: - AudioFileWriterError Tests
 
-@Suite("AudioFileWriterError Description Tests")
+@Suite("AudioFileWriterError Description Tests", .acervoEnvironment)
 struct AudioFileWriterErrorDescriptionTests {
 
   // --- Test 17: Error descriptions are human-readable ---
@@ -315,7 +315,7 @@ struct AudioFileWriterErrorDescriptionTests {
 
 // MARK: - AudioFormat Enum Tests
 
-@Suite("AudioFormat Enum Tests")
+@Suite("AudioFormat Enum Tests", .acervoEnvironment)
 struct AudioFormatEnumTests {
 
   // --- Test 18: fromExtension handles all known extensions ---

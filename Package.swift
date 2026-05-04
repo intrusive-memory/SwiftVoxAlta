@@ -42,17 +42,17 @@ let package = Package(
     sibling(
       "mlx-audio-swift",
       remote: "https://github.com/intrusive-memory/mlx-audio-swift.git",
-      from: "0.6.0"
+      from: "0.6.1"
     ),
     sibling(
       "SwiftAcervo",
       remote: "https://github.com/intrusive-memory/SwiftAcervo.git",
-      from: "0.11.0"
+      from: "0.11.1"
     ),
     sibling(
       "SwiftTuberia",
       remote: "https://github.com/intrusive-memory/SwiftTuberia.git",
-      from: "0.6.2"
+      from: "0.6.3"
     ),
     .package(
       url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "1.7.1")),

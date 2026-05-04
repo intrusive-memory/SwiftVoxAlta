@@ -7,7 +7,7 @@ import Testing
 /// These tests verify the expected version format and that the ArgumentParser
 /// infrastructure is properly configured. Full integration testing of the
 /// binary is done in CI via `make release && ./bin/diga --version`.
-@Suite("Diga Version Tests")
+@Suite("Diga Version Tests", .acervoEnvironment)
 struct DigaVersionTests {
 
   @Test("Version string matches expected semver format")

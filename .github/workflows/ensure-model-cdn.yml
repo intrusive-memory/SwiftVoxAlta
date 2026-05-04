@@ -16,6 +16,9 @@ on:
     - cron: '0 0 * * *'  # Midnight UTC
   workflow_dispatch:
 
+env:
+  ACERVO_APP_GROUP_ID: group.intrusive-memory.models
+
 jobs:
   ensure-model-cdn:
     name: Upload Model to CDN

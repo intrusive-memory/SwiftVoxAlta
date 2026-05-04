@@ -5,7 +5,7 @@ import Testing
 ///
 /// These tests verify that the release workflow, Homebrew formula, Makefile,
 /// and version metadata are properly configured and consistent.
-@Suite("Diga Release Infrastructure Tests")
+@Suite("Diga Release Infrastructure Tests", .acervoEnvironment)
 struct DigaReleaseTests {
 
   /// Path to the project root, derived from the test file location.

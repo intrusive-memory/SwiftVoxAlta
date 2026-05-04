@@ -10,7 +10,7 @@ import Testing
 
 @testable import SwiftVoxAlta
 
-@Suite("VoxAltaError Tests")
+@Suite("VoxAltaError Tests", .acervoEnvironment)
 struct VoxAltaErrorTests {
 
   @Test("cloningFailed has non-empty errorDescription")
