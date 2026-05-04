@@ -16,6 +16,7 @@ permissions:
 env:
   BINARY_NAME: diga
   SCHEME: diga
+  ACERVO_APP_GROUP_ID: group.intrusive-memory.models
 
 jobs:
   build-and-release:

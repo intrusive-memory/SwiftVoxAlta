@@ -4,6 +4,9 @@ on:
   pull_request:
     branches: [main, development]
 
+env:
+  ACERVO_APP_GROUP_ID: group.intrusive-memory.models
+
 jobs:
   # Fast unit tests (no binary or model downloads required)
   unit-tests:
