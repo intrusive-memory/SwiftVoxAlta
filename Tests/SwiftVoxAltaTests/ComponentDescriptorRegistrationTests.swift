@@ -43,7 +43,7 @@ struct ComponentDescriptorRegistrationTests {
   func base17BMemoryBudgetMatchesExpectation() throws {
     _ = VoxAltaModelManager()
 
-    let descriptor = try #require(Acervo.component("qwen3-tts-base-1.7b"))
+    let descriptor = try #require(Acervo.component(Qwen3TTSModelRepo.base1_7B.componentId))
 
     #expect(descriptor.minimumMemoryBytes == 3_400_000_000)
     #expect(descriptor.metadata["deprecated"] != "true")
@@ -53,7 +53,7 @@ struct ComponentDescriptorRegistrationTests {
   func deprecatedVariantFlagged() throws {
     _ = VoxAltaModelManager()
 
-    let descriptor = try #require(Acervo.component("qwen3-tts-base-1.7b-4bit"))
+    let descriptor = try #require(Acervo.component(Qwen3TTSModelRepo.base1_7B_4bit.componentId))
 
     #expect(descriptor.metadata["deprecated"] == "true")
     #expect(descriptor.displayName.contains("Deprecated"))

@@ -106,18 +106,12 @@ public enum Qwen3TTSModelSize {
 extension Qwen3TTSModelRepo {
   /// The Acervo component ID for this model variant.
   ///
-  /// Used to look up, download, and check availability of this model
-  /// via the SwiftAcervo Component Registry.
+  /// Equal to `Acervo.slugify(rawValue)`, which is also the CDN slug under which
+  /// the model's manifest is served (`<R2_PUBLIC_URL>/models/<slug>/manifest.json`).
+  /// Keeping component ID == slugified repo ID == CDN slug eliminates triple-naming
+  /// between SwiftVoxAlta, mlx-audio-swift, and the CDN.
   public var componentId: String {
-    switch self {
-    case .base1_7B: return "qwen3-tts-base-1.7b"
-    case .base0_6B: return "qwen3-tts-base-0.6b"
-    case .customVoice1_7B: return "qwen3-tts-custom-1.7b"
-    case .customVoice0_6B: return "qwen3-tts-custom-0.6b"
-    case .voiceDesign1_7B: return "qwen3-tts-voicedesign-1.7b"
-    case .base1_7B_8bit: return "qwen3-tts-base-1.7b-8bit"
-    case .base1_7B_4bit: return "qwen3-tts-base-1.7b-4bit"
-    }
+    Acervo.slugify(rawValue)
   }
 }
 
@@ -214,6 +208,38 @@ public actor VoxAltaModelManager {
   /// The repository identifier of the currently loaded model.
   private var _currentModelRepo: String?
 
+  /// Wrapper that lets a non-Sendable `SpeechGenerationModel` cross the
+  /// nonisolated `Task` boundary used for single-flight load coordination.
+  /// The model is only ever observed from inside this actor, so unchecked
+  /// Sendable is safe.
+  private struct LoadedModelBox: @unchecked Sendable {
+    let model: any SpeechGenerationModel
+  }
+
+  /// In-flight load coordination. Concurrent callers requesting the same
+  /// repo await this Task instead of each starting their own load.
+  ///
+  /// Without this, actor reentrancy across the awaits inside `loadModel`
+  /// (e.g. `Acervo.ensureComponentReady`) lets every concurrent caller pass
+  /// the cache check before any one finishes, multiplying the model's memory
+  /// footprint by N. With N envelope-driven calls each mmapping a ~4 GB
+  /// model, virtual footprint reaches tens of GB and the OS reclaims us.
+  private var inFlightLoad: (repo: String, task: Task<LoadedModelBox, Error>)?
+
+  /// Number of times `_performLoad` has actually executed. Used by tests to
+  /// verify that concurrent `loadModel` calls coalesce onto one underlying
+  /// load rather than each running their own.
+  internal private(set) var performLoadInvocationCount: Int = 0
+
+  /// Test-only helper. Wraps `loadModel(repo:)` and discards the non-Sendable
+  /// result inside this actor's isolation, exposing only the success/throw to
+  /// nonisolated callers. Tests use this to drive concurrent loads without
+  /// having to import MLXAudioTTS just to satisfy Sendable on `any
+  /// SpeechGenerationModel`.
+  internal func _loadModelDiscardingResult(repo: String) async throws {
+    _ = try await loadModel(repo: repo)
+  }
+
   // MARK: - Public API
 
   /// Whether a model is currently loaded and cached.
@@ -298,7 +324,10 @@ public actor VoxAltaModelManager {
         // The async load must run outside this sync closure.
         ()
       }
-      return try await TTSModelUtils.loadModel(modelRepo: repo)
+      // Explicit modelType avoids mlx-audio-swift's inferModelType, which checks
+      // for "qwen3_tts" (underscore) but the HF repo uses "qwen3-tts" (hyphen)
+      // and would mis-route to the non-TTS Qwen3 LLM path.
+      return try await TTSModelUtils.loadModel(modelRepo: repo, modelType: "qwen3_tts")
     } catch let error as AcervoError {
       switch error {
       case .modelNotFound(let id):
@@ -363,13 +392,56 @@ public actor VoxAltaModelManager {
   /// - Returns: The loaded `SpeechGenerationModel` instance.
   /// - Throws: `VoxAltaError.modelNotAvailable` if loading fails.
   public func loadModel(repo: String) async throws -> any SpeechGenerationModel {
-    // One-time migration from legacy cache to Acervo shared directory
-    migrateIfNeeded()
-
-    // Return cached model if same repo is requested
+    // Cache hit: same repo, already loaded.
     if let cached = cachedModel, _currentModelRepo == repo {
       return cached
     }
+
+    // Coalesce concurrent callers requesting the same repo onto a single
+    // in-flight load. See `inFlightLoad` for the rationale.
+    if let inFlight = inFlightLoad, inFlight.repo == repo {
+      return try await inFlight.task.value.model
+    }
+
+    let loadTask = Task<LoadedModelBox, Error> { [weak self] in
+      guard let self = self else {
+        throw VoxAltaError.modelNotAvailable("VoxAltaModelManager deallocated during load")
+      }
+      return try await self._performLoad(repo: repo)
+    }
+    inFlightLoad = (repo: repo, task: loadTask)
+
+    do {
+      let model = try await loadTask.value.model
+      cachedModel = model
+      _currentModelRepo = repo
+      inFlightLoad = nil
+
+      // Log Neural Accelerator status on M5
+      let generation = AppleSiliconGeneration.current
+      if generation.hasNeuralAccelerators {
+        FileHandle.standardError.write(
+          Data(
+            "Neural Accelerators detected (\(generation.rawValue)) - MLX will auto-accelerate TTS inference (4× speedup on macOS 26.2+)\n"
+              .utf8
+          ))
+      }
+      return model
+    } catch {
+      inFlightLoad = nil
+      throw error
+    }
+  }
+
+  /// Runs the actual model load. Extracted from `loadModel(repo:)` so the
+  /// load body can run inside a single-flight `Task` that coalesces
+  /// concurrent callers. Returns a `LoadedModelBox` so the result can cross
+  /// the nonisolated Task boundary (the model itself is non-Sendable).
+  private func _performLoad(repo: String) async throws -> LoadedModelBox {
+    performLoadInvocationCount += 1
+
+    // One-time migration from legacy cache to Acervo shared directory
+    migrateIfNeeded()
 
     // Unload current model if switching repos
     if cachedModel != nil {
@@ -392,7 +464,6 @@ public actor VoxAltaModelManager {
     }
 
     // Step 1: Ensure the model's files are downloaded via Acervo Component Registry.
-    // This happens outside the validation closure since download may be expensive.
     try await Acervo.ensureComponentReady(componentId)
 
     // Step 2: Load the model with v2 access patterns (file presence and checksums validated).
@@ -400,22 +471,7 @@ public actor VoxAltaModelManager {
       componentId: componentId,
       repo: repo
     )
-
-    // Cache the loaded model
-    cachedModel = model
-    _currentModelRepo = repo
-
-    // Log Neural Accelerator status on M5
-    let generation = AppleSiliconGeneration.current
-    if generation.hasNeuralAccelerators {
-      FileHandle.standardError.write(
-        Data(
-          "Neural Accelerators detected (\(generation.rawValue)) - MLX will auto-accelerate TTS inference (4× speedup on macOS 26.2+)\n"
-            .utf8
-        ))
-    }
-
-    return model
+    return LoadedModelBox(model: model)
   }
 
   /// Loads a model using a well-known `Qwen3TTSModelRepo` enum case.
