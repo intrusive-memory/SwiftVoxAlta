@@ -43,6 +43,21 @@ The pipeline is: `echada cast` creates a `.vox` file -> `diga --import-vox voice
 
 ---
 
+## App Group configuration (required)
+
+This package depends on [SwiftAcervo](https://github.com/intrusive-memory/SwiftAcervo) for shared model storage. SwiftAcervo v0.10.0 resolves its App Group ID in this order: `ACERVO_APP_GROUP_ID` env var → `com.apple.security.application-groups` entitlement (macOS only) → `fatalError`. There is **no silent fallback**.
+
+- **Signed UI apps (macOS / iOS)**: declare `com.apple.security.application-groups` with `group.intrusive-memory.models` in your `.entitlements` file. iOS apps additionally need `ACERVO_APP_GROUP_ID=group.intrusive-memory.models` in the launch environment.
+- **CLI tools, scripts, CI jobs, test runners**: export `ACERVO_APP_GROUP_ID=group.intrusive-memory.models` in the shell or job environment. The standard place is `~/.zprofile`:
+
+    ```sh
+    export ACERVO_APP_GROUP_ID=group.intrusive-memory.models
+    ```
+
+Without this, `Acervo.sharedModelsDirectory` traps with `fatalError`. See [SwiftAcervo's USAGE.md](https://github.com/intrusive-memory/SwiftAcervo/blob/main/USAGE.md) for full details.
+
+---
+
 ## Build and Test
 
 **CRITICAL**: Use `xcodebuild` or the Makefile. Metal shaders required by Qwen3-TTS do not compile with `swift build`.
@@ -591,19 +606,33 @@ diga -v voice.vox "Hello, world!"      # Synthesize directly (no import needed)
 └── mlx-community_Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16/  (~4.3GB, preset speakers)
 ```
 
-### App Group entitlement (REQUIRED for app integrators)
+### App Group / ACERVO_APP_GROUP_ID (REQUIRED for all integrators)
 
-The `~/Library/SharedModels/` path above is the App Group container `group.intrusive-memory.models`. **Every app target that links SwiftVoxAlta (or any SwiftAcervo consumer) must enable this App Group capability.** Without it, SwiftAcervo silently falls back to `~/Library/Application Support/SwiftAcervo/SharedModels/` — a per-app path that is not shared across apps, defeating the cross-app caching that is the whole point of the shared-models layout.
+The `~/Library/SharedModels/` path above is the App Group container `group.intrusive-memory.models`. SwiftAcervo v0.10.0 resolves its App Group ID in this order: `ACERVO_APP_GROUP_ID` env var → `com.apple.security.application-groups` entitlement (macOS only) → `fatalError`. **There is no silent fallback.** If neither source is configured, `Acervo.sharedModelsDirectory` calls `fatalError` and the process traps immediately.
 
-Xcode setup (per target, including extensions):
+#### Signed UI apps (macOS / iOS)
+
+Every app target that links SwiftVoxAlta (or any SwiftAcervo consumer) must enable the App Group capability:
 
 1. Target → **Signing & Capabilities** → **+ Capability** → **App Groups**.
 2. Check or add `group.intrusive-memory.models`.
 3. Rebuild.
 
-Verify at runtime by printing `Acervo.sharedModelsDirectory`. A correctly entitled app shows a path under `~/Library/Group Containers/group.intrusive-memory.models/...`. A path ending in `Application Support/SwiftAcervo/SharedModels` means the entitlement is missing.
+iOS apps additionally need `ACERVO_APP_GROUP_ID=group.intrusive-memory.models` in the launch environment (the entitlement alone is not sufficient on iOS).
 
-The `diga` CLI in this repo is unsigned and can't join App Groups — it uses the fallback path by design. This caveat is library-consumer's only; nothing in SwiftVoxAlta itself needs the entitlement. See [SwiftAcervo USAGE.md](https://github.com/intrusive-memory/SwiftAcervo/blob/main/USAGE.md) for the full integration checklist.
+Verify at runtime by printing `Acervo.sharedModelsDirectory`. A correctly entitled app shows a path under `~/Library/Group Containers/group.intrusive-memory.models/...`.
+
+#### CLI tools, scripts, CI jobs, test runners
+
+Unsigned binaries (including the `diga` CLI in this repo), scripts, CI jobs, and Swift test runners cannot join an App Group via entitlement. These processes must export `ACERVO_APP_GROUP_ID` instead:
+
+```sh
+export ACERVO_APP_GROUP_ID=group.intrusive-memory.models
+```
+
+The standard place for developer machines is `~/.zprofile`. For CI, set it as a job-level environment variable. Without this export, `diga` and any test that exercises a SwiftAcervo path will trap with `fatalError` at the point `Acervo.sharedModelsDirectory` is first accessed.
+
+See [SwiftAcervo USAGE.md](https://github.com/intrusive-memory/SwiftAcervo/blob/main/USAGE.md) for the full integration checklist.
 
 ---
 

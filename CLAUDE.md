@@ -61,3 +61,4 @@ make test              # ~15-60 seconds, includes integration tests
 - CLI commands and voice management
 - Architecture patterns and design decisions
 - Integration guides for SwiftHablare/Produciesta
+- **App Group / `ACERVO_APP_GROUP_ID` configuration (required)** — see the "App Group configuration (required)" section
