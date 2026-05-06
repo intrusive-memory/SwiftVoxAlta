@@ -408,6 +408,21 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     return try AudioConversion.mlxArrayToWAVData(audioArray, sampleRate: qwenModel.sampleRate)
   }
 
+  // MARK: - Telemetry
+
+  /// Attaches or detaches a telemetry reporter. Forwards to the underlying
+  /// `VoxAltaModelManager`, which owns the reporter reference.
+  public func setTelemetry(_ reporter: (any VoxAltaTelemetryReporter)?) async {
+    await modelManager.setTelemetry(reporter)
+  }
+
+  /// Forwards a telemetry event through the model manager's reporter.
+  /// Used by Sortie 6 to emit voice-cache events from the provider's
+  /// cache-mutation call sites.
+  internal func capture(_ event: VoxAltaTelemetryEvent) async {
+    await modelManager.capture(event)
+  }
+
   // MARK: - Private Helpers
 
   /// Measure the duration of WAV audio data by parsing the header.

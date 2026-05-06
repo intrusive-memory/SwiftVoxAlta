@@ -592,4 +592,22 @@ public actor VoxAltaModelManager {
       await MemoryManager.shared.availableMemory
     }
   }
+
+  // MARK: - Telemetry
+
+  /// Optional reporter to receive lifecycle events. Set via `setTelemetry`.
+  /// A nil reporter is a no-op — `capture` never blocks the caller.
+  private var telemetry: (any VoxAltaTelemetryReporter)?
+
+  /// Attaches or detaches a telemetry reporter. Pass `nil` to disable.
+  public func setTelemetry(_ reporter: (any VoxAltaTelemetryReporter)?) {
+    self.telemetry = reporter
+  }
+
+  /// Forwards a telemetry event to the attached reporter, if any.
+  /// Used by Sorties 5, 6, 7 to emit lifecycle events without each call site
+  /// needing nil-checks.
+  internal func capture(_ event: VoxAltaTelemetryEvent) async {
+    await telemetry?.capture(event)
+  }
 }
