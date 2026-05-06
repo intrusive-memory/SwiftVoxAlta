@@ -392,8 +392,11 @@ public actor VoxAltaModelManager {
   /// - Returns: The loaded `SpeechGenerationModel` instance.
   /// - Throws: `VoxAltaError.modelNotAvailable` if loading fails.
   public func loadModel(repo: String) async throws -> any SpeechGenerationModel {
+    await capture(.modelLoadStart(repo: repo, cacheHit: cachedModel != nil))
+
     // Cache hit: same repo, already loaded.
     if let cached = cachedModel, _currentModelRepo == repo {
+      await capture(.modelLoadComplete(repo: repo, sizeMB: estimateModelMemoryUsage()))
       return cached
     }
 
@@ -426,6 +429,7 @@ public actor VoxAltaModelManager {
               .utf8
           ))
       }
+      await capture(.modelLoadComplete(repo: repo, sizeMB: estimateModelMemoryUsage()))
       return model
     } catch {
       inFlightLoad = nil
@@ -492,6 +496,12 @@ public actor VoxAltaModelManager {
   /// `currentModelRepo` returns `nil`. Calling `unloadModel()` when
   /// no model is loaded is a no-op.
   public func unloadModel() async {
+    let wasLoaded = cachedModel != nil
+    let preSizeMB = estimateModelMemoryUsage()
+    let memBefore = getCurrentProcessMemory()
+    await capture(.modelUnloadStart(loaded: wasLoaded, sizeMB: preSizeMB))
+
+    // Existing unload logic — DO NOT change:
     cachedModel = nil
     _currentModelRepo = nil
 
@@ -500,6 +510,10 @@ public actor VoxAltaModelManager {
     // Without this, loading a new model can crash in AGX::ComputeContext
     // due to stale Metal command buffers from the previous model.
     await MemoryManager.shared.clearGPUCache()
+
+    let memAfter = getCurrentProcessMemory()
+    let freed = max(0.0, memBefore - memAfter)
+    await capture(.modelUnloadComplete(freed: freed, processMemoryMB: memAfter))
   }
 
   // MARK: - Memory Validation
