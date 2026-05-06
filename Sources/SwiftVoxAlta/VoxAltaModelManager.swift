@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import MLX
 import MLXAudioTTS
 import SwiftAcervo
 import Tuberia
@@ -397,6 +398,9 @@ public actor VoxAltaModelManager {
     // Cache hit: same repo, already loaded.
     if let cached = cachedModel, _currentModelRepo == repo {
       await capture(.modelLoadComplete(repo: repo, sizeMB: estimateModelMemoryUsage()))
+      let mlxReport = checkMLXRetention()
+      await capture(.metalBufferState(allocatedMB: mlxReport.metalHeapSizeMB, peakMB: -1.0))
+      // peak unavailable from public MLX API
       return cached
     }
 
@@ -430,6 +434,9 @@ public actor VoxAltaModelManager {
           ))
       }
       await capture(.modelLoadComplete(repo: repo, sizeMB: estimateModelMemoryUsage()))
+      let mlxReport = checkMLXRetention()
+      await capture(.metalBufferState(allocatedMB: mlxReport.metalHeapSizeMB, peakMB: -1.0))
+      // peak unavailable from public MLX API
       return model
     } catch {
       inFlightLoad = nil
@@ -514,6 +521,9 @@ public actor VoxAltaModelManager {
     let memAfter = getCurrentProcessMemory()
     let freed = max(0.0, memBefore - memAfter)
     await capture(.modelUnloadComplete(freed: freed, processMemoryMB: memAfter))
+    let mlxReport = checkMLXRetention()
+    await capture(.metalBufferState(allocatedMB: mlxReport.metalHeapSizeMB, peakMB: -1.0))
+    // peak unavailable from public MLX API
   }
 
   // MARK: - Memory Validation
@@ -623,5 +633,32 @@ public actor VoxAltaModelManager {
   /// needing nil-checks.
   internal func capture(_ event: VoxAltaTelemetryEvent) async {
     await telemetry?.capture(event)
+  }
+
+  /// Probes the public MLX/Metal API surface for best-effort retention metrics.
+  ///
+  /// `activeArrayCount` has no public counter in the mlx-swift API; returns `-1`.
+  /// `metalHeapSizeMB` is derived from `Memory.activeMemory` (mlx-swift public API).
+  /// `modelRegistrySize` is always `-1` — SwiftVoxAlta has no model registry;
+  /// placeholder for forward compatibility.
+  private func checkMLXRetention() -> MLXRetentionReport {
+    // activeArrayCount: no public array-count counter in mlx-swift → -1
+    let activeArrayCount: Int = -1
+
+    // metalHeapSizeMB: derived from MLX.Memory.activeMemory (bytes) / 1024 / 1024
+    let metalHeapSizeMB: Double = Double(Memory.activeMemory) / 1024.0 / 1024.0
+
+    // SwiftVoxAlta has no model registry; placeholder for forward compatibility.
+    let modelRegistrySize: Int = -1
+
+    return MLXRetentionReport(
+      activeArrayCount: activeArrayCount,
+      metalHeapSizeMB: metalHeapSizeMB,
+      modelRegistrySize: modelRegistrySize
+    )
+  }
+
+  internal func _checkMLXRetentionForTesting() -> MLXRetentionReport {
+    checkMLXRetention()
   }
 }

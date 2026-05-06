@@ -48,7 +48,9 @@ struct LoadUnloadTelemetryTests {
     await manager.unloadModel()
 
     let events = await reporter.events
-    #expect(events.count == 2)
+    // Sortie 7 adds a .metalBufferState event immediately after .modelUnloadComplete,
+    // so the no-op unload now produces 3 events: start, complete, metalBufferState.
+    #expect(events.count == 3)
 
     // Match shape of first event without comparing Double fields with raw equality.
     if events.count >= 1 {
@@ -66,6 +68,15 @@ struct LoadUnloadTelemetryTests {
         // shape matches
       } else {
         Issue.record("Expected .modelUnloadComplete as second event; got \(events[1])")
+      }
+    }
+
+    // Third event: .metalBufferState emitted after unloadComplete (Sortie 7).
+    if events.count >= 3 {
+      if case .metalBufferState(_, let peakMB) = events[2] {
+        #expect(peakMB == -1.0)
+      } else {
+        Issue.record("Expected .metalBufferState as third event; got \(events[2])")
       }
     }
   }
