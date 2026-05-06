@@ -504,6 +504,29 @@ public actor VoxAltaModelManager {
 
   // MARK: - Memory Validation
 
+  /// Returns the approximate memory footprint of the currently loaded model in megabytes.
+  ///
+  /// The estimate is based on a substring match against the loaded model's repository identifier:
+  /// - `"1.7B"` → `3400.0` MB
+  /// - `"0.6B"` → `1200.0` MB
+  /// - `nil` repo (no model loaded) or unrecognized string → `0.0`
+  ///
+  /// Use this for **deltas and ordering signals**, not precise accounting.
+  /// Returns `0.0` when no model is loaded or the repo string is unrecognized.
+  internal func estimateModelMemoryUsage() -> Double {
+    guard let repo = _currentModelRepo else { return 0.0 }
+    if repo.contains("1.7B") { return 3400.0 }
+    if repo.contains("0.6B") { return 1200.0 }
+    return 0.0
+  }
+
+  /// Test-only seam: sets the actor's `_currentModelRepo` without going through
+  /// `loadModel`. Used by `EstimateModelMemoryTests` to exercise the substring
+  /// matching in `estimateModelMemoryUsage()` without disk/network dependency.
+  internal func _setCurrentModelRepoForTesting(_ repo: String?) {
+    _currentModelRepo = repo
+  }
+
   /// Checks whether the system has sufficient available memory to load a model
   /// of the given size. Returns `false` (and logs a warning to stderr) if memory
   /// looks tight, but does **not** throw — macOS is capable of reclaiming memory
