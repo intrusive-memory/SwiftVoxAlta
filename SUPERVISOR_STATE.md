@@ -35,15 +35,15 @@
 ## Work Unit State
 
 ### SwiftVoxAlta Telemetry
-- Work unit state: RUNNING (awaiting supervisor decision on Sortie 2)
-- Current sortie: 1 of 8 (re-run complete)
-- Sortie state: COMPLETE (verdict: INCONCLUSIVE, drain: 2s)
+- Work unit state: RUNNING (Sortie 1 COMPLETE — awaiting decision gate to proceed to Sortie 2)
+- Current sortie: 1 of 8 (3-cycle escalation, attempt 3)
+- Sortie state: COMPLETE (verdict: NO LEAK, 3-cycle, marginalAvg: 11.73 MB)
 - Sortie type: code
 - Model: sonnet
-- Complexity score: 11
-- Attempt: 2 of 3
-- Last verified: 2026-05-06 — re-run with 2s drain, verdict: INCONCLUSIVE, netDelta: 340.39 MB
-- Notes: Sortie 1 re-run complete. Probe ran via direct xctest invocation (xcodebuild sandbox restriction documented). netDelta=340.39 MB with 2s drain vs 339.09 MB with 500ms drain — virtually identical, indicating residual RSS is structural overhead not a progressive leak. Decision gate: PAUSE. Supervisor must decide whether to accept INCONCLUSIVE and proceed to Sortie 2, or escalate with multi-cycle probe.
+- Complexity score: 7 (multi-cycle math + reuse of established xctest pattern)
+- Attempt: 3 of 3
+- Last verified: 2026-05-06 — 3-cycle probe verdict: NO LEAK. d1=340.28 MB (one-time framework overhead), d2=18.70 MB, d3=4.77 MB, marginalAvg=11.73 MB. Residual is structural, not progressive.
+- Notes: The ~340 MB first-cycle residual is confirmed one-time MLX/Metal framework setup cost. Cycles 2 and 3 show near-zero marginal growth (11.73 MB average), well below the 50 MB NO LEAK threshold. unloadModel() is working correctly in the xctest process context.
 
 ## Active Agents
 
@@ -51,6 +51,7 @@
 |-----------|--------|-------------|---------|-------|-----------------|---------|-------------|---------------|
 | SwiftVoxAlta Telemetry | 1 | COMPLETE | 1/3 | sonnet | 11 | ad19173e2bb9b76ee | LEAK_PROBE_RESULT.md | 2026-05-06 (verdict: INCONCLUSIVE) |
 | SwiftVoxAlta Telemetry | 1 (re-run, 2s drain) | COMPLETE | 2/3 | sonnet | 7 | a8c5faae3158e227c | LEAK_PROBE_RESULT.md | 2026-05-06 (verdict: INCONCLUSIVE, netDelta=340.39 MB) |
+| SwiftVoxAlta Telemetry | 1 (3-cycle escalation) | COMPLETE | 3/3 | sonnet | 7 | a5f88c83eb8206216 | LEAK_PROBE_RESULT.md | 2026-05-06 (verdict: NO LEAK, marginalAvg=11.73 MB, d1=340.28, d2=18.70, d3=4.77) |
 
 ## Decisions Log
 
@@ -62,11 +63,15 @@
 | 2026-05-06 | SwiftVoxAlta Telemetry | 1 | Sortie 1 verdict: INCONCLUSIVE | netDelta=339.09 MB (threshold: >1000 LEAK SUSPECTED, <200 NO LEAK). Model loaded 8782.56 MB, unload freed 8443.47 MB, 339.09 MB remained after 500ms drain. Per EXECUTION_PLAN.md decision gate: PAUSE — surface to user, await decision on whether to proceed or re-run multi-cycle probe. |
 | 2026-05-06 | SwiftVoxAlta Telemetry | 1 | xcodebuild sandbox limitation noted | macOS 26 applies a write sandbox to xctest processes launched by xcodebuild that prevents writes to ~/Library/Group Containers/. Acervo's ensureComponentReady() attempts to update model metadata files there. Workaround: probe was run via direct xctest binary invocation (functionally equivalent for RSS measurement). xcodebuild build succeeded; test execution failed due to sandbox. This is a macOS-level restriction, not a code defect. |
 | 2026-05-06 | SwiftVoxAlta Telemetry | 1 (re-run) | Sortie 1 verdict (2s drain): INCONCLUSIVE | netDelta=340.39 MB. Drain increased to 2s per Known Risks. Result nearly identical to 500ms run (339.09 MB), indicating the residual ~340 MB is structural overhead (xctest process baseline, MLX framework state), not a progressive memory leak. |
+| 2026-05-06 | — | — | Merge flow on mission completion | Per user instruction: feature/telemetry-instrumentation → PR to development → PR development → main → tag release. Standard workflow per repo convention. Sortie 8's docs and AGENTS.md updates land via this path; no direct merges to main. |
+| 2026-05-06 | SwiftVoxAlta Telemetry | 1 (3-cycle) | Escalating per user decision | Drain hypothesis falsified. Dispatching 3-cycle variant to discriminate structural overhead (one-time, 340 MB stays flat across cycles) vs progressive leak (linear, ~340 MB per cycle compounds). Per-cycle marginal-growth math is the diagnostic signal, not raw netDelta. |
+| 2026-05-06 | SwiftVoxAlta Telemetry | 1 (3-cycle) | Sortie 1 verdict (3-cycle): NO LEAK | d1=340.28, d2=18.70, d3=4.77, marginalAvg=11.73, cumulative=363.75. The ~340 MB first-cycle residual is one-time MLX/Metal framework setup cost; cycles 2 and 3 show near-zero marginal growth (11.73 MB avg, well below 50 MB threshold), confirming unloadModel() works correctly and the residual is structural, not a progressive per-cycle leak. |
 
 ## Status Summary
 
-- Phase 0 (Sortie 1, gating) COMPLETE (re-run with 2s drain also complete).
-- Verdict: INCONCLUSIVE (netDelta=340.39 MB with 2s drain, cf. 339.09 MB with 500ms drain; threshold 200–1000 MB).
-- The near-identical netDelta across both drain windows strongly suggests the residual ~340 MB is structural process overhead, not a progressive leak. Doubling the drain window had no measurable effect.
-- Supervisor must decide: accept INCONCLUSIVE and proceed to Sortie 2 (telemetry instrumentation), or escalate with multi-cycle probe.
-- Sibling-repo edits (mlx-audio-swift/Package.swift, SwiftBruja/Package.swift) remain uncommitted in their respective working trees — flagged for user review before Sortie 2 runs `make build`.
+- Phase 0 (Sortie 1, gating) COMPLETE — 3-cycle escalation produced definitive verdict.
+- Verdict: NO LEAK (marginalAvg=11.73 MB, well below 50.0 MB threshold).
+- The ~340 MB first-cycle residual (d1) is confirmed one-time MLX/Metal framework setup cost, not a progressive leak. Cycles 2 (d2=18.70 MB) and 3 (d3=4.77 MB) converge toward zero, consistent with structural overhead only.
+- Decision gate: Per EXECUTION_PLAN.md — NO LEAK verdict triggers PAUSE. Supervisor must surface to user. The leak Produciesta sees is not reproducible in a fresh xctest process; telemetry instrumentation may still have observability value for Produciesta-side diagnostics.
+- Sibling-repo edits (mlx-audio-swift/Package.swift, SwiftBruja/Package.swift): user is committing in those repos directly — supervisor stays out.
+- Mission landing path (per user): feature/telemetry-instrumentation → development → main → release.

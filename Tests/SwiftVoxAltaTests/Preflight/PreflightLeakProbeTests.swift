@@ -2,8 +2,8 @@
 //  PreflightLeakProbeTests.swift
 //  SwiftVoxAlta
 //
-//  Sortie 1: Preflight Leak Probe — empirical RSS measurement of a single
-//  loadModel / unloadModel cycle. Skipped by default; run via:
+//  Sortie 1: Preflight Leak Probe — empirical RSS measurement of 3
+//  loadModel / unloadModel cycles. Skipped by default; run via:
 //
 //    VOXALTA_RUN_LEAK_PROBE=1 xcodebuild test \
 //      -scheme SwiftVoxAlta-Package \
@@ -40,38 +40,44 @@ final class PreflightLeakProbeTests: XCTestCase {
         }
 
         // ── 1. Baseline RSS ──────────────────────────────────────────────────
-        let rssBeforeMB = currentRSSMB()
+        let manager = VoxAltaModelManager()
+        let rssBefore = currentRSSMB()
 
-        // ── 2. Load model ────────────────────────────────────────────────────
+        // ── 2. Three load/unload cycles ──────────────────────────────────────
         // Use _loadModelDiscardingResult to avoid transferring a non-Sendable
         // SpeechGenerationModel result across the actor isolation boundary.
-        let manager = VoxAltaModelManager()
-        try await manager._loadModelDiscardingResult(repo: Qwen3TTSModelRepo.base1_7B.rawValue)
-        let rssAfterLoadMB = currentRSSMB()
+        var afterLoadRSS: [Double] = []
+        var afterUnloadRSS: [Double] = []
 
-        // ── 3. Unload model ──────────────────────────────────────────────────
-        await manager.unloadModel()
+        for _ in 0..<3 {
+            try await manager._loadModelDiscardingResult(repo: Qwen3TTSModelRepo.base1_7B.rawValue)
+            afterLoadRSS.append(currentRSSMB())
+            await manager.unloadModel()
+            // 2s drain: lets MLX async deallocation and autorelease pools flush.
+            try await Task.sleep(nanoseconds: 2_000_000_000)
+            afterUnloadRSS.append(currentRSSMB())
+        }
 
-        // 2s drain: lets MLX async deallocation and autorelease pools flush.
-        try await Task.sleep(nanoseconds: 2_000_000_000)
-        let rssAfterUnloadMB = currentRSSMB()
+        // ── 3. Compute per-cycle marginal deltas ─────────────────────────────
+        let d1 = afterUnloadRSS[0] - rssBefore
+        let d2 = afterUnloadRSS[1] - afterUnloadRSS[0]
+        let d3 = afterUnloadRSS[2] - afterUnloadRSS[1]
+        let cumulative = afterUnloadRSS[2] - rssBefore
+        let marginalAvg = (d2 + d3) / 2.0
 
-        // ── 4. Compute deltas ────────────────────────────────────────────────
-        let loadGrew     = rssAfterLoadMB   - rssBeforeMB
-        let unloadFreed  = rssAfterLoadMB   - rssAfterUnloadMB
-        let netDelta     = rssAfterUnloadMB - rssBeforeMB
-
-        // ── 5. Determine verdict ─────────────────────────────────────────────
+        // ── 4. Determine verdict (3-cycle marginal-average thresholds) ────────
+        // d1 includes one-time MLX/Metal framework setup costs.
+        // d2 and d3 isolate pure per-cycle retention — this is the diagnostic.
         let verdict: String
-        if netDelta > 1000.0 {
+        if marginalAvg > 250.0 {
             verdict = "LEAK SUSPECTED"
-        } else if netDelta < 200.0 {
+        } else if marginalAvg < 50.0 {
             verdict = "NO LEAK"
         } else {
             verdict = "INCONCLUSIVE"
         }
 
-        // ── 6. Build the report ──────────────────────────────────────────────
+        // ── 5. Build the report ──────────────────────────────────────────────
         let now = ISO8601DateFormatter().string(from: Date())
 
         let report = """
@@ -79,34 +85,48 @@ final class PreflightLeakProbeTests: XCTestCase {
 
         Date: \(now)
         Model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16
-        Cycles: 1
+        Cycles: 3
+        Drain per cycle: 2s
 
         ## RSS measurements (MB)
-        Before load:        \(String(format: "%.2f", rssBeforeMB))
-        After load:         \(String(format: "%.2f", rssAfterLoadMB))
-        After unloadModel:  \(String(format: "%.2f", rssAfterUnloadMB))
+        Before load:                \(String(format: "%.2f", rssBefore))
+        After load (cycle 1):       \(String(format: "%.2f", afterLoadRSS[0]))
+        After unload (cycle 1):     \(String(format: "%.2f", afterUnloadRSS[0]))
+        After load (cycle 2):       \(String(format: "%.2f", afterLoadRSS[1]))
+        After unload (cycle 2):     \(String(format: "%.2f", afterUnloadRSS[1]))
+        After load (cycle 3):       \(String(format: "%.2f", afterLoadRSS[2]))
+        After unload (cycle 3):     \(String(format: "%.2f", afterUnloadRSS[2]))
 
-        ## Deltas (MB)
-        loadGrew:           \(String(format: "%.2f", loadGrew))
-        unloadFreed:        \(String(format: "%.2f", unloadFreed))
-        netDelta:           \(String(format: "%.2f", netDelta))
+        ## Per-cycle marginal deltas (MB)
+        d1 (cycle 1, includes one-time overhead):  \(String(format: "%.2f", d1))
+        d2 (cycle 2 marginal):                     \(String(format: "%.2f", d2))
+        d3 (cycle 3 marginal):                     \(String(format: "%.2f", d3))
+        Marginal average (d2+d3)/2:                \(String(format: "%.2f", marginalAvg))
+        Cumulative (3 cycles):                     \(String(format: "%.2f", cumulative))
 
-        ## Thresholds
-        LEAK SUSPECTED if netDelta > 1000.0
-        NO LEAK         if netDelta < 200.0
+        ## Thresholds (3-cycle, marginal-average based)
+        LEAK SUSPECTED if marginalAvg > 250.0
+        NO LEAK         if marginalAvg < 50.0
         INCONCLUSIVE    otherwise
 
         Verdict: \(verdict)
 
+        ## Interpretation guide
+        - d1 includes one-time MLX/Metal framework setup costs that occur on first model load.
+        - d2 and d3 measure pure per-cycle retention. If they are near zero, the residual is structural.
+        - If d2 ≈ d3 ≈ d1 (~340 MB), this is a linear leak — confirmed mission premise.
+        - The unloadFreed magnitude (typically ~8.4 GB on this model) is NOT in the verdict — only marginal residue is.
+
         ## Notes
         - RSS via mach_task_basic_info.resident_size; approximate, includes shared memory.
-        - 2s drain window between unloadModel() and final RSS sample.
-        - This probe runs inside xctest, not Produciesta. Absolute RSS values are not directly comparable across processes; deltas are.
+        - 2s drain after each unload, before measuring the cycle's afterUnload RSS.
+        - Probe runs inside xctest, not Produciesta. Deltas are comparable; absolutes are not.
+        - Invocation: direct xctest binary (xcodebuild sandbox limitation on macOS 26 prevents writes to ~/Library/Group Containers/, which Acervo requires).
         """
 
-        // ── 7. Write LEAK_PROBE_RESULT.md ────────────────────────────────────
+        // ── 6. Write LEAK_PROBE_RESULT.md ────────────────────────────────────
         // File lives at Tests/SwiftVoxAltaTests/Preflight/PreflightLeakProbeTests.swift
-        // Three deletingLastPathComponent() calls walk up to the project root.
+        // Four deletingLastPathComponent() calls walk up to the project root.
         let fileURL = URL(fileURLWithPath: #filePath)
         let projectRoot = fileURL
             .deletingLastPathComponent()  // Preflight/
@@ -117,11 +137,11 @@ final class PreflightLeakProbeTests: XCTestCase {
         let reportURL = projectRoot.appendingPathComponent("LEAK_PROBE_RESULT.md")
         try report.write(to: reportURL, atomically: true, encoding: .utf8)
 
-        // ── 8. Mirror to stderr ──────────────────────────────────────────────
+        // ── 7. Mirror to stderr ──────────────────────────────────────────────
         let stderrData = Data(("\n--- LEAK PROBE RESULT ---\n" + report + "\n--- END LEAK PROBE RESULT ---\n").utf8)
         FileHandle.standardError.write(stderrData)
 
-        // ── 9. Always pass — verdict is data, not a gate ─────────────────────
+        // ── 8. Always pass — verdict is data, not a gate ─────────────────────
         XCTAssertTrue(true)
     }
 

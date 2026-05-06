@@ -1,6 +1,6 @@
-Test Suite 'Selected tests' started at 2026-05-06 12:16:45.439.
-Test Suite 'SwiftVoxAltaTests.xctest' started at 2026-05-06 12:16:45.440.
-Test Suite 'PreflightLeakProbeTests' started at 2026-05-06 12:16:45.440.
+Test Suite 'Selected tests' started at 2026-05-06 12:26:11.716.
+Test Suite 'SwiftVoxAltaTests.xctest' started at 2026-05-06 12:26:11.717.
+Test Suite 'PreflightLeakProbeTests' started at 2026-05-06 12:26:11.717.
 Test Case '-[SwiftVoxAltaTests.PreflightLeakProbeTests testLoadUnloadCycleLeakProbe]' started.
 [SwiftAcervo] Warning: re-registering component 'mlx-community_Qwen3-TTS-12Hz-1.7B-Base-bf16' with different repoId or files. Last registration wins.
 [SwiftAcervo] Warning: re-registering component 'mlx-community_Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16' with different repoId or files. Last registration wins.
@@ -9,39 +9,59 @@ Test Case '-[SwiftVoxAltaTests.PreflightLeakProbeTests testLoadUnloadCycleLeakPr
 --- LEAK PROBE RESULT ---
 # Preflight Leak Probe Result
 
-Date: 2026-05-06T19:16:51Z
+Date: 2026-05-06T19:26:22Z
 Model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16
-Cycles: 1
+Cycles: 3
+Drain per cycle: 2s
 
 ## RSS measurements (MB)
-Before load:        54.12
-After load:         8837.98
-After unloadModel:  394.52
+Before load:                54.47
+After load (cycle 1):       8831.27
+After unload (cycle 1):     394.75
+After load (cycle 2):       4755.05
+After unload (cycle 2):     413.45
+After load (cycle 3):       4747.83
+After unload (cycle 3):     418.22
 
-## Deltas (MB)
-loadGrew:           8783.86
-unloadFreed:        8443.47
-netDelta:           340.39
+## Per-cycle marginal deltas (MB)
+d1 (cycle 1, includes one-time overhead):  340.28
+d2 (cycle 2 marginal):                     18.70
+d3 (cycle 3 marginal):                     4.77
+Marginal average (d2+d3)/2:                11.73
+Cumulative (3 cycles):                     363.75
 
-## Thresholds
-LEAK SUSPECTED if netDelta > 1000.0
-NO LEAK         if netDelta < 200.0
+## Thresholds (3-cycle, marginal-average based)
+LEAK SUSPECTED if marginalAvg > 250.0
+NO LEAK         if marginalAvg < 50.0
 INCONCLUSIVE    otherwise
 
-Verdict: INCONCLUSIVE
+Verdict: NO LEAK
+
+## Interpretation guide
+- d1 includes one-time MLX/Metal framework setup costs that occur on first model load.
+- d2 and d3 measure pure per-cycle retention. If they are near zero, the residual is structural.
+- If d2 ≈ d3 ≈ d1 (~340 MB), this is a linear leak — confirmed mission premise.
+- The unloadFreed magnitude (typically ~8.4 GB on this model) is NOT in the verdict — only marginal residue is.
 
 ## Notes
 - RSS via mach_task_basic_info.resident_size; approximate, includes shared memory.
-- 2s drain window between unloadModel() and final RSS sample.
-- This probe runs inside xctest, not Produciesta. Absolute RSS values are not directly comparable across processes; deltas are.
+- 2s drain after each unload, before measuring the cycle's afterUnload RSS.
+- Probe runs inside xctest, not Produciesta. Deltas are comparable; absolutes are not.
+- Invocation: direct xctest binary (xcodebuild sandbox limitation on macOS 26 prevents writes to ~/Library/Group Containers/, which Acervo requires).
 --- END LEAK PROBE RESULT ---
-Test Case '-[SwiftVoxAltaTests.PreflightLeakProbeTests testLoadUnloadCycleLeakProbe]' passed (5.672 seconds).
-Test Suite 'PreflightLeakProbeTests' passed at 2026-05-06 12:16:51.112.
-	 Executed 1 test, with 0 failures (0 unexpected) in 5.672 (5.672) seconds
-Test Suite 'SwiftVoxAltaTests.xctest' passed at 2026-05-06 12:16:51.112.
-	 Executed 1 test, with 0 failures (0 unexpected) in 5.672 (5.672) seconds
-Test Suite 'Selected tests' passed at 2026-05-06 12:16:51.113.
-	 Executed 1 test, with 0 failures (0 unexpected) in 5.672 (5.673) seconds
+Test Case '-[SwiftVoxAltaTests.PreflightLeakProbeTests testLoadUnloadCycleLeakProbe]' passed (10.422 seconds).
+Test Suite 'PreflightLeakProbeTests' passed at 2026-05-06 12:26:22.140.
+	 Executed 1 test, with 0 failures (0 unexpected) in 10.422 (10.423) seconds
+Test Suite 'SwiftVoxAltaTests.xctest' passed at 2026-05-06 12:26:22.140.
+	 Executed 1 test, with 0 failures (0 unexpected) in 10.422 (10.423) seconds
+Test Suite 'Selected tests' passed at 2026-05-06 12:26:22.140.
+	 Executed 1 test, with 0 failures (0 unexpected) in 10.422 (10.424) seconds
+Loaded speech tokenizer decoder
+Loaded speaker encoder (2048-dim)
+Loaded Qwen3-TTS model (base)
+Loaded speech tokenizer decoder
+Loaded speaker encoder (2048-dim)
+Loaded Qwen3-TTS model (base)
 Loaded speech tokenizer decoder
 Loaded speaker encoder (2048-dim)
 Loaded Qwen3-TTS model (base)
