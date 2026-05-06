@@ -1,0 +1,443 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test -scheme SwiftVoxAlta-Package -destination platform=macOS,arch=arm64 "-only-testing:SwiftVoxAltaTests/PreflightLeakProbeTests/testLoadUnloadCycleLeakProbe" -derivedDataPath /tmp/SwiftVoxAlta-probe-build
+
+Resolve Package Graph
+2026-05-06 11:13:44.281 xcodebuild[82171:11785331] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+
+
+Resolved source packages:
+  SwiftCompartido: /Users/stovak/Projects/SwiftCompartido @ local
+  cmark-gfm: https://github.com/swiftlang/swift-cmark.git @ 0.7.1
+  Progress: https://github.com/jkandzi/Progress.swift @ 0.4.0
+  swift-crypto: https://github.com/apple/swift-crypto.git @ 4.5.0
+  yyjson: https://github.com/ibireme/yyjson.git @ 0.12.0
+  SwiftAcervo: /Users/stovak/Projects/SwiftAcervo @ local
+  TextBundle: https://github.com/mcritz/TextBundle.git @ 1.0.7
+  swift-asn1: https://github.com/apple/swift-asn1.git @ 1.7.0
+  swift-tokenizers: https://github.com/DePasqualeOrg/swift-tokenizers.git @ 0.5.0
+  SwiftHablare: /Users/stovak/Projects/SwiftHablare @ local
+  swift-syntax: https://github.com/swiftlang/swift-syntax.git @ 600.0.1
+  SwiftProyecto: /Users/stovak/Projects/SwiftProyecto @ local
+  swift-collections: https://github.com/apple/swift-collections.git @ 1.4.1
+  ZIPFoundation: https://github.com/weichsel/ZIPFoundation @ 0.9.20
+  MLXAudio: /Users/stovak/Projects/mlx-audio-swift @ local
+  mlx-swift: https://github.com/ml-explore/mlx-swift @ 0.31.3
+  SwiftBruja: /Users/stovak/Projects/SwiftBruja @ local
+  swift-markdown: https://github.com/swiftlang/swift-markdown.git @ 0.7.3
+  universal: https://github.com/marcprux/universal.git @ 5.3.0
+  VoxFormat: /Users/stovak/Projects/vox-format @ local
+  mlx-swift-lm: https://github.com/ml-explore/mlx-swift-lm @ 3.31.3
+  SwiftVoxAlta: /Users/stovak/Projects/SwiftVoxAlta-telemetry
+  swift-numerics: https://github.com/apple/swift-numerics @ 1.1.1
+  SwiftTuberia: /Users/stovak/Projects/SwiftTuberia @ local
+  swift-argument-parser: https://github.com/apple/swift-argument-parser @ 1.7.1
+  swift-tokenizers-mlx: https://github.com/DePasqualeOrg/swift-tokenizers-mlx @ 0.3.0
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64, id:00006020-000C30E201E8C01E, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Mac Catalyst, id:00006020-000C30E201E8C01E, name:My Mac }
+{ platform:macOS, arch:arm64, variant:DriverKit, id:00006020-000C30E201E8C01E, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:00006020-000C30E201E8C01E, name:My Mac }
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (78 targets)
+    Target 'SwiftVoxAlta' in project 'SwiftVoxAlta'
+        ➜ Explicit dependency on target 'SwiftVoxAlta' in project 'SwiftVoxAlta'
+        ➜ Explicit dependency on target 'SwiftHablare' in project 'SwiftHablare'
+        ➜ Explicit dependency on target 'MLXAudioTTS' in project 'MLXAudio'
+        ➜ Explicit dependency on target 'SwiftAcervo' in project 'SwiftAcervo'
+        ➜ Explicit dependency on target 'Tuberia' in project 'SwiftTuberia'
+        ➜ Explicit dependency on target 'VoxFormat' in project 'VoxFormat'
+    Target 'SwiftVoxAltaTests' in project 'SwiftVoxAlta'
+        ➜ Explicit dependency on target 'SwiftVoxAlta' in project 'SwiftVoxAlta'
+        ➜ Explicit dependency on target 'SwiftHablare' in project 'SwiftHablare'
+        ➜ Explicit dependency on target 'MLXAudioTTS' in project 'MLXAudio'
+        ➜ Explicit dependency on target 'SwiftAcervo' in project 'SwiftAcervo'
+        ➜ Explicit dependency on target 'Tuberia' in project 'SwiftTuberia'
+        ➜ Explicit dependency on target 'VoxFormat' in project 'VoxFormat'
+    Target 'DigaTests' in project 'SwiftVoxAlta'
+        ➜ Explicit dependency on target 'SwiftVoxAlta' in project 'SwiftVoxAlta'
+        ➜ Explicit dependency on target 'diga' in project 'SwiftVoxAlta'
+        ➜ Explicit dependency on target 'diga' in project 'SwiftVoxAlta'
+        ➜ Explicit dependency on target 'SwiftHablare' in project 'SwiftHablare'
+        ➜ Explicit dependency on target 'MLXAudioTTS' in project 'MLXAudio'
+        ➜ Explicit dependency on target 'SwiftAcervo' in project 'SwiftAcervo'
+        ➜ Explicit dependency on target 'Tuberia' in project 'SwiftTuberia'
+        ➜ Explicit dependency on target 'VoxFormat' in project 'VoxFormat'
+        ➜ Explicit dependency on target 'ArgumentParser' in project 'swift-argument-parser'
+    Target 'diga' in project 'SwiftVoxAlta'
+        ➜ Explicit dependency on target 'SwiftVoxAlta' in project 'SwiftVoxAlta'
+        ➜ Explicit dependency on target 'SwiftHablare' in project 'SwiftHablare'
+        ➜ Explicit dependency on target 'MLXAudioTTS' in project 'MLXAudio'
+        ➜ Explicit dependency on target 'SwiftAcervo' in project 'SwiftAcervo'
+        ➜ Explicit dependency on target 'Tuberia' in project 'SwiftTuberia'
+        ➜ Explicit dependency on target 'VoxFormat' in project 'VoxFormat'
+        ➜ Explicit dependency on target 'ArgumentParser' in project 'swift-argument-parser'
+    Target 'diga' in project 'SwiftVoxAlta'
+        ➜ Explicit dependency on target 'SwiftVoxAlta' in project 'SwiftVoxAlta'
+        ➜ Explicit dependency on target 'SwiftHablare' in project 'SwiftHablare'
+        ➜ Explicit dependency on target 'MLXAudioTTS' in project 'MLXAudio'
+        ➜ Explicit dependency on target 'SwiftAcervo' in project 'SwiftAcervo'
+        ➜ Explicit dependency on target 'Tuberia' in project 'SwiftTuberia'
+        ➜ Explicit dependency on target 'VoxFormat' in project 'VoxFormat'
+        ➜ Explicit dependency on target 'ArgumentParser' in project 'swift-argument-parser'
+    Target 'ArgumentParser' in project 'swift-argument-parser'
+        ➜ Explicit dependency on target 'ArgumentParser' in project 'swift-argument-parser'
+        ➜ Explicit dependency on target 'ArgumentParserToolInfo' in project 'swift-argument-parser'
+    Target 'ArgumentParser' in project 'swift-argument-parser'
+        ➜ Explicit dependency on target 'ArgumentParserToolInfo' in project 'swift-argument-parser'
+    Target 'ArgumentParserToolInfo' in project 'swift-argument-parser' (no dependencies)
+    Target 'SwiftVoxAlta' in project 'SwiftVoxAlta'
+        ➜ Explicit dependency on target 'SwiftHablare' in project 'SwiftHablare'
+        ➜ Explicit dependency on target 'MLXAudioTTS' in project 'MLXAudio'
+        ➜ Explicit dependency on target 'SwiftAcervo' in project 'SwiftAcervo'
+        ➜ Explicit dependency on target 'Tuberia' in project 'SwiftTuberia'
+        ➜ Explicit dependency on target 'VoxFormat' in project 'VoxFormat'
+    Target 'VoxFormat' in project 'VoxFormat'
+        ➜ Explicit dependency on target 'VoxFormat' in project 'VoxFormat'
+        ➜ Explicit dependency on target 'ZIPFoundation' in project 'ZIPFoundation'
+    Target 'VoxFormat' in project 'VoxFormat'
+        ➜ Explicit dependency on target 'ZIPFoundation' in project 'ZIPFoundation'
+    Target 'Tuberia' in project 'SwiftTuberia'
+        ➜ Explicit dependency on target 'Tuberia' in project 'SwiftTuberia'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXRandom' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'SwiftAcervo' in project 'SwiftAcervo'
+    Target 'Tuberia' in project 'SwiftTuberia'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXRandom' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'SwiftAcervo' in project 'SwiftAcervo'
+    Target 'MLXRandom' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXRandom' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Cmlx' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+    Target 'MLXRandom' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Cmlx' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+    Target 'MLXAudioTTS' in project 'MLXAudio'
+        ➜ Explicit dependency on target 'MLXAudioTTS' in project 'MLXAudio'
+        ➜ Explicit dependency on target 'MLXAudioCore' in project 'MLXAudio'
+        ➜ Explicit dependency on target 'MLXAudioCodecs' in project 'MLXAudio'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'SwiftAcervo' in project 'SwiftAcervo'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'RealModule' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'ComplexModule' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'MLXLMCommon' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'Tokenizers' in project 'swift-tokenizers'
+        ➜ Explicit dependency on target 'OrderedCollections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'yyjson' in project 'yyjson'
+        ➜ Explicit dependency on target 'MLXLLM' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'MLXLMTokenizers' in project 'swift-tokenizers-mlx'
+    Target 'MLXAudioTTS' in project 'MLXAudio'
+        ➜ Explicit dependency on target 'MLXAudioCore' in project 'MLXAudio'
+        ➜ Explicit dependency on target 'MLXAudioCodecs' in project 'MLXAudio'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'SwiftAcervo' in project 'SwiftAcervo'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'RealModule' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'ComplexModule' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'MLXLMCommon' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'Tokenizers' in project 'swift-tokenizers'
+        ➜ Explicit dependency on target 'OrderedCollections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'yyjson' in project 'yyjson'
+        ➜ Explicit dependency on target 'MLXLLM' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'MLXLMTokenizers' in project 'swift-tokenizers-mlx'
+    Target 'MLXLMTokenizers' in project 'swift-tokenizers-mlx'
+        ➜ Explicit dependency on target 'MLXLMTokenizers' in project 'swift-tokenizers-mlx'
+        ➜ Explicit dependency on target 'MLXLMCommon' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'Tokenizers' in project 'swift-tokenizers'
+    Target 'MLXLMTokenizers' in project 'swift-tokenizers-mlx'
+        ➜ Explicit dependency on target 'MLXLMCommon' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'Tokenizers' in project 'swift-tokenizers'
+    Target 'MLXLLM' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'MLXLLM' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'MLXLMCommon' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXOptimizers' in project 'mlx-swift'
+    Target 'MLXLLM' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'MLXLMCommon' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXOptimizers' in project 'mlx-swift'
+    Target 'MLXAudioCodecs' in project 'MLXAudio'
+        ➜ Explicit dependency on target 'MLXAudioCore' in project 'MLXAudio'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'SwiftAcervo' in project 'SwiftAcervo'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'RealModule' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'ComplexModule' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'MLXLMCommon' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'Tokenizers' in project 'swift-tokenizers'
+        ➜ Explicit dependency on target 'OrderedCollections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'yyjson' in project 'yyjson'
+    Target 'yyjson' in project 'yyjson'
+        ➜ Explicit dependency on target 'yyjson' in project 'yyjson'
+    Target 'yyjson' in project 'yyjson' (no dependencies)
+    Target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'swift-crypto_Crypto' in project 'swift-crypto'
+    Target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'swift-crypto_Crypto' in project 'swift-crypto'
+    Target 'swift-crypto_Crypto' in project 'swift-crypto' (no dependencies)
+    Target 'OrderedCollections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'OrderedCollections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+    Target 'OrderedCollections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+    Target 'InternalCollectionsUtilities' in project 'swift-collections' (no dependencies)
+    Target 'Tokenizers' in project 'swift-tokenizers'
+        ➜ Explicit dependency on target 'Tokenizers' in project 'swift-tokenizers'
+        ➜ Explicit dependency on target 'TokenizersFFI' in project 'swift-tokenizers'
+    Target 'Tokenizers' in project 'swift-tokenizers'
+        ➜ Explicit dependency on target 'TokenizersFFI' in project 'swift-tokenizers'
+    Target 'TokenizersFFI' in project 'swift-tokenizers' (no dependencies)
+    Target 'MLXLMCommon' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'MLXLMCommon' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXOptimizers' in project 'mlx-swift'
+    Target 'MLXLMCommon' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXOptimizers' in project 'mlx-swift'
+    Target 'MLXOptimizers' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXOptimizers' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Cmlx' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+    Target 'MLXOptimizers' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Cmlx' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+    Target 'MLXAudioCore' in project 'MLXAudio'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'SwiftAcervo' in project 'SwiftAcervo'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'RealModule' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'ComplexModule' in project 'swift-numerics'
+    Target 'ComplexModule' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'ComplexModule' in project 'swift-numerics'
+        ➜ Explicit dependency on target '_NumericsShims' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'RealModule' in project 'swift-numerics'
+    Target 'RealModule' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'RealModule' in project 'swift-numerics'
+        ➜ Explicit dependency on target '_NumericsShims' in project 'swift-numerics'
+    Target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Cmlx' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+    Target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Cmlx' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+    Target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Cmlx' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+    Target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Cmlx' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+    Target 'Numerics' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+        ➜ Explicit dependency on target '_NumericsShims' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'RealModule' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'ComplexModule' in project 'swift-numerics'
+    Target 'Numerics' in project 'swift-numerics'
+        ➜ Explicit dependency on target '_NumericsShims' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'RealModule' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'ComplexModule' in project 'swift-numerics'
+    Target 'ComplexModule' in project 'swift-numerics'
+        ➜ Explicit dependency on target '_NumericsShims' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'RealModule' in project 'swift-numerics'
+    Target 'RealModule' in project 'swift-numerics'
+        ➜ Explicit dependency on target '_NumericsShims' in project 'swift-numerics'
+    Target '_NumericsShims' in project 'swift-numerics' (no dependencies)
+    Target 'Cmlx' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'mlx-swift_Cmlx' in project 'mlx-swift'
+    Target 'mlx-swift_Cmlx' in project 'mlx-swift' (no dependencies)
+    Target 'SwiftHablare' in project 'SwiftHablare'
+        ➜ Explicit dependency on target 'SwiftHablare' in project 'SwiftHablare'
+        ➜ Explicit dependency on target 'SwiftCompartido' in project 'SwiftCompartido'
+        ➜ Explicit dependency on target 'SwiftProyecto' in project 'SwiftProyecto'
+    Target 'SwiftHablare' in project 'SwiftHablare'
+        ➜ Explicit dependency on target 'SwiftCompartido' in project 'SwiftCompartido'
+        ➜ Explicit dependency on target 'SwiftProyecto' in project 'SwiftProyecto'
+    Target 'SwiftProyecto' in project 'SwiftProyecto'
+        ➜ Explicit dependency on target 'SwiftProyecto' in project 'SwiftProyecto'
+        ➜ Explicit dependency on target 'Universal' in project 'universal'
+        ➜ Explicit dependency on target 'SwiftAcervo' in project 'SwiftAcervo'
+    Target 'SwiftProyecto' in project 'SwiftProyecto'
+        ➜ Explicit dependency on target 'Universal' in project 'universal'
+        ➜ Explicit dependency on target 'SwiftAcervo' in project 'SwiftAcervo'
+    Target 'SwiftAcervo' in project 'SwiftAcervo'
+        ➜ Explicit dependency on target 'SwiftAcervo' in project 'SwiftAcervo'
+    Target 'SwiftAcervo' in project 'SwiftAcervo' (no dependencies)
+    Target 'Universal' in project 'universal'
+        ➜ Explicit dependency on target 'Universal' in project 'universal'
+        ➜ Explicit dependency on target 'Either' in project 'universal'
+        ➜ Explicit dependency on target 'XML' in project 'universal'
+        ➜ Explicit dependency on target 'YAML' in project 'universal'
+        ➜ Explicit dependency on target 'JSON' in project 'universal'
+        ➜ Explicit dependency on target 'PLIST' in project 'universal'
+    Target 'Universal' in project 'universal'
+        ➜ Explicit dependency on target 'Either' in project 'universal'
+        ➜ Explicit dependency on target 'XML' in project 'universal'
+        ➜ Explicit dependency on target 'YAML' in project 'universal'
+        ➜ Explicit dependency on target 'JSON' in project 'universal'
+        ➜ Explicit dependency on target 'PLIST' in project 'universal'
+    Target 'PLIST' in project 'universal'
+        ➜ Explicit dependency on target 'Either' in project 'universal'
+    Target 'JSON' in project 'universal'
+        ➜ Explicit dependency on target 'Either' in project 'universal'
+    Target 'YAML' in project 'universal'
+        ➜ Explicit dependency on target 'Either' in project 'universal'
+    Target 'XML' in project 'universal'
+        ➜ Explicit dependency on target 'Either' in project 'universal'
+    Target 'Either' in project 'universal' (no dependencies)
+    Target 'SwiftCompartido' in project 'SwiftCompartido'
+        ➜ Explicit dependency on target 'SwiftCompartido' in project 'SwiftCompartido'
+        ➜ Explicit dependency on target 'TextBundle' in project 'TextBundle'
+        ➜ Explicit dependency on target 'ZIPFoundation' in project 'ZIPFoundation'
+        ➜ Explicit dependency on target 'Markdown' in project 'swift-markdown'
+    Target 'SwiftCompartido' in project 'SwiftCompartido'
+        ➜ Explicit dependency on target 'TextBundle' in project 'TextBundle'
+        ➜ Explicit dependency on target 'ZIPFoundation' in project 'ZIPFoundation'
+        ➜ Explicit dependency on target 'Markdown' in project 'swift-markdown'
+    Target 'Markdown' in project 'swift-markdown'
+        ➜ Explicit dependency on target 'Markdown' in project 'swift-markdown'
+        ➜ Explicit dependency on target 'CAtomic' in project 'swift-markdown'
+        ➜ Explicit dependency on target 'cmark-gfm' in project 'cmark-gfm'
+        ➜ Explicit dependency on target 'cmark-gfm-extensions' in project 'cmark-gfm'
+    Target 'Markdown' in project 'swift-markdown'
+        ➜ Explicit dependency on target 'CAtomic' in project 'swift-markdown'
+        ➜ Explicit dependency on target 'cmark-gfm' in project 'cmark-gfm'
+        ➜ Explicit dependency on target 'cmark-gfm-extensions' in project 'cmark-gfm'
+    Target 'cmark-gfm-extensions' in project 'cmark-gfm'
+        ➜ Explicit dependency on target 'cmark-gfm-extensions' in project 'cmark-gfm'
+        ➜ Explicit dependency on target 'cmark-gfm' in project 'cmark-gfm'
+    Target 'cmark-gfm-extensions' in project 'cmark-gfm'
+        ➜ Explicit dependency on target 'cmark-gfm' in project 'cmark-gfm'
+    Target 'cmark-gfm' in project 'cmark-gfm'
+        ➜ Explicit dependency on target 'cmark-gfm' in project 'cmark-gfm'
+    Target 'cmark-gfm' in project 'cmark-gfm' (no dependencies)
+    Target 'CAtomic' in project 'swift-markdown' (no dependencies)
+    Target 'TextBundle' in project 'TextBundle'
+        ➜ Explicit dependency on target 'TextBundle' in project 'TextBundle'
+        ➜ Explicit dependency on target 'ZIPFoundation' in project 'ZIPFoundation'
+    Target 'TextBundle' in project 'TextBundle'
+        ➜ Explicit dependency on target 'ZIPFoundation' in project 'ZIPFoundation'
+    Target 'ZIPFoundation' in project 'ZIPFoundation'
+        ➜ Explicit dependency on target 'ZIPFoundation' in project 'ZIPFoundation'
+        ➜ Explicit dependency on target 'ZIPFoundation_ZIPFoundation' in project 'ZIPFoundation'
+    Target 'ZIPFoundation' in project 'ZIPFoundation'
+        ➜ Explicit dependency on target 'ZIPFoundation_ZIPFoundation' in project 'ZIPFoundation'
+    Target 'ZIPFoundation_ZIPFoundation' in project 'ZIPFoundation' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk /tmp/SwiftVoxAlta-probe-build/SDKStatCaches.noindex/macosx26.2-25C58-dc75598d0054f22ec865fa860f139d7200fa09913b459cbbc988d1f6730289ae.sdkstatcache
+    cd /Users/stovak/Projects/SwiftVoxAlta-telemetry/.swiftpm/xcode
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk -o /tmp/SwiftVoxAlta-probe-build/SDKStatCaches.noindex/macosx26.2-25C58-dc75598d0054f22ec865fa860f139d7200fa09913b459cbbc988d1f6730289ae.sdkstatcache
+
+SwiftDriver SwiftVoxAltaTests normal arm64 com.apple.xcode.tools.swift.compiler (in target 'SwiftVoxAltaTests' from project 'SwiftVoxAlta')
+    cd /Users/stovak/Projects/SwiftVoxAlta-telemetry/.swiftpm/xcode
+    builtin-SwiftDriver -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name SwiftVoxAltaTests -Onone -enforce-exclusivity\=checked @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests.SwiftFileList -DSWIFT_PACKAGE -DDEBUG -Xcc -fmodule-map-file\=/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/GeneratedModuleMaps/yyjson.modulemap -DXcode -enable-upcoming-feature StrictConcurrency -plugin-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk -target arm64-apple-macos26.0 -g -module-cache-path /tmp/SwiftVoxAlta-probe-build/ModuleCache.noindex -Xfrontend -serialize-debugging-options -profile-coverage-mapping -profile-generate -enable-testing -index-store-path /tmp/SwiftVoxAlta-probe-build/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 6 -I /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug -Isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug -F /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks -c -j12 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /tmp/SwiftVoxAlta-probe-build/SDKStatCaches.noindex/macosx26.2-25C58-dc75598d0054f22ec865fa860f139d7200fa09913b459cbbc988d1f6730289ae.sdkstatcache -output-file-map /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /tmp/SwiftVoxAlta-probe-build/ModuleCache.noindex -sdk-module-cache-path /tmp/SwiftVoxAlta-probe-build/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests.swiftmodule -validate-clang-modules-once -clang-build-session-file /tmp/SwiftVoxAlta-probe-build/ModuleCache.noindex/Session.modulevalidation -package-name swiftvoxalta_telemetry -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests_const_extract_protocols.json -Xcc -I/tmp/SwiftVoxAlta-probe-build/SourcePackages/checkouts/swift-cmark/src/include -Xcc -I/tmp/SwiftVoxAlta-probe-build/SourcePackages/checkouts/swift-cmark/extensions/include -Xcc -I/tmp/SwiftVoxAlta-probe-build/SourcePackages/checkouts/swift-markdown/Sources/CAtomic/include -Xcc -I/tmp/SwiftVoxAlta-probe-build/SourcePackages/checkouts/yyjson/src -Xcc -I/tmp/SwiftVoxAlta-probe-build/SourcePackages/checkouts/swift-numerics/Sources/_NumericsShims/include -Xcc -I/tmp/SwiftVoxAlta-probe-build/SourcePackages/checkouts/mlx-swift/Source/Cmlx/include -Xcc -I/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/include -Xcc -I/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/DerivedSources-normal/arm64 -Xcc -I/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/DerivedSources/arm64 -Xcc -I/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/DerivedSources -Xcc -DSWIFT_PACKAGE -Xcc -DDEBUG\=1 -working-directory /Users/stovak/Projects/SwiftVoxAlta-telemetry/.swiftpm/xcode -experimental-emit-module-separately -disable-cmo
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ SwiftVoxAltaTests (in target 'SwiftVoxAltaTests' from project 'SwiftVoxAlta')
+
+EmitSwiftModule normal arm64 (in target 'SwiftVoxAltaTests' from project 'SwiftVoxAlta')
+    cd /Users/stovak/Projects/SwiftVoxAlta-telemetry/.swiftpm/xcode
+    
+
+SwiftCompile normal arm64 Compiling\ PreflightLeakProbeTests.swift /Users/stovak/Projects/SwiftVoxAlta-telemetry/Tests/SwiftVoxAltaTests/Preflight/PreflightLeakProbeTests.swift (in target 'SwiftVoxAltaTests' from project 'SwiftVoxAlta')
+
+SwiftCompile normal arm64 /Users/stovak/Projects/SwiftVoxAlta-telemetry/Tests/SwiftVoxAltaTests/Preflight/PreflightLeakProbeTests.swift (in target 'SwiftVoxAltaTests' from project 'SwiftVoxAlta')
+    cd /Users/stovak/Projects/SwiftVoxAlta-telemetry/.swiftpm/xcode
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling PreflightLeakProbeTests.swift (in target 'SwiftVoxAltaTests' from project 'SwiftVoxAlta')
+
+SwiftDriver\ Compilation SwiftVoxAltaTests normal arm64 com.apple.xcode.tools.swift.compiler (in target 'SwiftVoxAltaTests' from project 'SwiftVoxAlta')
+    cd /Users/stovak/Projects/SwiftVoxAlta-telemetry/.swiftpm/xcode
+    builtin-Swift-Compilation -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name SwiftVoxAltaTests -Onone -enforce-exclusivity\=checked @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests.SwiftFileList -DSWIFT_PACKAGE -DDEBUG -Xcc -fmodule-map-file\=/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/GeneratedModuleMaps/yyjson.modulemap -DXcode -enable-upcoming-feature StrictConcurrency -plugin-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk -target arm64-apple-macos26.0 -g -module-cache-path /tmp/SwiftVoxAlta-probe-build/ModuleCache.noindex -Xfrontend -serialize-debugging-options -profile-coverage-mapping -profile-generate -enable-testing -index-store-path /tmp/SwiftVoxAlta-probe-build/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 6 -I /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug -Isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug -F /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks -c -j12 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /tmp/SwiftVoxAlta-probe-build/SDKStatCaches.noindex/macosx26.2-25C58-dc75598d0054f22ec865fa860f139d7200fa09913b459cbbc988d1f6730289ae.sdkstatcache -output-file-map /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /tmp/SwiftVoxAlta-probe-build/ModuleCache.noindex -sdk-module-cache-path /tmp/SwiftVoxAlta-probe-build/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests.swiftmodule -validate-clang-modules-once -clang-build-session-file /tmp/SwiftVoxAlta-probe-build/ModuleCache.noindex/Session.modulevalidation -package-name swiftvoxalta_telemetry -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests_const_extract_protocols.json -Xcc -I/tmp/SwiftVoxAlta-probe-build/SourcePackages/checkouts/swift-cmark/src/include -Xcc -I/tmp/SwiftVoxAlta-probe-build/SourcePackages/checkouts/swift-cmark/extensions/include -Xcc -I/tmp/SwiftVoxAlta-probe-build/SourcePackages/checkouts/swift-markdown/Sources/CAtomic/include -Xcc -I/tmp/SwiftVoxAlta-probe-build/SourcePackages/checkouts/yyjson/src -Xcc -I/tmp/SwiftVoxAlta-probe-build/SourcePackages/checkouts/swift-numerics/Sources/_NumericsShims/include -Xcc -I/tmp/SwiftVoxAlta-probe-build/SourcePackages/checkouts/mlx-swift/Source/Cmlx/include -Xcc -I/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/include -Xcc -I/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/DerivedSources-normal/arm64 -Xcc -I/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/DerivedSources/arm64 -Xcc -I/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/DerivedSources -Xcc -DSWIFT_PACKAGE -Xcc -DDEBUG\=1 -working-directory /Users/stovak/Projects/SwiftVoxAlta-telemetry/.swiftpm/xcode -experimental-emit-module-separately -disable-cmo
+
+SwiftDriverJobDiscovery normal arm64 Emitting module for SwiftVoxAltaTests (in target 'SwiftVoxAltaTests' from project 'SwiftVoxAlta')
+
+Ld /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/SwiftVoxAltaTests.xctest/Contents/MacOS/SwiftVoxAltaTests normal (in target 'SwiftVoxAltaTests' from project 'SwiftVoxAlta')
+    cd /Users/stovak/Projects/SwiftVoxAlta-telemetry
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-macos26.0 -bundle -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk -O0 -L/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/EagerLinkingTBDs/Debug -L/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib -F/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/EagerLinkingTBDs/Debug -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug -iframework /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks -filelist /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests.LinkFileList -Xlinker -rpath -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -Xlinker -rpath -Xlinker @loader_path/Frameworks -Xlinker -rpath -Xlinker @loader_path/../Frameworks -Xlinker -object_path_lto -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests_lto.o -rdynamic -Xlinker -no_deduplicate -Xlinker -debug_variant -Xlinker -dependency_info -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests_dependency_info.dat -fobjc-link-runtime -fprofile-instr-generate -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests-linker-args.resp -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -lc++ -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -Wl,-no_warn_duplicate_libraries -framework Foundation -framework Metal -framework Accelerate -Xlinker -needed_framework -Xlinker XCTest -framework XCTest -Xlinker -needed-lXCTestSwiftSupport -lXCTestSwiftSupport -ltokenizers_rust-macos -o /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/SwiftVoxAltaTests.xctest/Contents/MacOS/SwiftVoxAltaTests -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftHablare.build/Debug/SwiftHablare.build/Objects-normal/arm64/SwiftHablare.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftHablare.build/Debug/SwiftHablare.build/Objects-normal/arm64/SwiftHablare-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftCompartido.build/Debug/SwiftCompartido.build/Objects-normal/arm64/SwiftCompartido.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftCompartido.build/Debug/SwiftCompartido.build/Objects-normal/arm64/SwiftCompartido-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/TextBundle.build/Debug/TextBundle.build/Objects-normal/arm64/TextBundle.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/TextBundle.build/Debug/TextBundle.build/Objects-normal/arm64/TextBundle-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/ZIPFoundation.build/Debug/ZIPFoundation.build/Objects-normal/arm64/ZIPFoundation.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/ZIPFoundation.build/Debug/ZIPFoundation.build/Objects-normal/arm64/ZIPFoundation-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-markdown.build/Debug/Markdown.build/Objects-normal/arm64/Markdown.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-markdown.build/Debug/Markdown.build/Objects-normal/arm64/Markdown-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftProyecto.build/Debug/SwiftProyecto.build/Objects-normal/arm64/SwiftProyecto.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftProyecto.build/Debug/SwiftProyecto.build/Objects-normal/arm64/SwiftProyecto-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/universal.build/Debug/Universal.build/Objects-normal/arm64/Universal.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/universal.build/Debug/Universal.build/Objects-normal/arm64/Universal-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/universal.build/Debug/Either.build/Objects-normal/arm64/Either.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/universal.build/Debug/Either.build/Objects-normal/arm64/Either-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/universal.build/Debug/XML.build/Objects-normal/arm64/XML.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/universal.build/Debug/XML.build/Objects-normal/arm64/XML-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/universal.build/Debug/YAML.build/Objects-normal/arm64/YAML.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/universal.build/Debug/YAML.build/Objects-normal/arm64/YAML-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/universal.build/Debug/JSON.build/Objects-normal/arm64/JSON.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/universal.build/Debug/JSON.build/Objects-normal/arm64/JSON-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/universal.build/Debug/PLIST.build/Objects-normal/arm64/PLIST.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/universal.build/Debug/PLIST.build/Objects-normal/arm64/PLIST-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftAcervo.build/Debug/SwiftAcervo.build/Objects-normal/arm64/SwiftAcervo.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftAcervo.build/Debug/SwiftAcervo.build/Objects-normal/arm64/SwiftAcervo-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/MLXAudio.build/Debug/MLXAudioTTS.build/Objects-normal/arm64/MLXAudioTTS.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/MLXAudio.build/Debug/MLXAudioTTS.build/Objects-normal/arm64/MLXAudioTTS-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/mlx-swift.build/Debug/MLX.build/Objects-normal/arm64/MLX.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/mlx-swift.build/Debug/MLX.build/Objects-normal/arm64/MLX-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-numerics.build/Debug/Numerics.build/Objects-normal/arm64/Numerics.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-numerics.build/Debug/Numerics.build/Objects-normal/arm64/Numerics-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-numerics.build/Debug/RealModule.build/Objects-normal/arm64/RealModule.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-numerics.build/Debug/RealModule.build/Objects-normal/arm64/RealModule-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-numerics.build/Debug/ComplexModule.build/Objects-normal/arm64/ComplexModule.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-numerics.build/Debug/ComplexModule.build/Objects-normal/arm64/ComplexModule-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/mlx-swift.build/Debug/MLXNN.build/Objects-normal/arm64/MLXNN.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/mlx-swift.build/Debug/MLXNN.build/Objects-normal/arm64/MLXNN-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/MLXAudio.build/Debug/MLXAudioCore.build/Objects-normal/arm64/MLXAudioCore.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/MLXAudio.build/Debug/MLXAudioCore.build/Objects-normal/arm64/MLXAudioCore-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/mlx-swift-lm.build/Debug/MLXLMCommon.build/Objects-normal/arm64/MLXLMCommon.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/mlx-swift-lm.build/Debug/MLXLMCommon.build/Objects-normal/arm64/MLXLMCommon-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/mlx-swift.build/Debug/MLXOptimizers.build/Objects-normal/arm64/MLXOptimizers.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/mlx-swift.build/Debug/MLXOptimizers.build/Objects-normal/arm64/MLXOptimizers-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-tokenizers.build/Debug/Tokenizers.build/Objects-normal/arm64/Tokenizers.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-tokenizers.build/Debug/Tokenizers.build/Objects-normal/arm64/Tokenizers-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-tokenizers.build/Debug/TokenizersFFI.build/Objects-normal/arm64/TokenizersFFI.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-tokenizers.build/Debug/TokenizersFFI.build/Objects-normal/arm64/TokenizersFFI-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-collections.build/Debug/OrderedCollections.build/Objects-normal/arm64/OrderedCollections.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-collections.build/Debug/OrderedCollections.build/Objects-normal/arm64/OrderedCollections-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-collections.build/Debug/InternalCollectionsUtilities.build/Objects-normal/arm64/InternalCollectionsUtilities.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-collections.build/Debug/InternalCollectionsUtilities.build/Objects-normal/arm64/InternalCollectionsUtilities-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-crypto.build/Debug/Crypto.build/Objects-normal/arm64/Crypto.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-crypto.build/Debug/Crypto.build/Objects-normal/arm64/Crypto-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/MLXAudio.build/Debug/MLXAudioCodecs.build/Objects-normal/arm64/MLXAudioCodecs.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/MLXAudio.build/Debug/MLXAudioCodecs.build/Objects-normal/arm64/MLXAudioCodecs-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/mlx-swift-lm.build/Debug/MLXLLM.build/Objects-normal/arm64/MLXLLM.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/mlx-swift-lm.build/Debug/MLXLLM.build/Objects-normal/arm64/MLXLLM-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-tokenizers-mlx.build/Debug/MLXLMTokenizers.build/Objects-normal/arm64/MLXLMTokenizers.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/swift-tokenizers-mlx.build/Debug/MLXLMTokenizers.build/Objects-normal/arm64/MLXLMTokenizers-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftTuberia.build/Debug/Tuberia.build/Objects-normal/arm64/Tuberia.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftTuberia.build/Debug/Tuberia.build/Objects-normal/arm64/Tuberia-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/mlx-swift.build/Debug/MLXRandom.build/Objects-normal/arm64/MLXRandom.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/mlx-swift.build/Debug/MLXRandom.build/Objects-normal/arm64/MLXRandom-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/VoxFormat.build/Debug/VoxFormat.build/Objects-normal/arm64/VoxFormat.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/VoxFormat.build/Debug/VoxFormat.build/Objects-normal/arm64/VoxFormat-linker-args.resp -Xlinker -add_ast_path -Xlinker /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAlta.build/Objects-normal/arm64/SwiftVoxAlta.swiftmodule @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAlta.build/Objects-normal/arm64/SwiftVoxAlta-linker-args.resp
+
+SwiftDriver\ Compilation\ Requirements SwiftVoxAltaTests normal arm64 com.apple.xcode.tools.swift.compiler (in target 'SwiftVoxAltaTests' from project 'SwiftVoxAlta')
+    cd /Users/stovak/Projects/SwiftVoxAlta-telemetry/.swiftpm/xcode
+    builtin-Swift-Compilation-Requirements -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name SwiftVoxAltaTests -Onone -enforce-exclusivity\=checked @/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests.SwiftFileList -DSWIFT_PACKAGE -DDEBUG -Xcc -fmodule-map-file\=/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/GeneratedModuleMaps/yyjson.modulemap -DXcode -enable-upcoming-feature StrictConcurrency -plugin-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk -target arm64-apple-macos26.0 -g -module-cache-path /tmp/SwiftVoxAlta-probe-build/ModuleCache.noindex -Xfrontend -serialize-debugging-options -profile-coverage-mapping -profile-generate -enable-testing -index-store-path /tmp/SwiftVoxAlta-probe-build/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 6 -I /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug -Isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/PackageFrameworks -F /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug -F /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks -c -j12 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /tmp/SwiftVoxAlta-probe-build/SDKStatCaches.noindex/macosx26.2-25C58-dc75598d0054f22ec865fa860f139d7200fa09913b459cbbc988d1f6730289ae.sdkstatcache -output-file-map /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /tmp/SwiftVoxAlta-probe-build/ModuleCache.noindex -sdk-module-cache-path /tmp/SwiftVoxAlta-probe-build/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests.swiftmodule -validate-clang-modules-once -clang-build-session-file /tmp/SwiftVoxAlta-probe-build/ModuleCache.noindex/Session.modulevalidation -package-name swiftvoxalta_telemetry -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests_const_extract_protocols.json -Xcc -I/tmp/SwiftVoxAlta-probe-build/SourcePackages/checkouts/swift-cmark/src/include -Xcc -I/tmp/SwiftVoxAlta-probe-build/SourcePackages/checkouts/swift-cmark/extensions/include -Xcc -I/tmp/SwiftVoxAlta-probe-build/SourcePackages/checkouts/swift-markdown/Sources/CAtomic/include -Xcc -I/tmp/SwiftVoxAlta-probe-build/SourcePackages/checkouts/yyjson/src -Xcc -I/tmp/SwiftVoxAlta-probe-build/SourcePackages/checkouts/swift-numerics/Sources/_NumericsShims/include -Xcc -I/tmp/SwiftVoxAlta-probe-build/SourcePackages/checkouts/mlx-swift/Source/Cmlx/include -Xcc -I/tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/include -Xcc -I/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/DerivedSources-normal/arm64 -Xcc -I/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/DerivedSources/arm64 -Xcc -I/tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/DerivedSources -Xcc -DSWIFT_PACKAGE -Xcc -DDEBUG\=1 -working-directory /Users/stovak/Projects/SwiftVoxAlta-telemetry/.swiftpm/xcode -experimental-emit-module-separately -disable-cmo
+
+Copy /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/SwiftVoxAltaTests.swiftmodule/arm64-apple-macos.abi.json /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests.abi.json (in target 'SwiftVoxAltaTests' from project 'SwiftVoxAlta')
+    cd /Users/stovak/Projects/SwiftVoxAlta-telemetry
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests.abi.json /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/SwiftVoxAltaTests.swiftmodule/arm64-apple-macos.abi.json
+
+Copy /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/SwiftVoxAltaTests.swiftmodule/Project/arm64-apple-macos.swiftsourceinfo /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests.swiftsourceinfo (in target 'SwiftVoxAltaTests' from project 'SwiftVoxAlta')
+    cd /Users/stovak/Projects/SwiftVoxAlta-telemetry
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests.swiftsourceinfo /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/SwiftVoxAltaTests.swiftmodule/Project/arm64-apple-macos.swiftsourceinfo
+
+ExtractAppIntentsMetadata (in target 'SwiftVoxAltaTests' from project 'SwiftVoxAlta')
+    cd /Users/stovak/Projects/SwiftVoxAlta-telemetry
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.Ianbxz/Metal.xctoolchain --module-name SwiftVoxAltaTests --sdk-root /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk --xcode-version 17C529 --platform-family macOS --deployment-target 26.0 --bundle-identifier swiftvoxalta-telemetry.SwiftVoxAltaTests --output /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/SwiftVoxAltaTests.xctest/Contents/Resources --target-triple arm64-apple-macos26.0 --binary-file /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/SwiftVoxAltaTests.xctest/Contents/MacOS/SwiftVoxAltaTests --dependency-file /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests_dependency_info.dat --stringsdata-file /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests.SwiftFileList --metadata-file-list /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/SwiftVoxAltaTests.DependencyMetadataFileList --static-metadata-file-list /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/SwiftVoxAltaTests.DependencyStaticMetadataFileList --swift-const-vals-list /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/Objects-normal/arm64/SwiftVoxAltaTests.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization
+2026-05-06 11:13:48.609 appintentsmetadataprocessor[82239:11785713] Starting appintentsmetadataprocessor export
+2026-05-06 11:13:48.701 appintentsmetadataprocessor[82239:11785713] Writing Metadata.appintents
+2026-05-06 11:13:48.701 appintentsmetadataprocessor[82239:11785713] Metadata root: /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/SwiftVoxAltaTests.xctest/Contents/Resources/Metadata.appintents
+
+CopySwiftLibs /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/SwiftVoxAltaTests.xctest (in target 'SwiftVoxAltaTests' from project 'SwiftVoxAlta')
+    cd /Users/stovak/Projects/SwiftVoxAlta-telemetry
+    builtin-swiftStdLibTool --copy --verbose --scan-executable /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/SwiftVoxAltaTests.xctest/Contents/MacOS/SwiftVoxAltaTests --scan-folder /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/SwiftVoxAltaTests.xctest/Contents/Frameworks --scan-folder /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/SwiftVoxAltaTests.xctest/Contents/PlugIns --scan-folder /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/SwiftVoxAltaTests.xctest/Contents/Library/SystemExtensions --scan-folder /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/SwiftVoxAltaTests.xctest/Contents/Extensions --platform macosx --toolchain /var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.Ianbxz/Metal.xctoolchain --toolchain /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /tmp/SwiftVoxAlta-probe-build/Build/Products/Debug/SwiftVoxAltaTests.xctest/Contents/Frameworks --strip-bitcode --scan-executable /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/libXCTestSwiftSupport.dylib --strip-bitcode-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /tmp/SwiftVoxAlta-probe-build/Build/Intermediates.noindex/SwiftVoxAlta.build/Debug/SwiftVoxAltaTests.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os
+Ignoring --strip-bitcode because --sign was not passed
+
+Test Suite 'Selected tests' started at 2026-05-06 11:13:50.175.
+Test Suite 'SwiftVoxAltaTests.xctest' started at 2026-05-06 11:13:50.176.
+Test Suite 'PreflightLeakProbeTests' started at 2026-05-06 11:13:50.176.
+Test Case '-[SwiftVoxAltaTests.PreflightLeakProbeTests testLoadUnloadCycleLeakProbe]' started.
+/Users/stovak/Projects/SwiftVoxAlta-telemetry/Sources/SwiftVoxAlta/VoxAltaModelManager.swift:432: error: -[SwiftVoxAltaTests.PreflightLeakProbeTests testLoadUnloadCycleLeakProbe] : failed: caught error: "modelNotAvailable("Failed to load model from \'mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16\': You don’t have permission to save the file “README.md” in the folder “mlx-community_Qwen3-TTS-12Hz-1.7B-Base-bf16”.")"
+Test Case '-[SwiftVoxAltaTests.PreflightLeakProbeTests testLoadUnloadCycleLeakProbe]' failed (2.356 seconds).
+Test Suite 'PreflightLeakProbeTests' failed at 2026-05-06 11:13:52.532.
+	 Executed 1 test, with 1 failure (1 unexpected) in 2.356 (2.356) seconds
+Test Suite 'SwiftVoxAltaTests.xctest' failed at 2026-05-06 11:13:52.532.
+	 Executed 1 test, with 1 failure (1 unexpected) in 2.356 (2.356) seconds
+Test Suite 'Selected tests' failed at 2026-05-06 11:13:52.532.
+	 Executed 1 test, with 1 failure (1 unexpected) in 2.356 (2.357) seconds
+2026-05-06 11:13:57.785 xcodebuild[82171:11785331] [MT] IDETestOperationsObserverDebug: 8.982 elapsed -- Testing started completed.
+2026-05-06 11:13:57.785 xcodebuild[82171:11785331] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-05-06 11:13:57.785 xcodebuild[82171:11785331] [MT] IDETestOperationsObserverDebug: 8.982 sec, +8.982 sec -- end
+
+Test session results, code coverage, and logs:
+	/tmp/SwiftVoxAlta-probe-build/Logs/Test/Test-SwiftVoxAlta-Package-2026.05.06_11-13-44--0700.xcresult
+
+** TEST FAILED **
+
+Testing started
