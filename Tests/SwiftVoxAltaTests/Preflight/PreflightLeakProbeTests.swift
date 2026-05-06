@@ -5,38 +5,36 @@
 //  Sortie 1: Preflight Leak Probe — empirical RSS measurement of 3
 //  loadModel / unloadModel cycles. Skipped by default; run via:
 //
+//    make test-leak-probe
+//
+//  (or manually:)
 //    VOXALTA_RUN_LEAK_PROBE=1 xcodebuild test \
 //      -scheme SwiftVoxAlta-Package \
 //      -destination 'platform=macOS,arch=arm64' \
 //      -only-testing:SwiftVoxAltaTests/PreflightLeakProbeTests/testLoadUnloadCycleLeakProbe
 //
 
-import XCTest
+import Foundation
+import Testing
 import Darwin
 @testable import SwiftVoxAlta
 
-final class PreflightLeakProbeTests: XCTestCase {
+@Suite("Preflight Leak Probe", .acervoEnvironment)
+struct PreflightLeakProbeTests {
 
+    @Test("3-cycle load/unload RSS probe (gated by VOXALTA_RUN_LEAK_PROBE=1)")
     func testLoadUnloadCycleLeakProbe() async throws {
         // Skip unless explicitly activated. Checks two mechanisms because
         // xcodebuild 26+ does not propagate the parent shell's environment to
-        // the xctest runner process (documented in AcervoEnvironmentTrait.swift).
+        // the xctest runner process.
         //
         // Mechanism 1: env var (works when running the test binary directly)
-        // Mechanism 2: sentinel file (works via xcodebuild, created before
-        //   running and deleted after: `touch /tmp/voxalta_run_leak_probe`)
+        // Mechanism 2: sentinel file (works via xcodebuild, created by
+        //   `make test-leak-probe` before running and cleaned up after)
         let envEnabled = ProcessInfo.processInfo.environment["VOXALTA_RUN_LEAK_PROBE"] == "1"
         let fileEnabled = FileManager.default.fileExists(atPath: "/tmp/voxalta_run_leak_probe")
-        try XCTSkipIf(
-            !envEnabled && !fileEnabled,
-            "Set VOXALTA_RUN_LEAK_PROBE=1 or `touch /tmp/voxalta_run_leak_probe` to run the preflight leak probe."
-        )
-
-        // Bootstrap ACERVO_APP_GROUP_ID if not already set in the test runner
-        // process. xcodebuild 26+ strips the parent environment, so Acervo's
-        // fatalError guard would otherwise crash the test runner on first access.
-        if ProcessInfo.processInfo.environment["ACERVO_APP_GROUP_ID"] == nil {
-            setenv("ACERVO_APP_GROUP_ID", "group.intrusive-memory.models", 0)
+        guard envEnabled || fileEnabled else {
+            return  // Skipped; gate it deliberately to avoid running on every test pass.
         }
 
         // ── 1. Baseline RSS ──────────────────────────────────────────────────
@@ -121,7 +119,7 @@ final class PreflightLeakProbeTests: XCTestCase {
         - RSS via mach_task_basic_info.resident_size; approximate, includes shared memory.
         - 2s drain after each unload, before measuring the cycle's afterUnload RSS.
         - Probe runs inside xctest, not Produciesta. Deltas are comparable; absolutes are not.
-        - Invocation: direct xctest binary (xcodebuild sandbox limitation on macOS 26 prevents writes to ~/Library/Group Containers/, which Acervo requires).
+        - Invocation: xcodebuild test via make test-leak-probe (Swift Testing, .acervoEnvironment trait handles ACERVO_APP_GROUP_ID bootstrap).
         """
 
         // ── 6. Write LEAK_PROBE_RESULT.md ────────────────────────────────────
@@ -140,9 +138,6 @@ final class PreflightLeakProbeTests: XCTestCase {
         // ── 7. Mirror to stderr ──────────────────────────────────────────────
         let stderrData = Data(("\n--- LEAK PROBE RESULT ---\n" + report + "\n--- END LEAK PROBE RESULT ---\n").utf8)
         FileHandle.standardError.write(stderrData)
-
-        // ── 8. Always pass — verdict is data, not a gate ─────────────────────
-        XCTAssertTrue(true)
     }
 
     // MARK: - Private RSS Helper
