@@ -342,6 +342,9 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
   ///   - gender: Optional gender descriptor for the voice.
   public func loadVoice(id: String, clonePromptData: Data, gender: String? = nil) async {
     await voiceCache.store(id: id, data: clonePromptData, gender: gender)
+    let state = await voiceCache.reportState()
+    let totalMB = Double(state.totalBytesCached) / (1024.0 * 1024.0)
+    await capture(.voiceCacheGrowth(entriesCount: state.entriesCount, totalMB: totalMB))
   }
 
   /// Unload a voice from the cache.
@@ -349,11 +352,17 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
   /// - Parameter id: The voice identifier to remove.
   public func unloadVoice(id: String) async {
     await voiceCache.remove(id: id)
+    let state = await voiceCache.reportState()
+    let totalMB = Double(state.totalBytesCached) / (1024.0 * 1024.0)
+    await capture(.voiceCacheGrowth(entriesCount: state.entriesCount, totalMB: totalMB))
   }
 
   /// Unload all voices from the cache.
   public func unloadAllVoices() async {
     await voiceCache.removeAll()
+    let state = await voiceCache.reportState()
+    let totalMB = Double(state.totalBytesCached) / (1024.0 * 1024.0)
+    await capture(.voiceCacheGrowth(entriesCount: state.entriesCount, totalMB: totalMB))
   }
 
   // MARK: - Private Helpers (Preset Speakers)
