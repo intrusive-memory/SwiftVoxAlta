@@ -457,6 +457,12 @@ public enum AppleSiliconGeneration: String, Sendable, CaseIterable {
 
 ---
 
+## Telemetry
+
+SwiftVoxAlta provides a pluggable telemetry pipeline so that consumers (Produciesta and others) can observe model load/unload events and voice-cache growth in production without coupling to internal implementation details. The public contract consists of five types: `VoxAltaTelemetryEvent` (six-case enum covering model and cache lifecycle), `VoxAltaTelemetryReporter` (async `Sendable` protocol consumers implement), `VoiceCacheTelemetry` and `MLXRetentionReport` (value snapshots carried by events), and `getCurrentProcessMemory()` (process RSS in MB for delta measurements). Attach a reporter via `await provider.setTelemetry(reporter)` and detach with `nil`; a nil reporter is always a no-op. An empirical 3-cycle preflight probe (`Tests/SwiftVoxAltaTests/Preflight/PreflightLeakProbeTests.swift`) established a **NO LEAK** verdict for `unloadModel()` — marginal residual of ~12 MB per cycle (well below the 50 MB threshold), confirming the ~340 MB first-cycle residual is one-time MLX/Metal framework overhead, not a progressive leak. See [`docs/telemetry.md`](docs/telemetry.md) for the full API reference, Produciesta integration example, preflight probe results, and known limitations.
+
+---
+
 ## CLI Tool (`diga`)
 
 Drop-in replacement for `/usr/bin/say` with neural TTS.
