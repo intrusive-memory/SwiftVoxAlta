@@ -52,8 +52,8 @@ final class PreflightLeakProbeTests: XCTestCase {
         // ── 3. Unload model ──────────────────────────────────────────────────
         await manager.unloadModel()
 
-        // 500 ms drain: lets MLX async deallocation and autorelease pools flush.
-        try await Task.sleep(nanoseconds: 500_000_000)
+        // 2s drain: lets MLX async deallocation and autorelease pools flush.
+        try await Task.sleep(nanoseconds: 2_000_000_000)
         let rssAfterUnloadMB = currentRSSMB()
 
         // ── 4. Compute deltas ────────────────────────────────────────────────
@@ -100,7 +100,7 @@ final class PreflightLeakProbeTests: XCTestCase {
 
         ## Notes
         - RSS via mach_task_basic_info.resident_size; approximate, includes shared memory.
-        - 500ms drain window between unloadModel() and final RSS sample.
+        - 2s drain window between unloadModel() and final RSS sample.
         - This probe runs inside xctest, not Produciesta. Absolute RSS values are not directly comparable across processes; deltas are.
         """
 

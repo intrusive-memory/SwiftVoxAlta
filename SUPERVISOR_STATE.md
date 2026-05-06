@@ -35,21 +35,22 @@
 ## Work Unit State
 
 ### SwiftVoxAlta Telemetry
-- Work unit state: PAUSED (awaiting user decision on INCONCLUSIVE verdict)
-- Current sortie: 1 of 8
-- Sortie state: COMPLETE (verdict: INCONCLUSIVE)
+- Work unit state: RUNNING (awaiting supervisor decision on Sortie 2)
+- Current sortie: 1 of 8 (re-run complete)
+- Sortie state: COMPLETE (verdict: INCONCLUSIVE, drain: 2s)
 - Sortie type: code
 - Model: sonnet
 - Complexity score: 11
-- Attempt: 1 of 3
-- Last verified: 2026-05-06 — LEAK_PROBE_RESULT.md written, SUPERVISOR_STATE.md updated
-- Notes: Sortie 1 complete. Probe ran via direct xctest invocation (xcodebuild sandbox restriction documented). netDelta=339.09 MB, verdict INCONCLUSIVE. Decision gate triggered: PAUSE. User must decide to proceed to Sortie 2 or re-run multi-cycle probe.
+- Attempt: 2 of 3
+- Last verified: 2026-05-06 — re-run with 2s drain, verdict: INCONCLUSIVE, netDelta: 340.39 MB
+- Notes: Sortie 1 re-run complete. Probe ran via direct xctest invocation (xcodebuild sandbox restriction documented). netDelta=340.39 MB with 2s drain vs 339.09 MB with 500ms drain — virtually identical, indicating residual RSS is structural overhead not a progressive leak. Decision gate: PAUSE. Supervisor must decide whether to accept INCONCLUSIVE and proceed to Sortie 2, or escalate with multi-cycle probe.
 
 ## Active Agents
 
 | Work Unit | Sortie | Sortie State | Attempt | Model | Complexity Score | Task ID | Output File | Dispatched At |
 |-----------|--------|-------------|---------|-------|-----------------|---------|-------------|---------------|
-| SwiftVoxAlta Telemetry | 1 | COMPLETE | 1/3 | sonnet | 11 | ad19173e2bb9b76ee | LEAK_PROBE_RESULT.md | 2026-05-06 |
+| SwiftVoxAlta Telemetry | 1 | COMPLETE | 1/3 | sonnet | 11 | ad19173e2bb9b76ee | LEAK_PROBE_RESULT.md | 2026-05-06 (verdict: INCONCLUSIVE) |
+| SwiftVoxAlta Telemetry | 1 (re-run, 2s drain) | COMPLETE | 2/3 | sonnet | 7 | a8c5faae3158e227c | LEAK_PROBE_RESULT.md | 2026-05-06 (verdict: INCONCLUSIVE, netDelta=340.39 MB) |
 
 ## Decisions Log
 
@@ -60,10 +61,12 @@
 | 2026-05-06 | SwiftVoxAlta Telemetry | 1 | Model: sonnet | Complexity score 11: estimated ~20 turns (3), single new file (0), zero ambiguity in spec (0), foundation_importance=5 (gates entire mission), risk=3 (mach_task_basic_info syscalls + xcodebuild + real model load). Sonnet sufficient — spec is highly prescriptive. |
 | 2026-05-06 | SwiftVoxAlta Telemetry | 1 | Sortie 1 verdict: INCONCLUSIVE | netDelta=339.09 MB (threshold: >1000 LEAK SUSPECTED, <200 NO LEAK). Model loaded 8782.56 MB, unload freed 8443.47 MB, 339.09 MB remained after 500ms drain. Per EXECUTION_PLAN.md decision gate: PAUSE — surface to user, await decision on whether to proceed or re-run multi-cycle probe. |
 | 2026-05-06 | SwiftVoxAlta Telemetry | 1 | xcodebuild sandbox limitation noted | macOS 26 applies a write sandbox to xctest processes launched by xcodebuild that prevents writes to ~/Library/Group Containers/. Acervo's ensureComponentReady() attempts to update model metadata files there. Workaround: probe was run via direct xctest binary invocation (functionally equivalent for RSS measurement). xcodebuild build succeeded; test execution failed due to sandbox. This is a macOS-level restriction, not a code defect. |
+| 2026-05-06 | SwiftVoxAlta Telemetry | 1 (re-run) | Sortie 1 verdict (2s drain): INCONCLUSIVE | netDelta=340.39 MB. Drain increased to 2s per Known Risks. Result nearly identical to 500ms run (339.09 MB), indicating the residual ~340 MB is structural overhead (xctest process baseline, MLX framework state), not a progressive memory leak. |
 
 ## Status Summary
 
-- Phase 0 (Sortie 1, gating) COMPLETE.
-- Verdict: INCONCLUSIVE (netDelta=339.09 MB, threshold 200–1000 MB).
-- MISSION PAUSED per decision gate. Awaiting user decision: proceed to Sortie 2 (telemetry has value even with inconclusive probe) or re-run multi-cycle probe first.
-- Recommend: consider re-running probe with 3 cycles or increasing drain window to 2s before proceeding. The 339 MB residual may be MLX async deallocation lag rather than a true leak.
+- Phase 0 (Sortie 1, gating) COMPLETE (re-run with 2s drain also complete).
+- Verdict: INCONCLUSIVE (netDelta=340.39 MB with 2s drain, cf. 339.09 MB with 500ms drain; threshold 200–1000 MB).
+- The near-identical netDelta across both drain windows strongly suggests the residual ~340 MB is structural process overhead, not a progressive leak. Doubling the drain window had no measurable effect.
+- Supervisor must decide: accept INCONCLUSIVE and proceed to Sortie 2 (telemetry instrumentation), or escalate with multi-cycle probe.
+- Sibling-repo edits (mlx-audio-swift/Package.swift, SwiftBruja/Package.swift) remain uncommitted in their respective working trees — flagged for user review before Sortie 2 runs `make build`.
