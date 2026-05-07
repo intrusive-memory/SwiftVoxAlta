@@ -42,7 +42,7 @@ let package = Package(
     sibling(
       "mlx-audio-swift",
       remote: "https://github.com/intrusive-memory/mlx-audio-swift.git",
-      from: "0.6.1"
+      from: "0.6.6"
     ),
     sibling(
       "SwiftAcervo",
