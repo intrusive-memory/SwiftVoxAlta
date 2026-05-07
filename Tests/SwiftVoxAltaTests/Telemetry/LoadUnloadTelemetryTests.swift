@@ -24,19 +24,21 @@ struct LoadUnloadTelemetryTests {
       // (xcodebuild sandbox) or if the model isn't on disk. Expected.
       // Use _loadModelDiscardingResult to avoid the non-Sendable return type
       // of any SpeechGenerationModel crossing actor isolation.
-      try await manager._loadModelDiscardingResult(repo: "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16")
+      try await manager._loadModelDiscardingResult(
+        repo: "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16")
     } catch {
       // Expected — we are NOT asserting load success.
     }
 
     let events = await reporter.events
     // Assert START event was emitted as the first event, regardless of outcome.
-    #expect(events.first.map { event in
-      if case .modelLoadStart(let repo, let cacheHit) = event {
-        return repo == "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16" && cacheHit == false
-      }
-      return false
-    } ?? false)
+    #expect(
+      events.first.map { event in
+        if case .modelLoadStart(let repo, let cacheHit) = event {
+          return repo == "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16" && cacheHit == false
+        }
+        return false
+      } ?? false)
   }
 
   @Test("unloadModel emits start + complete even when no model is loaded")
@@ -89,7 +91,8 @@ struct LoadUnloadTelemetryTests {
     do {
       // Use _loadModelDiscardingResult to avoid the non-Sendable return type
       // of any SpeechGenerationModel crossing actor isolation.
-      try await manager._loadModelDiscardingResult(repo: "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16")
+      try await manager._loadModelDiscardingResult(
+        repo: "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16")
     } catch {
       // Expected.
     }

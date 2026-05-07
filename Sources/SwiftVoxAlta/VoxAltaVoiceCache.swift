@@ -125,7 +125,8 @@ public actor VoxAltaVoiceCache {
     let totalBytesCached = voices.values
       .map { $0.clonePromptData.count }
       .reduce(0, +)
-    let topVoicesBySize = voices
+    let topVoicesBySize =
+      voices
       .map { VoiceCacheTelemetry.TopVoice(voiceId: $0.key, bytes: $0.value.clonePromptData.count) }
       .sorted { $0.bytes > $1.bytes }
       .prefix(5)

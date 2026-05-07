@@ -61,8 +61,12 @@ struct EndToEndContractTests {
       }
     }
 
-    #expect(firstGrowthIndex != nil, "Expected a .voiceCacheGrowth(entriesCount: 1) event after loadVoice")
-    #expect(zeroGrowthIndex != nil, "Expected a .voiceCacheGrowth(entriesCount: 0) event after unloadAllVoices")
+    #expect(
+      firstGrowthIndex != nil, "Expected a .voiceCacheGrowth(entriesCount: 1) event after loadVoice"
+    )
+    #expect(
+      zeroGrowthIndex != nil,
+      "Expected a .voiceCacheGrowth(entriesCount: 0) event after unloadAllVoices")
     if let f = firstGrowthIndex, let z = zeroGrowthIndex {
       #expect(z > f, "Zero-growth event must follow the first growth event in stream order")
     }
@@ -70,10 +74,12 @@ struct EndToEndContractTests {
     // MARK: - Phase 2 assertions: model-unload triple
 
     // Locate the first .modelUnloadStart in the event stream (Phase 2 begins here).
-    guard let unloadStartIndex = events.firstIndex(where: {
-      if case .modelUnloadStart = $0 { return true }
-      return false
-    }) else {
+    guard
+      let unloadStartIndex = events.firstIndex(where: {
+        if case .modelUnloadStart = $0 { return true }
+        return false
+      })
+    else {
       Issue.record("Expected .modelUnloadStart in event stream; none found")
       return
     }
@@ -83,7 +89,9 @@ struct EndToEndContractTests {
     //   [unloadStartIndex+1] .modelUnloadComplete(freed: <Double>, processMemoryMB: <Double>)
     //   [unloadStartIndex+2] .metalBufferState(allocatedMB: <Double>, peakMB: -1.0)
     let requiredCount = unloadStartIndex + 3
-    #expect(events.count >= requiredCount, "Expected at least 3 model-lifecycle events starting at index \(unloadStartIndex)")
+    #expect(
+      events.count >= requiredCount,
+      "Expected at least 3 model-lifecycle events starting at index \(unloadStartIndex)")
     guard events.count >= requiredCount else { return }
 
     // Event 0 of triple: .modelUnloadStart(loaded: false, sizeMB: 0.0)
@@ -91,21 +99,26 @@ struct EndToEndContractTests {
       #expect(loaded == false, "No model was loaded; unloadModel() is a no-op")
       #expect(sizeMB == 0.0, "estimateModelMemoryUsage() should return 0.0 with no model loaded")
     } else {
-      Issue.record("Expected .modelUnloadStart at index \(unloadStartIndex); got \(events[unloadStartIndex])")
+      Issue.record(
+        "Expected .modelUnloadStart at index \(unloadStartIndex); got \(events[unloadStartIndex])")
     }
 
     // Event 1 of triple: .modelUnloadComplete (Double fields are runtime-dependent)
     if case .modelUnloadComplete(_, _) = events[unloadStartIndex + 1] {
       // Shape matches. freed and processMemoryMB are runtime values; no value assertion.
     } else {
-      Issue.record("Expected .modelUnloadComplete at index \(unloadStartIndex + 1); got \(events[unloadStartIndex + 1])")
+      Issue.record(
+        "Expected .modelUnloadComplete at index \(unloadStartIndex + 1); got \(events[unloadStartIndex + 1])"
+      )
     }
 
     // Event 2 of triple: .metalBufferState(allocatedMB: <Double>, peakMB: -1.0)
     if case .metalBufferState(_, let peakMB) = events[unloadStartIndex + 2] {
       #expect(peakMB == -1.0, "peakMB is always -1.0 — no public MLX peak-counter API")
     } else {
-      Issue.record("Expected .metalBufferState at index \(unloadStartIndex + 2); got \(events[unloadStartIndex + 2])")
+      Issue.record(
+        "Expected .metalBufferState at index \(unloadStartIndex + 2); got \(events[unloadStartIndex + 2])"
+      )
     }
   }
 }
