@@ -2,7 +2,7 @@
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.10.3
+**Current Version**: 0.10.4
 
 ---
 
@@ -121,7 +121,7 @@ SwiftVoxAlta/
 │       ├── DigaCommand.swift          # CLI entry point (@main, ArgumentParser)
 │       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
 │       ├── TextChunker.swift          # Sentence-boundary chunking (NLTokenizer)
-│       ├── Version.swift              # Version constant (0.10.3)
+│       ├── Version.swift              # Version constant (0.10.4)
 │       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # 11 test files (library)
@@ -171,7 +171,7 @@ Implements SwiftHablare's `VoiceProvider` protocol with dual-mode routing.
 
 ```swift
 public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
-    public static let version = "0.10.3"
+    public static let version = "0.10.4"
 
     // VoiceProvider protocol properties
     public let providerId = "voxalta"
@@ -454,6 +454,12 @@ public enum AppleSiliconGeneration: String, Sendable, CaseIterable {
     public static var current: AppleSiliconGeneration  // Cached, detected via sysctlbyname
 }
 ```
+
+---
+
+## Telemetry
+
+SwiftVoxAlta provides a pluggable telemetry pipeline so that consumers (Produciesta and others) can observe model load/unload events and voice-cache growth in production without coupling to internal implementation details. The public contract consists of five types: `VoxAltaTelemetryEvent` (six-case enum covering model and cache lifecycle), `VoxAltaTelemetryReporter` (async `Sendable` protocol consumers implement), `VoiceCacheTelemetry` and `MLXRetentionReport` (value snapshots carried by events), and `getCurrentProcessMemory()` (process RSS in MB for delta measurements). Attach a reporter via `await provider.setTelemetry(reporter)` and detach with `nil`; a nil reporter is always a no-op. An empirical 3-cycle preflight probe (`Tests/SwiftVoxAltaTests/Preflight/PreflightLeakProbeTests.swift`) established a **NO LEAK** verdict for `unloadModel()` — marginal residual of ~12 MB per cycle (well below the 50 MB threshold), confirming the ~340 MB first-cycle residual is one-time MLX/Metal framework overhead, not a progressive leak. See [`docs/telemetry.md`](docs/telemetry.md) for the full API reference, Produciesta integration example, preflight probe results, and known limitations.
 
 ---
 

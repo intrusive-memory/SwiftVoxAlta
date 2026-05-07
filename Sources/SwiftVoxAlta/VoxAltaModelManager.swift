@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import MLX
 import MLXAudioTTS
 import SwiftAcervo
 import Tuberia
@@ -392,8 +393,14 @@ public actor VoxAltaModelManager {
   /// - Returns: The loaded `SpeechGenerationModel` instance.
   /// - Throws: `VoxAltaError.modelNotAvailable` if loading fails.
   public func loadModel(repo: String) async throws -> any SpeechGenerationModel {
+    await capture(.modelLoadStart(repo: repo, cacheHit: cachedModel != nil))
+
     // Cache hit: same repo, already loaded.
     if let cached = cachedModel, _currentModelRepo == repo {
+      await capture(.modelLoadComplete(repo: repo, sizeMB: estimateModelMemoryUsage()))
+      let mlxReport = checkMLXRetention()
+      await capture(.metalBufferState(allocatedMB: mlxReport.metalHeapSizeMB, peakMB: -1.0))
+      // peak unavailable from public MLX API
       return cached
     }
 
@@ -426,6 +433,10 @@ public actor VoxAltaModelManager {
               .utf8
           ))
       }
+      await capture(.modelLoadComplete(repo: repo, sizeMB: estimateModelMemoryUsage()))
+      let mlxReport = checkMLXRetention()
+      await capture(.metalBufferState(allocatedMB: mlxReport.metalHeapSizeMB, peakMB: -1.0))
+      // peak unavailable from public MLX API
       return model
     } catch {
       inFlightLoad = nil
@@ -492,6 +503,12 @@ public actor VoxAltaModelManager {
   /// `currentModelRepo` returns `nil`. Calling `unloadModel()` when
   /// no model is loaded is a no-op.
   public func unloadModel() async {
+    let wasLoaded = cachedModel != nil
+    let preSizeMB = estimateModelMemoryUsage()
+    let memBefore = getCurrentProcessMemory()
+    await capture(.modelUnloadStart(loaded: wasLoaded, sizeMB: preSizeMB))
+
+    // Existing unload logic — DO NOT change:
     cachedModel = nil
     _currentModelRepo = nil
 
@@ -500,9 +517,39 @@ public actor VoxAltaModelManager {
     // Without this, loading a new model can crash in AGX::ComputeContext
     // due to stale Metal command buffers from the previous model.
     await MemoryManager.shared.clearGPUCache()
+
+    let memAfter = getCurrentProcessMemory()
+    let freed = max(0.0, memBefore - memAfter)
+    await capture(.modelUnloadComplete(freed: freed, processMemoryMB: memAfter))
+    let mlxReport = checkMLXRetention()
+    await capture(.metalBufferState(allocatedMB: mlxReport.metalHeapSizeMB, peakMB: -1.0))
+    // peak unavailable from public MLX API
   }
 
   // MARK: - Memory Validation
+
+  /// Returns the approximate memory footprint of the currently loaded model in megabytes.
+  ///
+  /// The estimate is based on a substring match against the loaded model's repository identifier:
+  /// - `"1.7B"` → `3400.0` MB
+  /// - `"0.6B"` → `1200.0` MB
+  /// - `nil` repo (no model loaded) or unrecognized string → `0.0`
+  ///
+  /// Use this for **deltas and ordering signals**, not precise accounting.
+  /// Returns `0.0` when no model is loaded or the repo string is unrecognized.
+  internal func estimateModelMemoryUsage() -> Double {
+    guard let repo = _currentModelRepo else { return 0.0 }
+    if repo.contains("1.7B") { return 3400.0 }
+    if repo.contains("0.6B") { return 1200.0 }
+    return 0.0
+  }
+
+  /// Test-only seam: sets the actor's `_currentModelRepo` without going through
+  /// `loadModel`. Used by `EstimateModelMemoryTests` to exercise the substring
+  /// matching in `estimateModelMemoryUsage()` without disk/network dependency.
+  internal func _setCurrentModelRepoForTesting(_ repo: String?) {
+    _currentModelRepo = repo
+  }
 
   /// Checks whether the system has sufficient available memory to load a model
   /// of the given size. Returns `false` (and logs a warning to stderr) if memory
@@ -568,5 +615,50 @@ public actor VoxAltaModelManager {
     get async {
       await MemoryManager.shared.availableMemory
     }
+  }
+
+  // MARK: - Telemetry
+
+  /// Optional reporter to receive lifecycle events. Set via `setTelemetry`.
+  /// A nil reporter is a no-op — `capture` never blocks the caller.
+  private var telemetry: (any VoxAltaTelemetryReporter)?
+
+  /// Attaches or detaches a telemetry reporter. Pass `nil` to disable.
+  public func setTelemetry(_ reporter: (any VoxAltaTelemetryReporter)?) {
+    self.telemetry = reporter
+  }
+
+  /// Forwards a telemetry event to the attached reporter, if any.
+  /// Used by Sorties 5, 6, 7 to emit lifecycle events without each call site
+  /// needing nil-checks.
+  internal func capture(_ event: VoxAltaTelemetryEvent) async {
+    await telemetry?.capture(event)
+  }
+
+  /// Probes the public MLX/Metal API surface for best-effort retention metrics.
+  ///
+  /// `activeArrayCount` has no public counter in the mlx-swift API; returns `-1`.
+  /// `metalHeapSizeMB` is derived from `Memory.activeMemory` (mlx-swift public API).
+  /// `modelRegistrySize` is always `-1` — SwiftVoxAlta has no model registry;
+  /// placeholder for forward compatibility.
+  private func checkMLXRetention() -> MLXRetentionReport {
+    // activeArrayCount: no public array-count counter in mlx-swift → -1
+    let activeArrayCount: Int = -1
+
+    // metalHeapSizeMB: derived from MLX.Memory.activeMemory (bytes) / 1024 / 1024
+    let metalHeapSizeMB: Double = Double(Memory.activeMemory) / 1024.0 / 1024.0
+
+    // SwiftVoxAlta has no model registry; placeholder for forward compatibility.
+    let modelRegistrySize: Int = -1
+
+    return MLXRetentionReport(
+      activeArrayCount: activeArrayCount,
+      metalHeapSizeMB: metalHeapSizeMB,
+      modelRegistrySize: modelRegistrySize
+    )
+  }
+
+  internal func _checkMLXRetentionForTesting() -> MLXRetentionReport {
+    checkMLXRetention()
   }
 }

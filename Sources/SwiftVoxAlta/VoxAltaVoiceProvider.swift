@@ -29,7 +29,7 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
   // MARK: - Version
 
   /// Current version of the SwiftVoxAlta library
-  public static let version = "0.10.3"
+  public static let version = "0.10.4"
 
   // MARK: - VoiceProvider Metadata
 
@@ -342,6 +342,9 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
   ///   - gender: Optional gender descriptor for the voice.
   public func loadVoice(id: String, clonePromptData: Data, gender: String? = nil) async {
     await voiceCache.store(id: id, data: clonePromptData, gender: gender)
+    let state = await voiceCache.reportState()
+    let totalMB = Double(state.totalBytesCached) / (1024.0 * 1024.0)
+    await capture(.voiceCacheGrowth(entriesCount: state.entriesCount, totalMB: totalMB))
   }
 
   /// Unload a voice from the cache.
@@ -349,11 +352,17 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
   /// - Parameter id: The voice identifier to remove.
   public func unloadVoice(id: String) async {
     await voiceCache.remove(id: id)
+    let state = await voiceCache.reportState()
+    let totalMB = Double(state.totalBytesCached) / (1024.0 * 1024.0)
+    await capture(.voiceCacheGrowth(entriesCount: state.entriesCount, totalMB: totalMB))
   }
 
   /// Unload all voices from the cache.
   public func unloadAllVoices() async {
     await voiceCache.removeAll()
+    let state = await voiceCache.reportState()
+    let totalMB = Double(state.totalBytesCached) / (1024.0 * 1024.0)
+    await capture(.voiceCacheGrowth(entriesCount: state.entriesCount, totalMB: totalMB))
   }
 
   // MARK: - Private Helpers (Preset Speakers)
@@ -406,6 +415,21 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     )
 
     return try AudioConversion.mlxArrayToWAVData(audioArray, sampleRate: qwenModel.sampleRate)
+  }
+
+  // MARK: - Telemetry
+
+  /// Attaches or detaches a telemetry reporter. Forwards to the underlying
+  /// `VoxAltaModelManager`, which owns the reporter reference.
+  public func setTelemetry(_ reporter: (any VoxAltaTelemetryReporter)?) async {
+    await modelManager.setTelemetry(reporter)
+  }
+
+  /// Forwards a telemetry event through the model manager's reporter.
+  /// Used by Sortie 6 to emit voice-cache events from the provider's
+  /// cache-mutation call sites.
+  internal func capture(_ event: VoxAltaTelemetryEvent) async {
+    await modelManager.capture(event)
   }
 
   // MARK: - Private Helpers

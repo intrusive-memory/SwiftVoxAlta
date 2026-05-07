@@ -114,6 +114,30 @@ public actor VoxAltaVoiceCache {
     voices.count
   }
 
+  /// Return a snapshot of the current cache state for telemetry reporting.
+  ///
+  /// Reports the total number of entries, total bytes cached across all clone
+  /// prompt payloads, and the top 5 voices by clone-prompt byte size.
+  /// Called by `VoxAltaVoiceProvider` after each cache mutation to populate
+  /// `VoxAltaTelemetryEvent.voiceCacheGrowth` events.
+  public func reportState() -> VoiceCacheTelemetry {
+    let entriesCount = voices.count
+    let totalBytesCached = voices.values
+      .map { $0.clonePromptData.count }
+      .reduce(0, +)
+    let topVoicesBySize =
+      voices
+      .map { VoiceCacheTelemetry.TopVoice(voiceId: $0.key, bytes: $0.value.clonePromptData.count) }
+      .sorted { $0.bytes > $1.bytes }
+      .prefix(5)
+      .map { $0 }
+    return VoiceCacheTelemetry(
+      entriesCount: entriesCount,
+      totalBytesCached: totalBytesCached,
+      topVoicesBySize: topVoicesBySize
+    )
+  }
+
   // MARK: - Clone Prompt Cache
 
   /// Retrieve a deserialized clone prompt from the cache.
