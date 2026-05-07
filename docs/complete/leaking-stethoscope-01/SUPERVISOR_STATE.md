@@ -35,9 +35,9 @@
 ## Work Unit State
 
 ### SwiftVoxAlta Telemetry
-- Work unit state: RUNNING (Sortie 1 COMPLETE — awaiting decision gate to proceed to Sortie 2)
-- Current sortie: 1 of 8 (3-cycle escalation, attempt 3)
-- Sortie state: COMPLETE (verdict: NO LEAK, 3-cycle, marginalAvg: 11.73 MB)
+- Work unit state: COMPLETED
+- Current sortie: 8 of 8 (final)
+- Sortie state: COMPLETE
 - Sortie type: code
 - Model: sonnet
 - Complexity score: 7 (multi-cycle math + reuse of established xctest pattern)
@@ -78,3 +78,4 @@
 - Mission landing path (per user): feature/telemetry-instrumentation → development → main → release.
 - **Strategic decision (Framing 3 — full telemetry, then investigate other libraries)**: User chose to build all of Sorties 2–8 as planned, treating the deliverable as observability infrastructure rather than leak-hunting. Original premise (`unloadModel()` leaks) was empirically falsified by Sortie 1; the new mental model is that telemetry hooks give Produciesta and future consumers production-grade observability, and the next mission will instrument other libraries to localize where the actual leak lives.
 - **Sortie 2 dispatch is gated** on the in-flight Swift-Testing conversion agent. Reasoning: the conversion validates that the standard `xcodebuild test` pipeline works for new tests (the `.acervoEnvironment` trait pattern). If the conversion succeeds, Sorties 2–8 can use `make build`/`make test-unit` without the direct-xctest workaround. If it fails, we need to know before dispatching downstream sorties.
+- **Group 3 sequentialization**: EXECUTION_PLAN.md spec'd Sorties 5 and 6 as parallel (disjoint files). Supervisor sequentialized them (5 first, then 6) to avoid concurrent `make build`/`make test-unit` against the same DerivedData, which carries real xcodebuild lock-contention risk. Cost: ~5 min of wall-clock parallelism foregone. Benefit: clean linear verification, no race-condition diagnosis.
