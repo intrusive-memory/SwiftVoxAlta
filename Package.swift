@@ -22,7 +22,7 @@ let package = Package(
     .package(
       url: "https://github.com/intrusive-memory/SwiftHablare.git", .upToNextMajor(from: "6.1.0")),
     .package(
-      url: "https://github.com/intrusive-memory/mlx-audio-swift.git", .upToNextMajor(from: "0.6.6")),
+      url: "https://github.com/intrusive-memory/mlx-audio-swift.git", .upToNextMajor(from: "0.7.0")),
     .package(
       url: "https://github.com/intrusive-memory/SwiftAcervo.git", .upToNextMajor(from: "0.12.0")),
     .package(
