@@ -8,7 +8,7 @@ BIN_DIR = ./bin
 DESTINATION = platform=macOS,arch=arm64
 DERIVED_DATA = $(HOME)/Library/Developer/Xcode/DerivedData
 
-.PHONY: all build release install clean test test-unit test-integration setup-voices resolve lint help
+.PHONY: all build release install clean test test-unit test-integration test-leak-probe setup-voices resolve lint help
 
 all: install
 
@@ -93,6 +93,27 @@ else
 	  -destination '$(DESTINATION)' \
 	  -only-testing:DigaTests/DigaBinaryIntegrationTests
 endif
+
+# Empirical RSS-based leak probe (3-cycle load/unload of 1.7B Base model)
+# Skipped by default; enable with VOXALTA_RUN_LEAK_PROBE=1 (this target sets it).
+# Loads ~8.8GB into RAM; takes ~10s with warm MLX cache, ~2-3min cold.
+# Writes LEAK_PROBE_RESULT.md and LEAK_PROBE_XCODEBUILD.log to project root.
+# Note: xcodebuild 26+ strips parent env vars from the test runner process;
+# a sentinel file at /tmp/voxalta_run_leak_probe is used to gate the probe.
+test-leak-probe:
+	@echo "Running preflight leak probe (VOXALTA_RUN_LEAK_PROBE=1)..."
+	@touch /tmp/voxalta_run_leak_probe
+	VOXALTA_RUN_LEAK_PROBE=1 xcodebuild test \
+	  -scheme $(TEST_SCHEME) \
+	  -destination '$(DESTINATION)' \
+	  -only-testing:SwiftVoxAltaTests/PreflightLeakProbeTests \
+	  2>&1 | tee LEAK_PROBE_XCODEBUILD.log; \
+	  EXIT_CODE=$$?; \
+	  rm -f /tmp/voxalta_run_leak_probe; \
+	  exit $$EXIT_CODE
+	@echo "---"
+	@echo "Verdict:"
+	@grep -E '^Verdict:' LEAK_PROBE_RESULT.md || echo "(no verdict found — probe may have failed)"
 
 # All tests (unit + integration)
 test: test-unit test-integration
