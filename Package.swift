@@ -86,6 +86,7 @@ let package = Package(
       dependencies: [
         .product(name: "SwiftHablare", package: "SwiftHablare"),
         .product(name: "MLXAudioTTS", package: "mlx-audio-swift"),
+        .product(name: "MLXAudioCore", package: "mlx-audio-swift"),
         .product(name: "SwiftAcervo", package: "SwiftAcervo"),
         .product(name: "Tuberia", package: "SwiftTuberia"),
         .product(name: "VoxFormat", package: "vox-format"),

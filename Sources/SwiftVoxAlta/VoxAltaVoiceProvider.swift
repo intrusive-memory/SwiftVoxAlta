@@ -7,6 +7,7 @@
 
 import Foundation
 @preconcurrency import MLX
+@preconcurrency import MLXAudioCore
 @preconcurrency import MLXAudioTTS
 @preconcurrency import MLXLMCommon
 import SwiftHablare
@@ -423,6 +424,13 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
   /// `VoxAltaModelManager`, which owns the reporter reference.
   public func setTelemetry(_ reporter: (any VoxAltaTelemetryReporter)?) async {
     await modelManager.setTelemetry(reporter)
+  }
+
+  /// Attaches or detaches an MLXAudio telemetry reporter, forwarding it to the
+  /// underlying mlx-audio TTS model so MLX-level events (model load, generate
+  /// step, decoder, codec) flow up to the host.
+  public func setMLXTelemetry(_ reporter: (any MLXAudioTelemetryReporter)?) async {
+    await modelManager.setMLXTelemetry(reporter)
   }
 
   /// Forwards a telemetry event through the model manager's reporter.
