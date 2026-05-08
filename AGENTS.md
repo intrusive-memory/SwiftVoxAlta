@@ -2,7 +2,7 @@
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.10.5
+**Current Version**: 0.10.6
 
 ---
 
@@ -121,7 +121,7 @@ SwiftVoxAlta/
 │       ├── DigaCommand.swift          # CLI entry point (@main, ArgumentParser)
 │       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
 │       ├── TextChunker.swift          # Sentence-boundary chunking (NLTokenizer)
-│       ├── Version.swift              # Version constant (0.10.5)
+│       ├── Version.swift              # Version constant (0.10.6)
 │       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # 11 test files (library)
@@ -171,7 +171,7 @@ Implements SwiftHablare's `VoiceProvider` protocol with dual-mode routing.
 
 ```swift
 public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
-    public static let version = "0.10.5"
+    public static let version = "0.10.6"
 
     // VoiceProvider protocol properties
     public let providerId = "voxalta"

@@ -8,6 +8,7 @@
 
 import Foundation
 import MLX
+import MLXAudioCore
 import MLXAudioTTS
 import SwiftAcervo
 import Tuberia
@@ -423,6 +424,7 @@ public actor VoxAltaModelManager {
       cachedModel = model
       _currentModelRepo = repo
       inFlightLoad = nil
+      applyMLXTelemetryToCachedModel()
 
       // Log Neural Accelerator status on M5
       let generation = AppleSiliconGeneration.current
@@ -623,9 +625,31 @@ public actor VoxAltaModelManager {
   /// A nil reporter is a no-op — `capture` never blocks the caller.
   private var telemetry: (any VoxAltaTelemetryReporter)?
 
+  /// Optional MLXAudio reporter forwarded to the active Qwen3TTS model.
+  /// Distinct from `telemetry` (VoxAlta-level events).
+  private var mlxAudioTelemetry: (any MLXAudioTelemetryReporter)?
+
   /// Attaches or detaches a telemetry reporter. Pass `nil` to disable.
   public func setTelemetry(_ reporter: (any VoxAltaTelemetryReporter)?) {
     self.telemetry = reporter
+  }
+
+  /// Attaches or detaches an MLXAudio telemetry reporter. Applied immediately
+  /// to any currently-cached model, and to every model loaded thereafter.
+  public func setMLXTelemetry(_ reporter: (any MLXAudioTelemetryReporter)?) {
+    self.mlxAudioTelemetry = reporter
+    if let qwenModel = cachedModel as? Qwen3TTSModel {
+      qwenModel.setTelemetry(reporter)
+    }
+  }
+
+  /// Applies the current MLXAudio reporter (if any) to a freshly loaded model.
+  /// Called from `loadModel(repo:)` after `cachedModel` is bound.
+  private func applyMLXTelemetryToCachedModel() {
+    guard let reporter = mlxAudioTelemetry,
+      let qwenModel = cachedModel as? Qwen3TTSModel
+    else { return }
+    qwenModel.setTelemetry(reporter)
   }
 
   /// Forwards a telemetry event to the attached reporter, if any.

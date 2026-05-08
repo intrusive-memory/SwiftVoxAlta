@@ -20,9 +20,9 @@ let package = Package(
   ],
   dependencies: [
     .package(
-      url: "https://github.com/intrusive-memory/SwiftHablare.git", .upToNextMajor(from: "6.1.0")),
+      url: "https://github.com/intrusive-memory/SwiftHablare.git", .upToNextMajor(from: "6.1.1")),
     .package(
-      url: "https://github.com/intrusive-memory/mlx-audio-swift.git", .upToNextMajor(from: "0.7.0")),
+      url: "https://github.com/intrusive-memory/mlx-audio-swift.git", .upToNextMajor(from: "0.8.0")),
     .package(
       url: "https://github.com/intrusive-memory/SwiftAcervo.git", .upToNextMajor(from: "0.12.0")),
     .package(
@@ -38,6 +38,7 @@ let package = Package(
       dependencies: [
         .product(name: "SwiftHablare", package: "SwiftHablare"),
         .product(name: "MLXAudioTTS", package: "mlx-audio-swift"),
+        .product(name: "MLXAudioCore", package: "mlx-audio-swift"),
         .product(name: "SwiftAcervo", package: "SwiftAcervo"),
         .product(name: "Tuberia", package: "SwiftTuberia"),
         .product(name: "VoxFormat", package: "vox-format"),
