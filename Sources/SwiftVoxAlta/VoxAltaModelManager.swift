@@ -394,22 +394,21 @@ public actor VoxAltaModelManager {
   /// - Returns: The loaded `SpeechGenerationModel` instance.
   /// - Throws: `VoxAltaError.modelNotAvailable` if loading fails.
   public func loadModel(repo: String) async throws -> any SpeechGenerationModel {
-    await capture(.modelLoadStart(repo: repo, cacheHit: cachedModel != nil))
-
-    // Cache hit: same repo, already loaded.
+    // Cache hit: same repo, already loaded. Return silently — cache hits are
+    // not loads, and emitting load telemetry on every hit produced ~117/118
+    // events of pure noise on a 56-element run (see FIX_ME.md #1).
     if let cached = cachedModel, _currentModelRepo == repo {
-      await capture(.modelLoadComplete(repo: repo, sizeMB: estimateModelMemoryUsage()))
-      let mlxReport = checkMLXRetention()
-      await capture(.metalBufferState(allocatedMB: mlxReport.metalHeapSizeMB, peakMB: -1.0))
-      // peak unavailable from public MLX API
       return cached
     }
 
     // Coalesce concurrent callers requesting the same repo onto a single
-    // in-flight load. See `inFlightLoad` for the rationale.
+    // in-flight load. See `inFlightLoad` for the rationale. Joining is also
+    // not a fresh load, so no telemetry here either.
     if let inFlight = inFlightLoad, inFlight.repo == repo {
       return try await inFlight.task.value.model
     }
+
+    await capture(.modelLoadStart(repo: repo, cacheHit: false))
 
     let loadTask = Task<LoadedModelBox, Error> { [weak self] in
       guard let self = self else {
@@ -510,15 +509,30 @@ public actor VoxAltaModelManager {
     let memBefore = getCurrentProcessMemory()
     await capture(.modelUnloadStart(loaded: wasLoaded, sizeMB: preSizeMB))
 
-    // Existing unload logic — DO NOT change:
+    // Drain the MLX allocator instead of merely clearing its cache.
+    //
+    // 1. Synchronize the GPU stream FIRST, while the model is still alive,
+    //    so any in-flight Metal command buffers retire before we drop
+    //    references. Without this, AGX::ComputeContext can hold stale buffers
+    //    that reference the just-deallocated model (crashes the next load).
+    Stream.gpu.synchronize()
+
+    // 2. Drop strong references to the model's MLXArrays.
     cachedModel = nil
     _currentModelRepo = nil
 
-    // Synchronize the GPU stream to ensure all in-flight Metal compute
-    // from the previous model is complete, then release cached Metal buffers.
-    // Without this, loading a new model can crash in AGX::ComputeContext
-    // due to stale Metal command buffers from the previous model.
+    // 3. Force MLX to actually release reclaimed buffers to the OS rather
+    //    than parking them in its buffer pool. The pool defaults to ~1.5x
+    //    the device's recommended working set; without dropping the limit
+    //    to 0 first, `clearCache()` returns memory to the pool, not the OS,
+    //    and the Metal heap stays pinned at ~4.3 GB after unload
+    //    (see FIX_ME.md #2). We restore the prior limit afterward so
+    //    subsequent loads don't pay alloc/free per intermediate buffer.
+    let priorCacheLimit = Memory.cacheLimit
+    Memory.cacheLimit = 0
     await MemoryManager.shared.clearGPUCache()
+    Stream.gpu.synchronize()
+    Memory.cacheLimit = priorCacheLimit
 
     let memAfter = getCurrentProcessMemory()
     let freed = max(0.0, memBefore - memAfter)
@@ -550,6 +564,18 @@ public actor VoxAltaModelManager {
   /// `loadModel`. Used by `EstimateModelMemoryTests` to exercise the substring
   /// matching in `estimateModelMemoryUsage()` without disk/network dependency.
   internal func _setCurrentModelRepoForTesting(_ repo: String?) {
+    _currentModelRepo = repo
+  }
+
+  /// Test-only seam: seeds the actor's cache state with a stub model and repo
+  /// so cache-hit branches can be exercised without requiring a real on-disk
+  /// model. Used by `LoadUnloadTelemetryTests` to verify cache-hit telemetry
+  /// suppression (FIX_ME.md #1).
+  internal func _setCachedModelForTesting(
+    _ model: (any SpeechGenerationModel)?,
+    repo: String?
+  ) {
+    cachedModel = model
     _currentModelRepo = repo
   }
 
