@@ -186,7 +186,8 @@ struct LoadUnloadTelemetryTests {
 
     #expect(
       Memory.cacheLimit == sentinel,
-      "unloadModel must restore the prior cacheLimit; got \(Memory.cacheLimit), expected \(sentinel)")
+      "unloadModel must restore the prior cacheLimit; got \(Memory.cacheLimit), expected \(sentinel)"
+    )
   }
 
   @Test("Telemetry nil reporter is a no-op (no crash on load/unload without reporter)")
