@@ -60,16 +60,56 @@ public struct GenerationSettings: Codable, Sendable, Equatable {
   /// At 12Hz token rate, 16384 tokens ≈ 22 minutes of audio.
   public let maxTokens: Int
 
+  /// Auto-chunk long phrases at sentence boundaries before TTS generation.
+  ///
+  /// In ICL voice cloning, the reference audio codes anchor prosody only as long
+  /// as they remain a meaningful fraction of the model's context. As a single
+  /// phrase grows past ~10 seconds, the reference becomes a vanishing fraction
+  /// (the "TRIM ratio" drops below ~0.25) and prosody drifts away from the
+  /// reference voice. Chunking at sentence boundaries keeps each generation
+  /// short enough to maintain a strong anchor.
+  ///
+  /// When `true` and the estimated duration exceeds `chunkTargetDuration`,
+  /// `VoiceLockManager.generateAudio` splits the text at sentence boundaries
+  /// (Foundation's ICU-backed segmenter), generates each chunk reusing the same
+  /// clone prompt, and concatenates the results with `chunkPauseDuration` of
+  /// silence between chunks. The behavior is transparent to callers.
+  public let enableAutoChunking: Bool
+
+  /// Target maximum duration (seconds) for a single TTS generation chunk.
+  ///
+  /// When `enableAutoChunking` is `true`, phrases whose estimated duration
+  /// exceeds this value are split at sentence boundaries and packed into
+  /// chunks no longer than this. Lower values produce stronger prosody anchors
+  /// (less drift) but more chunks and more inter-chunk pauses.
+  ///
+  /// - `8.0`: Aggressive — TRIM ratio ~0.35, more pauses
+  /// - `10.0`: Recommended balance
+  /// - `12.0`: Conservative — TRIM ratio ~0.25, fewer pauses
+  public let chunkTargetDuration: TimeInterval
+
+  /// Silence inserted between chunks (seconds).
+  ///
+  /// Provides a natural breath pause at sentence boundaries created by chunking.
+  /// Has no effect when chunking is disabled or the phrase fits in a single chunk.
+  public let chunkPauseDuration: TimeInterval
+
   public init(
     temperature: Float = 0.7,
     topP: Float = 0.9,
     repetitionPenalty: Float = 1.3,
-    maxTokens: Int = 16384
+    maxTokens: Int = 16384,
+    enableAutoChunking: Bool = true,
+    chunkTargetDuration: TimeInterval = 10.0,
+    chunkPauseDuration: TimeInterval = 0.25
   ) {
     self.temperature = temperature
     self.topP = topP
     self.repetitionPenalty = repetitionPenalty
     self.maxTokens = maxTokens
+    self.enableAutoChunking = enableAutoChunking
+    self.chunkTargetDuration = chunkTargetDuration
+    self.chunkPauseDuration = chunkPauseDuration
   }
 
   /// Recommended defaults for voice-cloned speech generation.
