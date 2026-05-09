@@ -159,6 +159,54 @@ struct VoiceLockManagerChunkingTests {
     #expect(joined.contains("Good exists—evil shapes it"))
   }
 
+  // MARK: - splitAtSentences: minimum chunk size enforcement
+
+  @Test("Runt first sentence merges forward to meet minimum chunk size")
+  func splitMergesRuntFirstSentence() {
+    // 70-char first sentence (like the FIXME.md repro case) should merge forward
+    // even if the second sentence would normally start a new chunk.
+    let runtSentence = "The sage, understanding this principle, acts without forcing outcomes."
+    let longSentence = String(
+      repeating: "Additional context sentence with sufficient length for duration limits. ",
+      count: 2)
+    let text = runtSentence + " " + longSentence
+
+    // Set maxDuration low enough that the combined text would normally split
+    let chunks = VoiceLockManager.splitAtSentences(text: text, maxDuration: 5.0)
+
+    // With minimum chunk size enforcement, the runt (70 chars) should merge forward
+    // into the longer content rather than being emitted alone.
+    #expect(chunks.count >= 1)
+    if chunks.count == 1 {
+      // Merged into one chunk (ideal)
+      #expect(chunks[0].contains(runtSentence))
+      #expect(chunks[0].count >= VoiceLockManager.minimumChunkSize)
+    } else {
+      // If split, verify the first chunk is not the runt alone
+      #expect(!chunks[0].hasSuffix("forcing outcomes."))
+      // Each chunk should meet minimum size
+      for chunk in chunks {
+        #expect(chunk.count >= VoiceLockManager.minimumChunkSize)
+      }
+    }
+  }
+
+  @Test("Chunks meeting minimum size are emitted normally")
+  func splitEmitsNormalChunksAtMinimumSize() {
+    // Two sentences, each >= 100 chars
+    let sentence1 = String(repeating: "This is a sentence with sufficient length. ", count: 3)  // ~129 chars
+    let sentence2 = String(repeating: "Another sentence with sufficient length too. ", count: 3)  // ~135 chars
+    let text = sentence1 + sentence2
+
+    // maxDuration that would split them (each is ~7s at 0.055 s/char)
+    let chunks = VoiceLockManager.splitAtSentences(text: text, maxDuration: 8.0)
+
+    // Both sentences are >= 100 chars, so should split normally
+    #expect(chunks.count == 2)
+    #expect(chunks[0].count >= VoiceLockManager.minimumChunkSize)
+    #expect(chunks[1].count >= VoiceLockManager.minimumChunkSize)
+  }
+
   // MARK: - generateSilenceArray
 
   @Test("Silence array length matches duration × sampleRate")
