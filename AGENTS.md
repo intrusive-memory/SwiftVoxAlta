@@ -121,7 +121,7 @@ SwiftVoxAlta/
 │       ├── DigaCommand.swift          # CLI entry point (@main, ArgumentParser)
 │       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
 │       ├── TextChunker.swift          # Sentence-boundary chunking (NLTokenizer)
-│       ├── Version.swift              # Version constant (0.10.8-dev)
+│       ├── Version.swift              # Version constant (0.10.9)
 │       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # 11 test files (library)
