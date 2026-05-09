@@ -357,6 +357,11 @@ public enum VoiceLockManager: Sendable {
     return Double(text.count) * estimatedSecondsPerChar
   }
 
+  /// Minimum chunk size in characters. Chunks shorter than this are merged forward
+  /// to prevent voice drift from high-temperature sampling on runt chunks.
+  /// See FIXME.md in Produciesta for root-cause analysis.
+  static let minimumChunkSize = 100
+
   /// Split text at sentence boundaries and pack into duration-bounded chunks.
   ///
   /// Uses Foundation's ICU-backed sentence segmenter (`enumerateSubstrings(.bySentences)`)
@@ -365,6 +370,11 @@ public enum VoiceLockManager: Sendable {
   /// Sentences are then packed greedily into chunks no longer than `maxDuration`
   /// seconds (estimated via `estimateDuration`). A single sentence longer than
   /// `maxDuration` is emitted as its own oversized chunk rather than mid-sentence-cut.
+  ///
+  /// **Minimum chunk size enforcement**: Chunks shorter than `minimumChunkSize`
+  /// characters are merged forward into the next sentence to prevent voice drift
+  /// from adaptive temperature inversion (short chunks get higher temperature,
+  /// which is backwards for voice-clone stability).
   ///
   /// - Parameters:
   ///   - text: The text to split.
@@ -392,9 +402,17 @@ public enum VoiceLockManager: Sendable {
 
     for sentence in sentences {
       let candidate = currentChunk.isEmpty ? sentence : currentChunk + " " + sentence
+
+      // Check if adding this sentence would exceed maxDuration
       if estimateDuration(text: candidate) > maxDuration && !currentChunk.isEmpty {
-        chunks.append(currentChunk)
-        currentChunk = sentence
+        // Emit current chunk only if it meets minimum size, otherwise keep accumulating
+        if currentChunk.count >= minimumChunkSize {
+          chunks.append(currentChunk)
+          currentChunk = sentence
+        } else {
+          // Runt chunk — merge forward even if it exceeds maxDuration
+          currentChunk = candidate
+        }
       } else {
         currentChunk = candidate
       }
