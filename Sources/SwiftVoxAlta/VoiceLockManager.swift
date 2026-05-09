@@ -253,19 +253,72 @@ public enum VoiceLockManager: Sendable {
     VoiceLockManagerLogger.log(
       "🗣️  Text (\(text.count) chars): \"\(text.prefix(100))\(text.count > 100 ? "..." : "")\"")
 
-    // Generate audio with clone prompt
+    // Auto-chunk long phrases at sentence boundaries to defeat ICL anchor dilution.
+    // See FIXME-sentence-chunking.md and SENTENCE_CHUNKING_DISCUSSION.md for the
+    // root-cause analysis (TRIM ratio drift) and design rationale.
+    let estimatedDuration = estimateDuration(text: text)
+    let shouldChunk =
+      settings.enableAutoChunking && estimatedDuration > settings.chunkTargetDuration
+
     let audioArray: MLXArray
     do {
-      audioArray = try qwenModel.generateWithClonePrompt(
-        text: text,
-        clonePrompt: clonePrompt,
-        language: language,
-        instruct: instruct,
-        temperature: settings.temperature,
-        topP: settings.topP,
-        repetitionPenalty: settings.repetitionPenalty,
-        maxTokens: settings.maxTokens
-      )
+      if shouldChunk {
+        let chunks = splitAtSentences(text: text, maxDuration: settings.chunkTargetDuration)
+        VoiceLockManagerLogger.log(
+          "✂️  Auto-chunking (\(text.count) chars, ~\(String(format: "%.1f", estimatedDuration))s) into \(chunks.count) chunk(s)"
+        )
+
+        let silenceArray = generateSilenceArray(
+          duration: settings.chunkPauseDuration,
+          sampleRate: qwenModel.sampleRate
+        )
+
+        var arrays: [MLXArray] = []
+        arrays.reserveCapacity(chunks.count * 2)
+
+        for (i, chunk) in chunks.enumerated() {
+          let preview = chunk.prefix(60)
+          let suffix = chunk.count > 60 ? "..." : ""
+          VoiceLockManagerLogger.log(
+            "  ↳ Chunk \(i + 1)/\(chunks.count) (\(chunk.count) chars): \"\(preview)\(suffix)\""
+          )
+
+          let rawChunkArray = try qwenModel.generateWithClonePrompt(
+            text: chunk,
+            clonePrompt: clonePrompt,
+            language: language,
+            instruct: instruct,
+            temperature: settings.temperature,
+            topP: settings.topP,
+            repetitionPenalty: settings.repetitionPenalty,
+            maxTokens: settings.maxTokens
+          )
+          // Flatten to 1-D so all arrays concatenate cleanly along axis 0.
+          let flatChunk = rawChunkArray.ndim > 1 ? rawChunkArray.reshaped(-1) : rawChunkArray
+          // Materialize before clearing GPU cache so the buffer stays valid for concat.
+          eval(flatChunk)
+          arrays.append(flatChunk)
+          if i < chunks.count - 1 {
+            arrays.append(silenceArray)
+          }
+          // Per-chunk flush: prevents stale Metal buffers from one chunk bleeding
+          // into the next, mirroring the inter-call protection below.
+          await MemoryManager.shared.clearGPUCache()
+        }
+
+        audioArray = MLX.concatenated(arrays, axis: 0)
+      } else {
+        audioArray = try qwenModel.generateWithClonePrompt(
+          text: text,
+          clonePrompt: clonePrompt,
+          language: language,
+          instruct: instruct,
+          temperature: settings.temperature,
+          topP: settings.topP,
+          repetitionPenalty: settings.repetitionPenalty,
+          maxTokens: settings.maxTokens
+        )
+      }
     } catch {
       throw VoxAltaError.cloningFailed(
         "Failed to generate audio for '\(voiceLock.characterName)': \(error.localizedDescription)"
@@ -286,5 +339,81 @@ public enum VoiceLockManager: Sendable {
         "Failed to convert generated audio to WAV: \(error.localizedDescription)"
       )
     }
+  }
+
+  // MARK: - Sentence Chunking Helpers
+
+  /// Empirically observed average speaking rate for Qwen3-TTS at default settings.
+  /// Calibration source: `podcast-tao-de-jing` chapter 2 element 11
+  /// (421 chars → 23.12s → 0.0549 s/char). Accurate to ~10% for English
+  /// narrator-style prose.
+  static let estimatedSecondsPerChar: Double = 0.055
+
+  /// Estimate the audio duration of a given text, in seconds.
+  ///
+  /// Linear heuristic: `chars × estimatedSecondsPerChar`. Used by `generateAudio`
+  /// to decide whether a phrase is long enough to warrant auto-chunking.
+  static func estimateDuration(text: String) -> TimeInterval {
+    return Double(text.count) * estimatedSecondsPerChar
+  }
+
+  /// Split text at sentence boundaries and pack into duration-bounded chunks.
+  ///
+  /// Uses Foundation's ICU-backed sentence segmenter (`enumerateSubstrings(.bySentences)`)
+  /// to find boundaries — handles abbreviations (`Dr.`, `Mr.`, `e.g.`), decimals
+  /// (`3.14`), and ellipses correctly without a regex's failure modes.
+  /// Sentences are then packed greedily into chunks no longer than `maxDuration`
+  /// seconds (estimated via `estimateDuration`). A single sentence longer than
+  /// `maxDuration` is emitted as its own oversized chunk rather than mid-sentence-cut.
+  ///
+  /// - Parameters:
+  ///   - text: The text to split.
+  ///   - maxDuration: Maximum estimated duration per chunk, in seconds.
+  /// - Returns: An array of non-empty chunk strings. Returns `[trimmed]` for input
+  ///   with no detectable sentence boundaries; returns `[]` for empty/whitespace-only input.
+  static func splitAtSentences(text: String, maxDuration: TimeInterval) -> [String] {
+    var sentences: [String] = []
+    text.enumerateSubstrings(
+      in: text.startIndex..<text.endIndex,
+      options: .bySentences
+    ) { substring, _, _, _ in
+      if let s = substring?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty {
+        sentences.append(s)
+      }
+    }
+
+    if sentences.isEmpty {
+      let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+      return trimmed.isEmpty ? [] : [trimmed]
+    }
+
+    var chunks: [String] = []
+    var currentChunk = ""
+
+    for sentence in sentences {
+      let candidate = currentChunk.isEmpty ? sentence : currentChunk + " " + sentence
+      if estimateDuration(text: candidate) > maxDuration && !currentChunk.isEmpty {
+        chunks.append(currentChunk)
+        currentChunk = sentence
+      } else {
+        currentChunk = candidate
+      }
+    }
+
+    if !currentChunk.isEmpty {
+      chunks.append(currentChunk)
+    }
+
+    return chunks
+  }
+
+  /// Generate a silence MLXArray of the given duration at `sampleRate` Hz.
+  ///
+  /// Returns a 1-D float array of zeros, suitable for concatenation with TTS
+  /// output along axis 0. Used to insert natural pauses between chunks in
+  /// auto-chunked output.
+  static func generateSilenceArray(duration: TimeInterval, sampleRate: Int) -> MLXArray {
+    let numSamples = max(0, Int(duration * Double(sampleRate)))
+    return MLXArray([Float](repeating: 0.0, count: numSamples))
   }
 }

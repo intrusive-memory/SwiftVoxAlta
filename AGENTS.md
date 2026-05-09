@@ -2,7 +2,7 @@
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.10.7
+**Current Version**: 0.10.8
 
 ---
 
@@ -121,7 +121,7 @@ SwiftVoxAlta/
 │       ├── DigaCommand.swift          # CLI entry point (@main, ArgumentParser)
 │       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
 │       ├── TextChunker.swift          # Sentence-boundary chunking (NLTokenizer)
-│       ├── Version.swift              # Version constant (0.10.7)
+│       ├── Version.swift              # Version constant (0.10.8)
 │       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # 11 test files (library)
@@ -171,7 +171,7 @@ Implements SwiftHablare's `VoiceProvider` protocol with dual-mode routing.
 
 ```swift
 public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
-    public static let version = "0.10.7"
+    public static let version = "0.10.8"
 
     // VoiceProvider protocol properties
     public let providerId = "voxalta"
@@ -243,11 +243,24 @@ public struct GenerationSettings: Codable, Sendable, Equatable {
     public let repetitionPenalty: Float  // Default: 1.3 (1.0 = none, 1.5+ = aggressive)
     public let maxTokens: Int           // Default: 16384 (~22 min audio at 12Hz token rate)
 
+    // Auto-chunking (transparent, on by default)
+    public let enableAutoChunking: Bool       // Default: true
+    public let chunkTargetDuration: TimeInterval  // Default: 10.0 seconds
+    public let chunkPauseDuration: TimeInterval   // Default: 0.25 seconds
+
     public static let `default` = GenerationSettings()
 }
 ```
 
 Passed to `VoiceLockManager.generateAudio()` and stored on `VoxAltaVoiceProvider`.
+
+#### Auto-Sentence Chunking
+
+When `enableAutoChunking` is `true` and a phrase's estimated duration exceeds `chunkTargetDuration`, `VoiceLockManager.generateAudio` splits the text at sentence boundaries (Foundation's ICU-backed `enumerateSubstrings(.bySentences)`), generates each chunk reusing the same voice clone prompt, and concatenates the results with `chunkPauseDuration` of silence between chunks. This defeats reference-anchor dilution ("TRIM ratio drift") in long ICL voice cloning generations, where the reference audio codes become a vanishing fraction of the model's context past ~10 seconds and prosody drifts away from the reference pattern.
+
+Chunking is **transparent to callers** — same input, same output type, no API change. To opt out, pass `GenerationSettings(enableAutoChunking: false)`. Tune `chunkTargetDuration` lower (8.0s) for stronger anchors with more pauses, higher (12.0s) for fewer pauses with weaker anchors.
+
+Tests: see `Tests/SwiftVoxAltaTests/VoiceLockManagerChunkingTests.swift` (21 cases covering passthrough, packing, ICU correctness on abbreviations/decimals/version-tokens/ellipses/em-dashes, silence array, and settings). Historical context lives in `docs/complete/SENTENCE_CHUNKING_DISCUSSION.md` and `docs/complete/FIXME-sentence-chunking.md`. The cross-package contract for GLOSA-AV is documented in `glosa-av/REQUIREMENTS.md` §4.8.
 
 ### GenerationContext
 
