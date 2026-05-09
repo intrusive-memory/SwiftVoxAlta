@@ -171,7 +171,7 @@ Implements SwiftHablare's `VoiceProvider` protocol with dual-mode routing.
 
 ```swift
 public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
-    public static let version = "0.10.8-dev"
+    public static let version = "0.10.9"
 
     // VoiceProvider protocol properties
     public let providerId = "voxalta"
