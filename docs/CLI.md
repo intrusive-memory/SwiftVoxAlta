@@ -36,6 +36,35 @@ diga --model 1.7b "Hello"   # Larger model (better quality)
 
 On first run, `diga` auto-downloads the appropriate Qwen3-TTS model (~2-4 GB) from HuggingFace.
 
+## Generation Tuning
+
+### `--chunk-target-duration <seconds>`
+
+Target maximum estimated audio duration per TTS chunk. Long inputs are split at sentence boundaries (Foundation's ICU segmenter) into chunks no longer than this value, then synthesized sequentially and concatenated with a short silence between chunks.
+
+- Lower values (e.g. `8`) produce stronger prosody anchors for ICL voice cloning at the cost of more inter-chunk pauses.
+- The default — `12.0` seconds — is the ICL stability sweet spot.
+- Higher values (e.g. `20`) reduce pauses further at the cost of weaker anchoring on long generations.
+
+```bash
+# Default: chunkTargetDuration = 12.0s
+diga -v elena "A long paragraph that gets split automatically..."
+
+# Tighter chunks for stronger anchors on a difficult ICL voice
+diga -v elena --chunk-target-duration 8 "A long paragraph..."
+
+# Looser chunks if you're willing to trade anchor strength for fewer pauses
+diga -v elena --chunk-target-duration 20 "A long paragraph..."
+```
+
+The flag value must be greater than `0`. To pass a value that begins with `-` (e.g. an explicit negative, which the parser will then reject at validation), use the `=` form:
+
+```bash
+diga --chunk-target-duration=-5 "Hello"   # Errors: must be greater than 0.
+```
+
+The same handle is exposed in the library API as `GenerationSettings.chunkTargetDuration`. See [AGENTS.md → Auto-Sentence Chunking](../AGENTS.md#auto-sentence-chunking) for the full contract across CustomVoice and ICL paths.
+
 ## Portable Voice Files (.vox)
 
 VoxAlta uses the `.vox` format for portable voice identity files. A `.vox` is a ZIP archive containing:

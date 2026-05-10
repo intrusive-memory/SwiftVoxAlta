@@ -249,4 +249,64 @@ struct VoiceLockManagerChunkingTests {
     #expect(settings.chunkPauseDuration == 0.25)
   }
 
+  // MARK: - chunkTargetDuration as the single handle
+
+  @Test("Custom chunkTargetDuration round-trips through GenerationSettings init")
+  func customChunkTargetDurationRoundTrip() {
+    let custom = GenerationSettings(chunkTargetDuration: 7.5)
+    #expect(custom.chunkTargetDuration == 7.5)
+    // Other fields keep their defaults so callers can override one knob in isolation.
+    #expect(custom.enableAutoChunking == GenerationSettings.default.enableAutoChunking)
+    #expect(custom.chunkPauseDuration == GenerationSettings.default.chunkPauseDuration)
+    #expect(custom.temperature == GenerationSettings.default.temperature)
+  }
+
+  /// Six independent ~6-second sentences (~36s of estimated audio total) with
+  /// real word boundaries so ICU's `.bySentences` enumerator actually segments.
+  /// Each sentence is ~109 chars ≈ 6.0s at the 0.055 s/char rate.
+  private static let sixSentenceParagraph: String = """
+    The quick brown fox jumped over the lazy dog while the sun set behind the distant mountain ridge here today. \
+    Meanwhile a curious cat sat by the warm windowsill watching the autumn leaves swirl across the cobblestone path. \
+    A gentle ocean breeze carried the salty scent of seaweed across the empty boardwalk in the late afternoon hours. \
+    The old fisherman mended his weathered net beside the dock as gulls cried overhead in the gray morning light. \
+    Children laughed and chased each other through the sprinkler in the front yard while the radio played softly inside. \
+    Her grandmother kneaded the dough with practiced hands while the kettle whistled on the stove in the back kitchen.
+    """
+
+  @Test("chunkTargetDuration drives chunk granularity end-to-end")
+  func chunkTargetDurationControlsGranularity() {
+    let text = Self.sixSentenceParagraph
+
+    // Tight setting: every sentence becomes its own chunk.
+    let tight = GenerationSettings(chunkTargetDuration: 6.0)
+    let tightChunks = VoiceLockManager.splitAtSentences(
+      text: text,
+      maxDuration: tight.chunkTargetDuration
+    )
+
+    // Loose setting: whole paragraph fits in a single chunk.
+    let loose = GenerationSettings(chunkTargetDuration: 60.0)
+    let looseChunks = VoiceLockManager.splitAtSentences(
+      text: text,
+      maxDuration: loose.chunkTargetDuration
+    )
+
+    #expect(
+      tightChunks.count > looseChunks.count,
+      "Tight chunkTargetDuration should produce more chunks: tight=\(tightChunks.count) vs loose=\(looseChunks.count)"
+    )
+    #expect(looseChunks.count == 1)
+  }
+
+  @Test("Default chunkTargetDuration leaves short input as a single chunk")
+  func defaultLeavesShortInputUnchunked() {
+    // ~3.6s of audio (well under the 12s default).
+    let short = "Hello there friend. This is short. Just three sentences here."
+    let chunks = VoiceLockManager.splitAtSentences(
+      text: short,
+      maxDuration: GenerationSettings.default.chunkTargetDuration
+    )
+    #expect(chunks.count == 1)
+  }
+
 }

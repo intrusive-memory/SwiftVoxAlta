@@ -244,6 +244,77 @@ struct CLICombinedFlagTests {
 }
 
 // ============================================================================
+// 7.5 — chunkTargetDuration Flag Tests
+// ============================================================================
+
+@Suite("CLI chunkTargetDuration Flag Tests", .acervoEnvironment)
+struct CLIChunkTargetDurationTests {
+
+  @Test("Without --chunk-target-duration, the parsed value is nil (DigaEngine uses .default)")
+  func noFlagDefaultsToNil() throws {
+    let command = try DigaCommand.parse(["hello"])
+    #expect(command.chunkTargetDuration == nil)
+  }
+
+  @Test("--chunk-target-duration parses an integer value")
+  func parsesIntegerValue() throws {
+    let command = try DigaCommand.parse(["--chunk-target-duration", "8", "hello"])
+    #expect(command.chunkTargetDuration == 8.0)
+  }
+
+  @Test("--chunk-target-duration parses a fractional value")
+  func parsesFractionalValue() throws {
+    let command = try DigaCommand.parse(["--chunk-target-duration", "10.5", "hello"])
+    #expect(command.chunkTargetDuration == 10.5)
+  }
+
+  @Test("--chunk-target-duration rejects non-numeric input at parse time")
+  func rejectsNonNumeric() {
+    #expect(throws: (any Error).self) {
+      _ = try DigaCommand.parse(["--chunk-target-duration", "abc", "hello"])
+    }
+  }
+
+  @Test("--chunk-target-duration=-N form parses (help text documents this for negatives)")
+  func equalsFormParsesNegative() throws {
+    // The help text instructs users to pass negatives via '=' (e.g. --chunk-target-duration=-5)
+    // because ArgumentParser otherwise treats a leading '-' as the next flag. Confirm the
+    // syntax actually works at parse time. (Validation in run() rejects values <= 0; this
+    // test only covers the parse layer.)
+    let command = try DigaCommand.parse(["--chunk-target-duration=-5", "hello"])
+    #expect(command.chunkTargetDuration == -5.0)
+  }
+
+  @Test("--chunk-target-duration composes with --voice and --model")
+  func composesWithOtherFlags() throws {
+    let command = try DigaCommand.parse([
+      "-v", "alex",
+      "--model", "0.6b",
+      "--chunk-target-duration", "6.5",
+      "hello",
+    ])
+    #expect(command.voice == "alex")
+    #expect(command.model == "0.6b")
+    #expect(command.chunkTargetDuration == 6.5)
+  }
+
+  @Test("DigaEngine stores a custom chunkTargetDuration through GenerationSettings")
+  func engineStoresCustomChunkTargetDuration() async {
+    let settings = GenerationSettings(chunkTargetDuration: 6.0)
+    let engine = DigaEngine(generationSettings: settings)
+    let stored = await engine.generationSettings
+    #expect(stored.chunkTargetDuration == 6.0)
+  }
+
+  @Test("DigaEngine without explicit settings falls back to GenerationSettings.default")
+  func engineDefaultChunkTargetDuration() async {
+    let engine = DigaEngine()
+    let stored = await engine.generationSettings
+    #expect(stored.chunkTargetDuration == GenerationSettings.default.chunkTargetDuration)
+  }
+}
+
+// ============================================================================
 // 7.6 — Additional Integration Tests
 // ============================================================================
 

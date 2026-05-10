@@ -101,6 +101,24 @@ let audio = try await provider.generateAudio(
 )
 ```
 
+#### Tuning chunk granularity
+
+Long inputs are auto-split at sentence boundaries before each Qwen3-TTS call. The split target is controlled by `GenerationSettings.chunkTargetDuration` (default `12.0` seconds). Override it once at provider construction time and every entry point (CustomVoice + ICL clone) honors the same handle:
+
+```swift
+// Tighter chunks → stronger ICL prosody anchors at the cost of more pauses.
+let settings = GenerationSettings(chunkTargetDuration: 8.0)
+let provider = VoxAltaVoiceProvider(generationSettings: settings)
+```
+
+The `diga` CLI exposes the same knob via `--chunk-target-duration <seconds>`:
+
+```bash
+diga --chunk-target-duration 8 "A long paragraph that benefits from tighter chunks..."
+```
+
+When omitted, the CLI falls back to `GenerationSettings.default.chunkTargetDuration` (12.0s). See [AGENTS.md → Auto-Sentence Chunking](AGENTS.md#auto-sentence-chunking) for the full contract.
+
 For detailed integration instructions, see **[Produciesta Integration Guide](docs/PRODUCIESTA_INTEGRATION.md)**.
 
 ## Dependencies

@@ -204,6 +204,12 @@ actor DigaEngine {
   /// Cached clone prompt data keyed by "voiceName:modelSlug" (avoids re-reading from disk).
   private var cachedClonePrompts: [String: Data] = [:]
 
+  /// Sampling and chunking parameters applied to every Qwen3-TTS call.
+  /// `chunkTargetDuration` here is the single handle that controls how long
+  /// inputs are split before each `generate(...)` / `generateWithClonePrompt(...)`
+  /// call into mlx-audio-swift.
+  let generationSettings: GenerationSettings
+
   // MARK: - Initialization
 
   /// Creates a new DigaEngine.
@@ -212,14 +218,18 @@ actor DigaEngine {
   ///   - voiceStore: Voice store for custom voices. Defaults to standard instance.
   ///   - modelOverride: Optional model ID override (from --model flag).
   ///   - voxAltaModelManager: VoxAlta model manager for TTS inference. Defaults to a new instance.
+  ///   - generationSettings: Sampling and chunk-target settings forwarded to every
+  ///     Qwen3-TTS call. Defaults to `.default`.
   init(
     voiceStore: VoiceStore = VoiceStore(),
     modelOverride: String? = nil,
-    voxAltaModelManager: VoxAltaModelManager = VoxAltaModelManager()
+    voxAltaModelManager: VoxAltaModelManager = VoxAltaModelManager(),
+    generationSettings: GenerationSettings = .default
   ) {
     self.voiceStore = voiceStore
     self.modelOverride = modelOverride
     self.voxAltaModelManager = voxAltaModelManager
+    self.generationSettings = generationSettings
   }
 
   // MARK: - Model Resolution
@@ -334,8 +344,8 @@ actor DigaEngine {
     // Pre-load the model and warm the voice cache before generation.
     try await warmUpForGeneration(voiceLock: voiceLock)
 
-    // Chunk the text.
-    let chunks = TextChunker.chunk(text)
+    // Chunk the text by `chunkTargetDuration`.
+    let chunks = chunkText(text)
     guard !chunks.isEmpty else {
       throw DigaEngineError.synthesisFailed("Input text is empty after chunking.")
     }
@@ -360,7 +370,8 @@ actor DigaEngine {
           language: "en",
           modelManager: voxAltaModelManager,
           modelRepo: resolvedBaseModelRepo,
-          cache: voiceCache
+          cache: voiceCache,
+          settings: generationSettings
         )
       } catch {
         throw DigaEngineError.synthesisFailed(
@@ -437,7 +448,7 @@ actor DigaEngine {
     // Pre-load the model and warm the voice cache before generation.
     try await warmUpForGeneration(voiceLock: voiceLock)
 
-    let chunks = TextChunker.chunk(text)
+    let chunks = chunkText(text)
     guard !chunks.isEmpty else {
       throw DigaEngineError.synthesisFailed("Input text is empty after chunking.")
     }
@@ -458,7 +469,8 @@ actor DigaEngine {
         language: "en",
         modelManager: voxAltaModelManager,
         modelRepo: resolvedBaseModelRepo,
-        cache: voiceCache
+        cache: voiceCache,
+        settings: generationSettings
       )
       wavSegments.append(wavData)
     }
@@ -485,7 +497,7 @@ actor DigaEngine {
   ///   - instruct: Optional performance direction for the TTS model.
   /// - Returns: WAV format audio Data.
   /// - Throws: `DigaEngineError` if model loading or synthesis fails.
-  nonisolated private func synthesizeWithPresetSpeaker(
+  private func synthesizeWithPresetSpeaker(
     text: String,
     speakerName: String,
     voiceName: String,
@@ -493,8 +505,8 @@ actor DigaEngine {
     modelRepo: Qwen3TTSModelRepo,
     instruct: String? = nil
   ) async throws -> Data {
-    // 1. Chunk text.
-    let chunks = TextChunker.chunk(text)
+    // 1. Chunk text by `chunkTargetDuration`.
+    let chunks = chunkText(text)
     guard !chunks.isEmpty else {
       throw DigaEngineError.synthesisFailed("Input text is empty after chunking.")
     }
@@ -549,6 +561,31 @@ actor DigaEngine {
 
     // 3. Concatenate WAV segments.
     return try WAVConcatenator.concatenate(wavSegments)
+  }
+
+  // MARK: - Text Chunking
+
+  /// Split text using the configured `chunkTargetDuration`.
+  ///
+  /// When `enableAutoChunking` is true and the estimated duration exceeds
+  /// `chunkTargetDuration`, splits at sentence boundaries via
+  /// `VoiceLockManager.splitAtSentences`. Otherwise emits the whole text as a
+  /// single chunk (or `[]` for empty input).
+  private func chunkText(_ text: String) -> [String] {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return [] }
+
+    let estimated = VoiceLockManager.estimateDuration(text: trimmed)
+    let shouldChunk =
+      generationSettings.enableAutoChunking
+      && estimated > generationSettings.chunkTargetDuration
+
+    guard shouldChunk else { return [trimmed] }
+
+    return VoiceLockManager.splitAtSentences(
+      text: trimmed,
+      maxDuration: generationSettings.chunkTargetDuration
+    )
   }
 
   // MARK: - Clone Prompt Management

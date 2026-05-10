@@ -405,15 +405,56 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
       )
     }
 
-    let audioArray = try await qwenModel.generate(
-      text: text,
-      voice: speakerName,
-      refAudio: nil,
-      refText: nil,
-      language: language,
-      instruct: instruct,
-      generationParameters: GenerateParameters()
-    )
+    let estimatedDuration = VoiceLockManager.estimateDuration(text: text)
+    let shouldChunk =
+      generationSettings.enableAutoChunking
+      && estimatedDuration > generationSettings.chunkTargetDuration
+
+    let audioArray: MLXArray
+    if shouldChunk {
+      let chunks = VoiceLockManager.splitAtSentences(
+        text: text,
+        maxDuration: generationSettings.chunkTargetDuration
+      )
+
+      let silenceArray = VoiceLockManager.generateSilenceArray(
+        duration: generationSettings.chunkPauseDuration,
+        sampleRate: qwenModel.sampleRate
+      )
+
+      var arrays: [MLXArray] = []
+      arrays.reserveCapacity(chunks.count * 2)
+
+      for (i, chunk) in chunks.enumerated() {
+        let raw = try await qwenModel.generate(
+          text: chunk,
+          voice: speakerName,
+          refAudio: nil,
+          refText: nil,
+          language: language,
+          instruct: instruct,
+          generationParameters: GenerateParameters()
+        )
+        let flat = raw.ndim > 1 ? raw.reshaped(-1) : raw
+        eval(flat)
+        arrays.append(flat)
+        if i < chunks.count - 1 {
+          arrays.append(silenceArray)
+        }
+      }
+
+      audioArray = MLX.concatenated(arrays, axis: 0)
+    } else {
+      audioArray = try await qwenModel.generate(
+        text: text,
+        voice: speakerName,
+        refAudio: nil,
+        refText: nil,
+        language: language,
+        instruct: instruct,
+        generationParameters: GenerateParameters()
+      )
+    }
 
     return try AudioConversion.mlxArrayToWAVData(audioArray, sampleRate: qwenModel.sampleRate)
   }
