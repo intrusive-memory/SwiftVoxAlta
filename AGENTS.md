@@ -2,7 +2,7 @@
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.10.10
+**Current Version**: 0.10.11
 
 ---
 
@@ -120,8 +120,7 @@ SwiftVoxAlta/
 │       ├── BuiltinVoices.swift        # 9 built-in CustomVoice preset speakers
 │       ├── DigaCommand.swift          # CLI entry point (@main, ArgumentParser)
 │       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
-│       ├── TextChunker.swift          # Sentence-boundary chunking (NLTokenizer)
-│       ├── Version.swift              # Version constant (0.10.10)
+│       ├── Version.swift              # Version constant (0.10.11)
 │       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # 11 test files (library)
@@ -190,7 +189,7 @@ Implements SwiftHablare's `VoiceProvider` protocol with dual-mode routing.
 
 ```swift
 public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
-    public static let version = "0.10.10"
+    public static let version = "0.10.11"
 
     // VoiceProvider protocol properties
     public let providerId = "voxalta"
@@ -264,22 +263,54 @@ public struct GenerationSettings: Codable, Sendable, Equatable {
 
     // Auto-chunking (transparent, on by default)
     public let enableAutoChunking: Bool       // Default: true
-    public let chunkTargetDuration: TimeInterval  // Default: 10.0 seconds
+    public let chunkTargetDuration: TimeInterval  // Default: 12.0 seconds
     public let chunkPauseDuration: TimeInterval   // Default: 0.25 seconds
 
     public static let `default` = GenerationSettings()
 }
 ```
 
-Passed to `VoiceLockManager.generateAudio()` and stored on `VoxAltaVoiceProvider`.
+Passed to `VoiceLockManager.generateAudio()`, stored on `VoxAltaVoiceProvider`, and accepted by `DigaEngine.init`. Every entry point that ends in an `mlx-audio-swift` `generate(...)` / `generateWithClonePrompt(...)` call honors the same `chunkTargetDuration` knob.
 
 #### Auto-Sentence Chunking
 
-When `enableAutoChunking` is `true` and a phrase's estimated duration exceeds `chunkTargetDuration`, `VoiceLockManager.generateAudio` splits the text at sentence boundaries (Foundation's ICU-backed `enumerateSubstrings(.bySentences)`), generates each chunk reusing the same voice clone prompt, and concatenates the results with `chunkPauseDuration` of silence between chunks. This defeats reference-anchor dilution ("TRIM ratio drift") in long ICL voice cloning generations, where the reference audio codes become a vanishing fraction of the model's context past ~10 seconds and prosody drifts away from the reference pattern.
+When `enableAutoChunking` is `true` and a phrase's estimated duration exceeds `chunkTargetDuration`, the relevant entry point splits the text at sentence boundaries (Foundation's ICU-backed `enumerateSubstrings(.bySentences)`), generates each chunk through the same Qwen3-TTS path (clone prompt for ICL, preset speaker for CustomVoice), and concatenates the results with `chunkPauseDuration` of silence between chunks. This defeats reference-anchor dilution ("TRIM ratio drift") in long ICL voice cloning generations, where the reference audio codes become a vanishing fraction of the model's context past ~10 seconds and prosody drifts away from the reference pattern.
 
-Chunking is **transparent to callers** — same input, same output type, no API change. To opt out, pass `GenerationSettings(enableAutoChunking: false)`. Tune `chunkTargetDuration` lower (8.0s) for stronger anchors with more pauses, higher (12.0s) for fewer pauses with weaker anchors.
+Chunking is **transparent to callers** — same input, same output type, no API change. To opt out, pass `GenerationSettings(enableAutoChunking: false)`. Tune `chunkTargetDuration` lower (e.g. 8.0s) for stronger anchors with more pauses; the default (`12.0`s) is the sweet spot for ICL stability with minimal pause overhead. Higher values (e.g. 20s) reduce pauses further at the cost of weaker anchoring.
 
-Tests: see `Tests/SwiftVoxAltaTests/VoiceLockManagerChunkingTests.swift` (21 cases covering passthrough, packing, ICU correctness on abbreviations/decimals/version-tokens/ellipses/em-dashes, silence array, and settings). Historical context lives in `docs/complete/SENTENCE_CHUNKING_DISCUSSION.md` and `docs/complete/FIXME-sentence-chunking.md`. The cross-package contract for GLOSA-AV is documented in `glosa-av/REQUIREMENTS.md` §4.8.
+`chunkTargetDuration` is the single handle that controls chunk granularity at every MLX call site:
+
+| Surface | How `chunkTargetDuration` is supplied |
+|---------|----------------------------------------|
+| `VoxAltaVoiceProvider.generateAudio` (CustomVoice + ICL routes) | `GenerationSettings` passed to `VoxAltaVoiceProvider.init`, default `.default` (12.0s). |
+| `VoiceLockManager.generateAudio` (ICL clone path) | `settings:` argument, default `.default`. |
+| `DigaEngine.synthesize` / `synthesizeFromVox` / preset-speaker path | `GenerationSettings` passed to `DigaEngine.init`, default `.default`. |
+| `diga` CLI | `--chunk-target-duration <seconds>` flag (Optional `TimeInterval`); when omitted, `DigaEngine` uses `GenerationSettings.default` (12.0s). |
+
+##### Library example
+
+```swift
+import SwiftVoxAlta
+
+// Tighten chunks for stronger ICL prosody anchors at the cost of more pauses.
+let tightSettings = GenerationSettings(chunkTargetDuration: 8.0)
+let provider = VoxAltaVoiceProvider(generationSettings: tightSettings)
+
+let audio = try await provider.generateAudio(
+    text: "A long paragraph that will be split at sentence boundaries...",
+    voiceId: "ryan",
+    languageCode: "en"
+)
+```
+
+The `GenerationSettings` initializer is memberwise with defaults, so a one-knob override leaves every other parameter at its `.default` value:
+
+```swift
+// Override only chunkTargetDuration; temperature/topP/etc. stay at .default.
+let custom = GenerationSettings(chunkTargetDuration: 6.0)
+```
+
+Tests: see `Tests/SwiftVoxAltaTests/VoiceLockManagerChunkingTests.swift` (26 cases covering passthrough, packing, ICU correctness on abbreviations/decimals/version-tokens/ellipses/em-dashes, silence array, settings round-trip, and end-to-end `chunkTargetDuration` granularity control) and `Tests/DigaTests/DigaCLIIntegrationTests.swift` → `CLIChunkTargetDurationTests` (CLI flag parsing + DigaEngine plumbing). Historical context lives in `docs/complete/SENTENCE_CHUNKING_DISCUSSION.md` and `docs/complete/FIXME-sentence-chunking.md`. The cross-package contract for GLOSA-AV is documented in `glosa-av/REQUIREMENTS.md` §4.8.
 
 ### GenerationContext
 
@@ -516,6 +547,7 @@ diga -v ?                               # List all voices (shorthand)
 diga --import-vox voice.vox             # Import voice from .vox file
 diga --model 0.6b "Hello"              # Override model (smaller, faster)
 diga --model 1.7b "Hello"              # Override model (larger, better quality)
+diga --chunk-target-duration 8 "Long paragraph..."   # Tighter chunks (stronger ICL anchor)
 ```
 
 ### CLI Flags
@@ -530,6 +562,7 @@ diga --model 1.7b "Hello"              # Override model (larger, better quality)
 | `--file-format <fmt>` | | Override output format (wav, aiff, m4a) |
 | `--instruct <text>` | | Performance direction (e.g., "speak softly") |
 | `--model <id>` | | Override model (0.6b, 1.7b, or HuggingFace repo) |
+| `--chunk-target-duration <seconds>` | | Target maximum duration (seconds) per TTS chunk. Must be > 0. Defaults to `GenerationSettings.default.chunkTargetDuration` (12.0s) when omitted. To pass a value beginning with `-`, use the `=` form: `--chunk-target-duration=-5`. |
 | `--version` | | Show version |
 | `--help` | `-h` | Show help |
 
@@ -552,7 +585,6 @@ The `instruct` parameter is per-phrase and conditions audio generation suggestiv
 | `StoredVoice` (struct) | Voice entry: name, type, designDescription, clonePromptPath, createdAt |
 | `VoiceType` (enum) | `.builtin`, `.designed`, `.cloned`, `.preset` |
 | `BuiltinVoices` (enum) | 9 preset speaker definitions |
-| `TextChunker` (enum) | Sentence-boundary splitting via `NLTokenizer` (200 words/chunk default) |
 | `WAVConcatenator` (enum) | Concatenate multiple WAV segments into single output |
 | `AudioPlayback` (class) | AVAudioEngine-based speaker output + streaming chunked playback |
 | `AudioFileWriter` (enum) | Write WAV/AIFF/M4A files (AIFF via AudioFile API, M4A via ExtAudioFile) |

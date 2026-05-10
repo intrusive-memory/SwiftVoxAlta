@@ -49,6 +49,16 @@ struct DigaCommand: AsyncParsableCommand {
     help: "Performance direction (e.g., 'speak softly', 'whisper'). Applied to all chunks.")
   var instruct: String?
 
+  // MARK: - Generation Settings
+
+  @Option(
+    name: .long,
+    help: ArgumentHelp(
+      "Target maximum duration (seconds) per TTS chunk. Long inputs are split at sentence boundaries into chunks no longer than this; shorter values produce stronger prosody anchors but more inter-chunk pauses. Must be > 0. To pass a value that begins with '-' (e.g. an explicit negative), use the '=' form: --chunk-target-duration=-5. Default: \(GenerationSettings.default.chunkTargetDuration)s if not set."
+    )
+  )
+  var chunkTargetDuration: TimeInterval?
+
   // MARK: - Positional Arguments
 
   @Argument(help: "Text to speak.")
@@ -111,8 +121,21 @@ struct DigaCommand: AsyncParsableCommand {
       throw ValidationError("Input text is empty.")
     }
 
+    if let duration = chunkTargetDuration, duration <= 0 {
+      throw ValidationError("--chunk-target-duration must be greater than 0.")
+    }
+
     // Synthesize text to WAV audio via Qwen3-TTS.
-    let engine = DigaEngine(modelOverride: resolvedModel)
+    let generationSettings: GenerationSettings
+    if let duration = chunkTargetDuration {
+      generationSettings = GenerationSettings(chunkTargetDuration: duration)
+    } else {
+      generationSettings = .default
+    }
+    let engine = DigaEngine(
+      modelOverride: resolvedModel,
+      generationSettings: generationSettings
+    )
     let wavData: Data
     if isVoxFile {
       wavData = try await engine.synthesizeFromVox(

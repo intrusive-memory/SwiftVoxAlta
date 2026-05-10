@@ -347,20 +347,20 @@ public enum VoiceLockManager: Sendable {
   /// Calibration source: `podcast-tao-de-jing` chapter 2 element 11
   /// (421 chars → 23.12s → 0.0549 s/char). Accurate to ~10% for English
   /// narrator-style prose.
-  static let estimatedSecondsPerChar: Double = 0.055
+  public static let estimatedSecondsPerChar: Double = 0.055
 
   /// Estimate the audio duration of a given text, in seconds.
   ///
   /// Linear heuristic: `chars × estimatedSecondsPerChar`. Used by `generateAudio`
   /// to decide whether a phrase is long enough to warrant auto-chunking.
-  static func estimateDuration(text: String) -> TimeInterval {
+  public static func estimateDuration(text: String) -> TimeInterval {
     return Double(text.count) * estimatedSecondsPerChar
   }
 
   /// Minimum chunk size in characters. Chunks shorter than this are merged forward
   /// to prevent voice drift from high-temperature sampling on runt chunks.
   /// See FIXME.md in Produciesta for root-cause analysis.
-  static let minimumChunkSize = 100
+  public static let minimumChunkSize = 100
 
   /// Split text at sentence boundaries and pack into duration-bounded chunks.
   ///
@@ -381,7 +381,7 @@ public enum VoiceLockManager: Sendable {
   ///   - maxDuration: Maximum estimated duration per chunk, in seconds.
   /// - Returns: An array of non-empty chunk strings. Returns `[trimmed]` for input
   ///   with no detectable sentence boundaries; returns `[]` for empty/whitespace-only input.
-  static func splitAtSentences(text: String, maxDuration: TimeInterval) -> [String] {
+  public static func splitAtSentences(text: String, maxDuration: TimeInterval) -> [String] {
     var sentences: [String] = []
     text.enumerateSubstrings(
       in: text.startIndex..<text.endIndex,
@@ -436,7 +436,7 @@ public enum VoiceLockManager: Sendable {
   /// Returns a 1-D float array of zeros, suitable for concatenation with TTS
   /// output along axis 0. Used to insert natural pauses between chunks in
   /// auto-chunked output.
-  static func generateSilenceArray(duration: TimeInterval, sampleRate: Int) -> MLXArray {
+  public static func generateSilenceArray(duration: TimeInterval, sampleRate: Int) -> MLXArray {
     let numSamples = max(0, Int(duration * Double(sampleRate)))
     return MLXArray([Float](repeating: 0.0, count: numSamples))
   }
