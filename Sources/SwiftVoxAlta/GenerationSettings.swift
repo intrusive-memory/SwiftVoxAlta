@@ -84,8 +84,8 @@ public struct GenerationSettings: Codable, Sendable, Equatable {
   /// (less drift) but more chunks and more inter-chunk pauses.
   ///
   /// - `8.0`: Aggressive — TRIM ratio ~0.35, more pauses
-  /// - `10.0`: Recommended balance
-  /// - `12.0`: Conservative — TRIM ratio ~0.25, fewer pauses
+  /// - `10.0`: Balanced
+  /// - `12.0`: Recommended — TRIM ratio ~0.25, fewer pauses
   public let chunkTargetDuration: TimeInterval
 
   /// Silence inserted between chunks (seconds).
@@ -100,7 +100,7 @@ public struct GenerationSettings: Codable, Sendable, Equatable {
     repetitionPenalty: Float = 1.3,
     maxTokens: Int = 16384,
     enableAutoChunking: Bool = true,
-    chunkTargetDuration: TimeInterval = 10.0,
+    chunkTargetDuration: TimeInterval = 12.0,
     chunkPauseDuration: TimeInterval = 0.25
   ) {
     self.temperature = temperature
