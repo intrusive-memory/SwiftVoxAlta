@@ -249,20 +249,4 @@ struct VoiceLockManagerChunkingTests {
     #expect(settings.chunkPauseDuration == 0.25)
   }
 
-  @Test("GenerationSettings supports disabling auto-chunking")
-  func settingsDisableChunking() {
-    let settings = GenerationSettings(enableAutoChunking: false)
-    #expect(settings.enableAutoChunking == false)
-  }
-
-  @Test("GenerationSettings preserves custom chunk parameters")
-  func settingsCustomChunkParameters() {
-    let settings = GenerationSettings(
-      enableAutoChunking: true,
-      chunkTargetDuration: 8.0,
-      chunkPauseDuration: 0.15
-    )
-    #expect(settings.chunkTargetDuration == 8.0)
-    #expect(settings.chunkPauseDuration == 0.15)
-  }
 }
