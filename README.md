@@ -106,7 +106,7 @@ For detailed integration instructions, see **[Produciesta Integration Guide](doc
 ## Dependencies
 
 - [SwiftHablare](https://github.com/intrusive-memory/SwiftHablare) -- VoiceProvider protocol
-- [mlx-audio-swift](https://github.com/intrusive-memory/mlx-audio-swift) -- Qwen3-TTS inference
+- [mlx-audio-swift](https://github.com/intrusive-memory/mlx-audio-swift) -- Qwen3-TTS inference (pinned to `>= 0.8.3, < 0.9.0`; the upcoming `0.9.0` is a breaking release that migrates to `swift-tokenizers` 0.6.x — see [AGENTS.md → Pending Breaking Upgrades](AGENTS.md#pending-breaking-upgrades))
 - [SwiftAcervo](https://github.com/intrusive-memory/SwiftAcervo) -- Shared model management and caching
 - [vox-format](https://github.com/intrusive-memory/vox-format) -- Portable `.vox` voice identity file format
 
