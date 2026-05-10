@@ -2,7 +2,7 @@
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.10.9
+**Current Version**: 0.10.10
 
 ---
 
@@ -121,7 +121,7 @@ SwiftVoxAlta/
 │       ├── DigaCommand.swift          # CLI entry point (@main, ArgumentParser)
 │       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
 │       ├── TextChunker.swift          # Sentence-boundary chunking (NLTokenizer)
-│       ├── Version.swift              # Version constant (0.10.9)
+│       ├── Version.swift              # Version constant (0.10.10)
 │       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # 11 test files (library)
@@ -146,7 +146,7 @@ SwiftVoxAlta/
 | Package | Source | Branch/Version | Purpose |
 |---------|--------|---------------|---------|
 | [SwiftHablare](https://github.com/intrusive-memory/SwiftHablare) | intrusive-memory | `development` | VoiceProvider protocol and registry |
-| [mlx-audio-swift](https://github.com/intrusive-memory/mlx-audio-swift) | intrusive-memory (fork) | `development` | Qwen3-TTS inference engine (MLXAudioTTS) |
+| [mlx-audio-swift](https://github.com/intrusive-memory/mlx-audio-swift) | intrusive-memory (fork) | **`>= 0.8.3, < 0.9.0` (pinned)** — see [Pending Breaking Upgrades](#pending-breaking-upgrades) | Qwen3-TTS inference engine (MLXAudioTTS) |
 | [SwiftAcervo](https://github.com/intrusive-memory/SwiftAcervo) | intrusive-memory | `main` | Shared model management and caching |
 | [vox-format](https://github.com/intrusive-memory/vox-format) | intrusive-memory | `development` | Portable `.vox` voice identity file format |
 | [swift-argument-parser](https://github.com/apple/swift-argument-parser) | apple | `>= 1.5.0` | CLI argument parsing |
@@ -161,6 +161,25 @@ Fork from `intrusive-memory` org (not upstream). Includes:
 - Preset speakers: CustomVoice model with 9 built-in speakers
 - `instruct` parameter support for performance directions
 
+### Pending Breaking Upgrades
+
+#### mlx-audio-swift `0.9.0` — swift-tokenizers 0.6.x migration
+
+**Status:** blocked. `Package.swift` pins to `.upToNextMinor(from: "0.8.3")` (`>= 0.8.3, < 0.9.0`) to prevent SPM from auto-resolving the breaking release.
+
+**What changes in 0.9.0:** mlx-audio-swift will migrate its `swift-tokenizers` dependency from the 0.5.x line to **0.6.x**, which is itself a breaking release. The 0.8.3 patch (mlx-audio-swift) explicitly tightened its own constraint to `.upToNextMinor(from: "0.5.0")` so the breaking transitive bump cannot leak in until callers (including SwiftVoxAlta) are migrated.
+
+**What SwiftVoxAlta will need to do** when we move to mlx-audio-swift 0.9.0:
+
+1. Audit every `import Tokenizers` / tokenizer call site in SwiftVoxAlta and any sibling library we pull (`SwiftHablare`, `SwiftBruja`, `SwiftAcervo`, `vox-format`).
+2. Apply the swift-tokenizers 0.5 → 0.6 API changes (signatures, async surface, and any renamed types — exact diff TBD when 0.9.0 release notes drop).
+3. Confirm no other transitive consumer is still on 0.5.x (a mixed graph will fail to resolve).
+4. Bump `Package.swift` from `.upToNextMinor(from: "0.8.3")` to a new `.upToNextMinor(from: "0.9.0")` (or `.upToNextMajor(from: "0.9.0")` once we trust the 0.9 line).
+5. Run the full Metal-shader build (`make build` / `make test`), not just `swift build`, before merging — tokenizer changes touch model loading paths.
+6. Update `Sources/SwiftVoxAlta/VoxAltaVoiceProvider.swift::version` and ship as a SwiftVoxAlta minor bump (not a patch — this is a downstream-visible breaking transitive change).
+
+**Do not** relax the version constraint speculatively or in a "drive-by" dependency update. The pin exists so the migration happens as a deliberate, reviewable PR.
+
 ---
 
 ## Library API Surface
@@ -171,7 +190,7 @@ Implements SwiftHablare's `VoiceProvider` protocol with dual-mode routing.
 
 ```swift
 public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
-    public static let version = "0.10.9"
+    public static let version = "0.10.10"
 
     // VoiceProvider protocol properties
     public let providerId = "voxalta"

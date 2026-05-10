@@ -1,4 +1,4 @@
 /// Version information for the diga CLI.
 enum DigaVersion {
-  static let current = "0.10.9"
+  static let current = "0.10.10"
 }

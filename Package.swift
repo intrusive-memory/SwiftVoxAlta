@@ -21,8 +21,12 @@ let package = Package(
   dependencies: [
     .package(
       url: "https://github.com/intrusive-memory/SwiftHablare.git", .upToNextMajor(from: "6.1.1")),
+    // PINNED to 0.8.x line: mlx-audio-swift v0.9.0 is a breaking release
+    // (migrates from swift-tokenizers 0.5.x to 0.6.x). Bumping past 0.8.x
+    // requires call-site updates in SwiftVoxAlta — do not relax this constraint
+    // without a deliberate migration PR. See AGENTS.md → "Pending Breaking Upgrades".
     .package(
-      url: "https://github.com/intrusive-memory/mlx-audio-swift.git", .upToNextMajor(from: "0.8.2")),
+      url: "https://github.com/intrusive-memory/mlx-audio-swift.git", .upToNextMinor(from: "0.8.3")),
     .package(
       url: "https://github.com/intrusive-memory/SwiftAcervo.git", .upToNextMajor(from: "0.12.0")),
     .package(

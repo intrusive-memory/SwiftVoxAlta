@@ -419,7 +419,13 @@ public enum VoiceLockManager: Sendable {
     }
 
     if !currentChunk.isEmpty {
-      chunks.append(currentChunk)
+      // Trailing runt: merge backward into the previous chunk so we never emit
+      // a sub-minimumChunkSize tail (the in-loop logic only merges forward).
+      if currentChunk.count < minimumChunkSize, let last = chunks.popLast() {
+        chunks.append(last + " " + currentChunk)
+      } else {
+        chunks.append(currentChunk)
+      }
     }
 
     return chunks
