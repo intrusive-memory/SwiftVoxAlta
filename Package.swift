@@ -21,16 +21,25 @@ let package = Package(
   dependencies: [
     .package(
       url: "https://github.com/intrusive-memory/SwiftHablare.git", .upToNextMajor(from: "6.1.1")),
-    // PINNED to 0.8.x line: mlx-audio-swift v0.9.0 is a breaking release
-    // (migrates from swift-tokenizers 0.5.x to 0.6.x). Bumping past 0.8.x
-    // requires call-site updates in SwiftVoxAlta — do not relax this constraint
-    // without a deliberate migration PR. See AGENTS.md → "Pending Breaking Upgrades".
+    // PINNED to 0.8.x line. mlx-audio-swift 0.8.3 itself pins
+    // swift-tokenizers to `.upToNextMinor(from: "0.5.0")` (`>= 0.5.0, < 0.6.0`)
+    // because swift-tokenizers 0.6.x is a breaking release that swaps the
+    // pure-Swift tokenizer for a UniFFI-based Rust artifactbundle, which has
+    // known Xcode module-map / compile issues (even 0.6.2 only ships a
+    // "temporary fix"). A future mlx-audio-swift 0.9.0 will adopt that 0.6.x
+    // tokenizer; until upstream demonstrates the Xcode toolchain issue is
+    // genuinely resolved, the transitive bump cannot leak in here.
+    //
+    // SwiftVoxAlta has no direct `import Tokenizers` call sites — the risk
+    // is purely transitive toolchain compatibility (Metal-shader xcodebuild,
+    // SPM resolution under Xcode 26). Do not relax this constraint without a
+    // deliberate migration PR. See AGENTS.md → "Pending Breaking Upgrades".
     .package(
       url: "https://github.com/intrusive-memory/mlx-audio-swift.git", .upToNextMinor(from: "0.8.3")),
     .package(
-      url: "https://github.com/intrusive-memory/SwiftAcervo.git", .upToNextMajor(from: "0.12.0")),
+      url: "https://github.com/intrusive-memory/SwiftAcervo.git", .upToNextMajor(from: "0.13.1")),
     .package(
-      url: "https://github.com/intrusive-memory/SwiftTuberia.git", .upToNextMajor(from: "0.6.5")),
+      url: "https://github.com/intrusive-memory/SwiftTuberia.git", .upToNextMajor(from: "0.7.2")),
     .package(
       url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "1.7.1")),
     .package(

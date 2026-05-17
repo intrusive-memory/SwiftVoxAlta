@@ -2,7 +2,7 @@
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.10.11
+**Current Version**: 0.11.0
 
 ---
 
@@ -120,7 +120,7 @@ SwiftVoxAlta/
 │       ├── BuiltinVoices.swift        # 9 built-in CustomVoice preset speakers
 │       ├── DigaCommand.swift          # CLI entry point (@main, ArgumentParser)
 │       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
-│       ├── Version.swift              # Version constant (0.10.11)
+│       ├── Version.swift              # Version constant (0.11.0)
 │       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # 11 test files (library)
@@ -164,18 +164,19 @@ Fork from `intrusive-memory` org (not upstream). Includes:
 
 #### mlx-audio-swift `0.9.0` — swift-tokenizers 0.6.x migration
 
-**Status:** blocked. `Package.swift` pins to `.upToNextMinor(from: "0.8.3")` (`>= 0.8.3, < 0.9.0`) to prevent SPM from auto-resolving the breaking release.
+**Status:** blocked. `Package.swift` pins to `.upToNextMinor(from: "0.8.3")` (`>= 0.8.3, < 0.9.0`). Latest published mlx-audio-swift release is **v0.8.3** (2026-05-10); v0.9.0 does not exist yet — the pin is forward-looking to keep SPM from auto-resolving the breaking release once it lands.
 
-**What changes in 0.9.0:** mlx-audio-swift will migrate its `swift-tokenizers` dependency from the 0.5.x line to **0.6.x**, which is itself a breaking release. The 0.8.3 patch (mlx-audio-swift) explicitly tightened its own constraint to `.upToNextMinor(from: "0.5.0")` so the breaking transitive bump cannot leak in until callers (including SwiftVoxAlta) are migrated.
+**Why swift-tokenizers 0.6.x is the real blocker:** in 0.6.0 the maintainer replaces the pure-Swift tokenizer implementation with a **UniFFI-based Rust artifactbundle**. That artifactbundle has known Xcode module-map / compile issues — the 0.6.2 release still only ships a "temporary fix" for them. mlx-audio-swift 0.8.3 therefore tightened its own constraint from `.upToNextMajor(from: "0.5.0")` to `.upToNextMinor(from: "0.5.0")` (`>= 0.5.0, < 0.6.0`) so the breaking transitive bump cannot leak in until both upstream toolchain support stabilizes and direct callers have audited their use.
 
 **What SwiftVoxAlta will need to do** when we move to mlx-audio-swift 0.9.0:
 
-1. Audit every `import Tokenizers` / tokenizer call site in SwiftVoxAlta and any sibling library we pull (`SwiftHablare`, `SwiftBruja`, `SwiftAcervo`, `vox-format`).
-2. Apply the swift-tokenizers 0.5 → 0.6 API changes (signatures, async surface, and any renamed types — exact diff TBD when 0.9.0 release notes drop).
-3. Confirm no other transitive consumer is still on 0.5.x (a mixed graph will fail to resolve).
-4. Bump `Package.swift` from `.upToNextMinor(from: "0.8.3")` to a new `.upToNextMinor(from: "0.9.0")` (or `.upToNextMajor(from: "0.9.0")` once we trust the 0.9 line).
-5. Run the full Metal-shader build (`make build` / `make test`), not just `swift build`, before merging — tokenizer changes touch model loading paths.
-6. Update `Sources/SwiftVoxAlta/VoxAltaVoiceProvider.swift::version` and ship as a SwiftVoxAlta minor bump (not a patch — this is a downstream-visible breaking transitive change).
+1. Confirm upstream swift-tokenizers ships a release where the UniFFI/Rust-artifactbundle Xcode compile issues are *permanently* fixed (not the "temporary fix" disclaimer that 0.6.2 carries). Without this, Metal-shader xcodebuild and Xcode Cloud builds will break even though `swift build` may pass.
+2. Audit every `import Tokenizers` / tokenizer call site in SwiftVoxAlta and any sibling library we pull (`SwiftHablare`, `SwiftBruja`, `SwiftAcervo`, `vox-format`). As of 2026-05-16, SwiftVoxAlta has **zero direct `import Tokenizers`** call sites — the risk is purely transitive, but re-verify before each migration attempt.
+3. Apply the swift-tokenizers 0.5 → 0.6 API changes (signatures, async surface, and any renamed types — exact diff TBD when 0.9.0 release notes drop) at any call site discovered in step 2.
+4. Confirm no other transitive consumer in our graph is still on 0.5.x (a mixed graph will fail to resolve).
+5. Bump `Package.swift` from `.upToNextMinor(from: "0.8.3")` to a new `.upToNextMinor(from: "0.9.0")` (or `.upToNextMajor(from: "0.9.0")` once we trust the 0.9 line).
+6. Run the full Metal-shader build (`make build` / `make test`), not just `swift build`, before merging — tokenizer changes touch model loading paths and the Rust artifactbundle is exactly what breaks under xcodebuild.
+7. Update `Sources/SwiftVoxAlta/VoxAltaVoiceProvider.swift::version` and ship as a SwiftVoxAlta minor bump (not a patch — this is a downstream-visible breaking transitive change).
 
 **Do not** relax the version constraint speculatively or in a "drive-by" dependency update. The pin exists so the migration happens as a deliberate, reviewable PR.
 
@@ -189,7 +190,7 @@ Implements SwiftHablare's `VoiceProvider` protocol with dual-mode routing.
 
 ```swift
 public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
-    public static let version = "0.10.11"
+    public static let version = "0.11.0"
 
     // VoiceProvider protocol properties
     public let providerId = "voxalta"
