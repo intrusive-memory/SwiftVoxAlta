@@ -79,11 +79,11 @@ let package = Package(
     sibling(
       "SwiftAcervo",
       remote: "https://github.com/intrusive-memory/SwiftAcervo.git",
-      from: "0.12.0"),
+      from: "0.13.1"),
     sibling(
       "SwiftTuberia",
       remote: "https://github.com/intrusive-memory/SwiftTuberia.git",
-      from: "0.6.5"),
+      from: "0.7.2"),
     .package(
       url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "1.7.1")),
     sibling(
