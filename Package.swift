@@ -37,7 +37,7 @@ let package = Package(
     .package(
       url: "https://github.com/intrusive-memory/mlx-audio-swift.git", .upToNextMinor(from: "0.8.3")),
     .package(
-      url: "https://github.com/intrusive-memory/SwiftAcervo.git", .upToNextMajor(from: "0.13.1")),
+      url: "https://github.com/intrusive-memory/SwiftAcervo.git", .upToNextMajor(from: "0.14.0")),
     .package(
       url: "https://github.com/intrusive-memory/SwiftTuberia.git", .upToNextMajor(from: "0.7.2")),
     .package(
