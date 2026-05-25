@@ -2,7 +2,7 @@
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.11.1
+**Current Version**: 0.11.2
 
 ---
 
@@ -45,7 +45,7 @@ The pipeline is: `echada cast` creates a `.vox` file -> `diga --import-vox voice
 
 ## App Group configuration (required)
 
-This package depends on [SwiftAcervo](https://github.com/intrusive-memory/SwiftAcervo) for shared model storage. SwiftAcervo v0.10.0 resolves its App Group ID in this order: `ACERVO_APP_GROUP_ID` env var → `com.apple.security.application-groups` entitlement (macOS only) → `fatalError`. There is **no silent fallback**.
+This package depends on [SwiftAcervo](https://github.com/intrusive-memory/SwiftAcervo) for shared model storage. SwiftAcervo resolves its App Group ID in this order: `ACERVO_APP_GROUP_ID` env var → `com.apple.security.application-groups` entitlement (macOS only) → `fatalError`. There is **no silent fallback**.
 
 - **Signed UI apps (macOS / iOS)**: declare `com.apple.security.application-groups` with `group.intrusive-memory.models` in your `.entitlements` file. iOS apps additionally need `ACERVO_APP_GROUP_ID=group.intrusive-memory.models` in the launch environment.
 - **CLI tools, scripts, CI jobs, test runners**: export `ACERVO_APP_GROUP_ID=group.intrusive-memory.models` in the shell or job environment. The standard place is `~/.zprofile`:
@@ -429,7 +429,6 @@ public actor VoxAltaModelManager {
     public func loadModel(repo: String) async throws -> any SpeechGenerationModel
     public func loadModel(_ modelRepo: Qwen3TTSModelRepo) async throws -> any SpeechGenerationModel
     public func unloadModel()
-    public func migrateIfNeeded()                          // Legacy -> Acervo migration
     public nonisolated func isModelInAcervo(_ modelId: String) -> Bool
     public func checkMemory(forModelSizeBytes: Int) -> Bool   // Warning only, non-blocking
     public func validateMemory(forModelSizeBytes: Int) throws // Hard gate
@@ -679,7 +678,7 @@ diga -v voice.vox "Hello, world!"      # Synthesize directly (no import needed)
 
 ### App Group / ACERVO_APP_GROUP_ID (REQUIRED for all integrators)
 
-The `~/Library/SharedModels/` path above is the App Group container `group.intrusive-memory.models`. SwiftAcervo v0.10.0 resolves its App Group ID in this order: `ACERVO_APP_GROUP_ID` env var → `com.apple.security.application-groups` entitlement (macOS only) → `fatalError`. **There is no silent fallback.** If neither source is configured, `Acervo.sharedModelsDirectory` calls `fatalError` and the process traps immediately.
+The `~/Library/SharedModels/` path above is the App Group container `group.intrusive-memory.models`. SwiftAcervo resolves its App Group ID in this order: `ACERVO_APP_GROUP_ID` env var → `com.apple.security.application-groups` entitlement (macOS only) → `fatalError`. **There is no silent fallback.** If neither source is configured, `Acervo.sharedModelsDirectory` calls `fatalError` and the process traps immediately.
 
 #### Signed UI apps (macOS / iOS)
 
@@ -762,6 +761,12 @@ On CI (`GITHUB_ACTIONS` set):
 ---
 
 ## Recent Changes
+
+### Unreleased
+
+- **chore**: Bump SwiftAcervo pin `0.14.0` -> `0.16.0`
+- **refactor**: Remove `VoxAltaModelManager.migrateIfNeeded()` and its call site; `Acervo.migrateFromLegacyPaths()` is no longer part of the SwiftAcervo 0.16.x public surface. App Group resolution handles fresh installs directly.
+- **docs**: Drop stale "SwiftAcervo v0.10.0" version string from README and AGENTS
 
 ### v0.10.1
 

@@ -255,9 +255,6 @@ public actor VoxAltaModelManager {
     _currentModelRepo
   }
 
-  /// Whether legacy model migration has already been attempted this session.
-  private var migrationAttempted = false
-
   /// Initializes an empty model manager with no model loaded.
   ///
   /// Triggers Acervo component registration on first instantiation via
@@ -268,30 +265,6 @@ public actor VoxAltaModelManager {
   }
 
   // MARK: - Acervo Integration
-
-  /// Runs Acervo's one-time migration from any legacy cache layout to whatever
-  /// shared directory Acervo currently resolves to. The destination path is
-  /// owned by Acervo (`Acervo.sharedModelsDirectory`) — VoxAlta does not assume
-  /// or hardcode it.
-  public func migrateIfNeeded() {
-    guard !migrationAttempted else { return }
-    migrationAttempted = true
-    do {
-      let migrated = try Acervo.migrateFromLegacyPaths()
-      if !migrated.isEmpty {
-        let destination = Acervo.sharedModelsDirectory.path
-        FileHandle.standardError.write(
-          Data(
-            "Migrated \(migrated.count) model(s) to \(destination)\n".utf8
-          ))
-      }
-    } catch {
-      FileHandle.standardError.write(
-        Data(
-          "Warning: model migration failed: \(error.localizedDescription)\n".utf8
-        ))
-    }
-  }
 
   /// Checks whether a model is available in Acervo's shared directory.
   ///
@@ -451,9 +424,6 @@ public actor VoxAltaModelManager {
   /// the nonisolated Task boundary (the model itself is non-Sendable).
   private func _performLoad(repo: String) async throws -> LoadedModelBox {
     performLoadInvocationCount += 1
-
-    // One-time migration from legacy cache to Acervo shared directory
-    migrateIfNeeded()
 
     // Unload current model if switching repos
     if cachedModel != nil {
