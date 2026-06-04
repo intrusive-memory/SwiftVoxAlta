@@ -2,8 +2,8 @@ import Foundation
 import Testing
 import VoxFormat
 
-@testable import SwiftVoxAlta
 @testable import DigaCLICore
+@testable import SwiftVoxAlta
 
 @Suite("Diga VOX Integration Tests", .acervoEnvironment)
 struct DigaVoxIntegrationTests {
