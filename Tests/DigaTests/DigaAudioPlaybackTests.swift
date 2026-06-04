@@ -2,7 +2,7 @@ import AVFoundation
 import Foundation
 import Testing
 
-@testable import diga
+@testable import DigaCLICore
 
 // MARK: - WAVHeaderParser Tests
 

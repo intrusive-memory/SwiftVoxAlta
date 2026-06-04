@@ -2,9 +2,17 @@ import ArgumentParser
 import Foundation
 import SwiftVoxAlta
 
-@main
-struct DigaCommand: AsyncParsableCommand {
-  static let configuration = CommandConfiguration(
+// `@available` is required here because the executable enters this async root
+// command via top-level `await DigaCommand.main()` in `Sources/diga/main.swift`
+// instead of the `@main` macro. The `@main` macro would otherwise synthesize
+// this annotation onto the synthesized entry point; calling `.main()` directly
+// loses that, so ArgumentParser's async runtime entry point needs the command
+// itself to declare an availability floor. See TODO-cli-bundling.md.
+@available(macOS 10.15, macCatalyst 13, iOS 13, tvOS 13, watchOS 6, *)
+public struct DigaCommand: AsyncParsableCommand {
+  public init() {}
+
+  public static let configuration = CommandConfiguration(
     commandName: "diga",
     abstract: "On-device neural text-to-speech — a drop-in replacement for /usr/bin/say.",
     version: "diga \(DigaVersion.current)"
@@ -13,41 +21,41 @@ struct DigaCommand: AsyncParsableCommand {
   // MARK: - Voice Management Flags
 
   @Flag(name: .long, help: "List all available voices and exit.")
-  var voices: Bool = false
+  public var voices: Bool = false
 
   @Option(name: .long, help: "Import a voice from a .vox file: --import-vox voice.vox")
-  var importVox: String?
+  public var importVox: String?
 
   // MARK: - Model Management Flags
 
   @Option(
     name: .long,
     help: "Override the auto-selected TTS model (0.6b, 1.7b, or a HuggingFace model ID).")
-  var model: String?
+  public var model: String?
 
   // MARK: - Output Flags
 
   @Option(name: .shortAndLong, help: "Write audio to a file instead of playing through speakers.")
-  var output: String?
+  public var output: String?
 
   @Option(name: .shortAndLong, help: "Read input text from a file (use '-' for stdin).")
-  var file: String?
+  public var file: String?
 
   @Option(
     name: .long,
     help:
       "Override the output audio format (wav, aiff, m4a). Inferred from file extension if not set.")
-  var fileFormat: String?
+  public var fileFormat: String?
 
   // MARK: - Voice Selection
 
   @Option(name: .shortAndLong, help: "Voice name to use for synthesis. Use '-v ?' to list voices.")
-  var voice: String?
+  public var voice: String?
 
   @Option(
     name: .long,
     help: "Performance direction (e.g., 'speak softly', 'whisper'). Applied to all chunks.")
-  var instruct: String?
+  public var instruct: String?
 
   // MARK: - Generation Settings
 
@@ -57,16 +65,16 @@ struct DigaCommand: AsyncParsableCommand {
       "Target maximum duration (seconds) per TTS chunk. Long inputs are split at sentence boundaries into chunks no longer than this; shorter values produce stronger prosody anchors but more inter-chunk pauses. Must be > 0. To pass a value that begins with '-' (e.g. an explicit negative), use the '=' form: --chunk-target-duration=-5. Default: \(GenerationSettings.default.chunkTargetDuration)s if not set."
     )
   )
-  var chunkTargetDuration: TimeInterval?
+  public var chunkTargetDuration: TimeInterval?
 
   // MARK: - Positional Arguments
 
   @Argument(help: "Text to speak.")
-  var positionalArgs: [String] = []
+  public var positionalArgs: [String] = []
 
   // MARK: - Run
 
-  mutating func run() async throws {
+  public mutating func run() async throws {
     // -v ? lists voices and exits.
     if voice == "?" {
       try runListVoices()
@@ -353,6 +361,25 @@ struct DigaCommand: AsyncParsableCommand {
     } else {
       print("Voice \"\(result.name)\" imported (clone prompt will generate on first use).")
     }
+  }
+
+  // MARK: - Async Entry Point
+
+  /// Parses command-line arguments and runs the command asynchronously, then
+  /// exits — the library-side equivalent of `@main`.
+  ///
+  /// The thin `diga` executable (`Sources/diga/main.swift`) calls this from
+  /// top-level `await`. It exists because the *async* `AsyncParsableCommand`
+  /// overloads of `main()` / `main(_:)` are gated behind
+  /// `@available(macOS 10.15, …)`. Top-level code in a `main.swift` is not an
+  /// availability-annotated scope, so a bare `await DigaCommand.main()` there
+  /// resolves to the *synchronous* `ParsableCommand.main()` overload, which
+  /// detects the async root at runtime and aborts with "Asynchronous root
+  /// command needs availability annotation." Routing through this annotated
+  /// method puts the call in an availability-satisfied context so the async
+  /// overload is selected. See TODO-cli-bundling.md.
+  public static func runAsMain() async {
+    await Self.main(nil)
   }
 }
 
