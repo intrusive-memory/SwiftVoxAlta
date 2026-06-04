@@ -3,7 +3,7 @@ import Foundation
 import SwiftVoxAlta
 import Testing
 
-@testable import diga
+@testable import DigaCLICore
 
 // MARK: - Sprint 7: CLI Integration + Fallback Tests
 
