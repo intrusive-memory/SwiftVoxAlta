@@ -2,7 +2,7 @@ import Foundation
 import SwiftAcervo
 import Testing
 
-@testable import diga
+@testable import DigaCLICore
 
 /// End-to-end binary integration tests.
 ///

@@ -13,6 +13,10 @@ let package = Package(
       name: "SwiftVoxAlta",
       targets: ["SwiftVoxAlta"]
     ),
+    .library(
+      name: "DigaCLICore",
+      targets: ["DigaCLICore"]
+    ),
     .executable(
       name: "diga",
       targets: ["diga"]
@@ -37,7 +41,7 @@ let package = Package(
     .package(
       url: "https://github.com/intrusive-memory/mlx-audio-swift.git", .upToNextMinor(from: "0.8.6")),
     .package(
-      url: "https://github.com/intrusive-memory/SwiftAcervo.git", .upToNextMajor(from: "0.16.1")),
+      url: "https://github.com/intrusive-memory/SwiftAcervo.git", .upToNextMajor(from: "0.19.2")),
     .package(
       url: "https://github.com/intrusive-memory/SwiftTuberia.git", .upToNextMajor(from: "0.7.4")),
     .package(
@@ -60,12 +64,22 @@ let package = Package(
         .enableUpcomingFeature("StrictConcurrency")
       ]
     ),
-    .executableTarget(
-      name: "diga",
+    .target(
+      name: "DigaCLICore",
       dependencies: [
         "SwiftVoxAlta",
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
         .product(name: "SwiftAcervo", package: "SwiftAcervo"),
+      ],
+      swiftSettings: [
+        .enableUpcomingFeature("StrictConcurrency")
+      ]
+    ),
+    .executableTarget(
+      name: "diga",
+      dependencies: [
+        "DigaCLICore",
+        .product(name: "ArgumentParser", package: "swift-argument-parser"),
       ],
       path: "Sources/diga",
       swiftSettings: [
@@ -87,7 +101,7 @@ let package = Package(
     .testTarget(
       name: "DigaTests",
       dependencies: [
-        "diga",
+        "DigaCLICore",
         "SwiftVoxAlta",
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
         .product(name: "SwiftAcervo", package: "SwiftAcervo"),
