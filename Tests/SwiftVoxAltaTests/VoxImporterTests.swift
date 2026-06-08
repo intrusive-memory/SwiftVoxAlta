@@ -273,4 +273,114 @@ struct VoxImporterTests {
       try VoxImporter.importVox(from: fakeURL)
     }
   }
+
+  // MARK: - Language-Aware Import (vox-format 0.4.0)
+
+  /// Helper: write default + per-language clone prompt & sample audio for a model.
+  private func writeLanguageVox(
+    languages: [String],
+    defaultCloneData: Data,
+    defaultSampleData: Data,
+    languageData: (clone: Data, sample: Data),
+    in directory: URL
+  ) throws -> URL {
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let vox = VoxFile(name: "LangImport", description: "Language-aware import fixture.")
+
+    try VoxExporter.addClonePrompt(to: vox, data: defaultCloneData, modelRepo: .base1_7B)
+    try VoxExporter.addSampleAudio(to: vox, data: defaultSampleData, modelRepo: .base1_7B)
+    for lang in languages {
+      try VoxExporter.addClonePrompt(
+        to: vox, data: languageData.clone, modelRepo: .base1_7B, language: lang)
+      try VoxExporter.addSampleAudio(
+        to: vox, data: languageData.sample, modelRepo: .base1_7B, language: lang)
+    }
+
+    let voxURL = directory.appendingPathComponent("lang.vox")
+    try vox.write(to: voxURL)
+    return voxURL
+  }
+
+  @Test("importVox(language:) returns the language-specific clone prompt and sample")
+  func importLanguageExactMatch() throws {
+    let tempDir = makeTempDir()
+    defer { cleanup(tempDir) }
+
+    let esClone = Data(repeating: 0xE5, count: 64)
+    let esSample = Data(repeating: 0x5E, count: 96)
+    let voxURL = try writeLanguageVox(
+      languages: ["es"],
+      defaultCloneData: Data(repeating: 0x00, count: 64),
+      defaultSampleData: Data(repeating: 0x11, count: 96),
+      languageData: (clone: esClone, sample: esSample),
+      in: tempDir)
+
+    let result = try VoxImporter.importVox(from: voxURL, modelQuery: "1.7b", language: "es")
+    #expect(result.clonePromptData == esClone)
+    #expect(result.sampleAudioData == esSample)
+    #expect(result.availableLanguages.contains("es"))
+  }
+
+  @Test("importVox(language:) falls back to default when the language is absent")
+  func importLanguageFallsBackToDefault() throws {
+    let tempDir = makeTempDir()
+    defer { cleanup(tempDir) }
+
+    let defaultClone = Data(repeating: 0x22, count: 64)
+    let defaultSample = Data(repeating: 0x33, count: 96)
+    // Only a default entry, no language-specific data.
+    let voxURL = try writeLanguageVox(
+      languages: [],
+      defaultCloneData: defaultClone,
+      defaultSampleData: defaultSample,
+      languageData: (clone: Data(), sample: Data()),
+      in: tempDir)
+
+    let result = try VoxImporter.importVox(from: voxURL, modelQuery: "1.7b", language: "es")
+    #expect(result.clonePromptData == defaultClone, "must fall back to default, not nil")
+    #expect(result.sampleAudioData == defaultSample)
+  }
+
+  @Test("importVox(language:) applies base-language fallback (fr-FR -> fr)")
+  func importLanguageBaseFallback() throws {
+    let tempDir = makeTempDir()
+    defer { cleanup(tempDir) }
+
+    let frClone = Data(repeating: 0xF7, count: 64)
+    let frSample = Data(repeating: 0x7F, count: 96)
+    let voxURL = try writeLanguageVox(
+      languages: ["fr"],
+      defaultCloneData: Data(repeating: 0x00, count: 64),
+      defaultSampleData: Data(repeating: 0x11, count: 96),
+      languageData: (clone: frClone, sample: frSample),
+      in: tempDir)
+
+    // Querying fr-FR should resolve to the fr entry per the locked fallback contract.
+    let result = try VoxImporter.importVox(from: voxURL, modelQuery: "1.7b", language: "fr-FR")
+    #expect(result.clonePromptData == frClone)
+    #expect(result.sampleAudioData == frSample)
+  }
+
+  @Test("importVox(language: nil) and the legacy overload resolve identically")
+  func importLanguageNilMatchesLegacy() throws {
+    let tempDir = makeTempDir()
+    defer { cleanup(tempDir) }
+
+    let defaultClone = Data(repeating: 0x44, count: 64)
+    let defaultSample = Data(repeating: 0x55, count: 96)
+    let voxURL = try writeLanguageVox(
+      languages: ["es"],
+      defaultCloneData: defaultClone,
+      defaultSampleData: defaultSample,
+      languageData: (clone: Data(repeating: 0x99, count: 64), sample: Data(repeating: 0x88, count: 96)),
+      in: tempDir)
+
+    let legacy = try VoxImporter.importVox(from: voxURL, modelQuery: "1.7b")
+    let nilLang = try VoxImporter.importVox(from: voxURL, modelQuery: "1.7b", language: nil)
+    #expect(legacy.clonePromptData == nilLang.clonePromptData)
+    #expect(legacy.sampleAudioData == nilLang.sampleAudioData)
+    // Both select the language-less default.
+    #expect(nilLang.clonePromptData == defaultClone)
+    #expect(nilLang.sampleAudioData == defaultSample)
+  }
 }

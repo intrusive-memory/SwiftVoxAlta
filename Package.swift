@@ -93,7 +93,7 @@ let package = Package(
     sibling(
       "vox-format",
       remote: "https://github.com/intrusive-memory/vox-format.git",
-      from: "0.3.1"),
+      from: "0.4.0"),
   ],
   targets: [
     .target(
