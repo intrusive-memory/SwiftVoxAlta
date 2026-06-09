@@ -211,4 +211,86 @@ struct VoxExporterTests {
     #expect(readBack[VoxExporter.clonePromptPath(for: .base1_7B)]?.data == prompt1_7B)
     #expect(readBack[VoxExporter.clonePromptPath(for: .base0_6B)]?.data == prompt0_6B)
   }
+
+  // MARK: - Language-Aware Path Helpers
+
+  @Test("clonePromptPath with nil language is the language-less path")
+  func clonePromptPathNilLanguage() {
+    #expect(
+      VoxExporter.clonePromptPath(for: .base1_7B, language: nil)
+        == "embeddings/qwen3-tts/1.7b/clone-prompt.bin")
+  }
+
+  @Test("clonePromptPath with a language inserts the <lang> segment")
+  func clonePromptPathWithLanguage() {
+    #expect(
+      VoxExporter.clonePromptPath(for: .base1_7B, language: "es")
+        == "embeddings/qwen3-tts/1.7b/es/clone-prompt.bin")
+  }
+
+  @Test("clonePromptPath with \"default\" resolves to the language-less path")
+  func clonePromptPathDefaultLanguage() {
+    #expect(
+      VoxExporter.clonePromptPath(for: .base1_7B, language: "default")
+        == VoxExporter.clonePromptPath(for: .base1_7B, language: nil))
+  }
+
+  @Test("sampleAudioPath language behavior mirrors clonePromptPath")
+  func sampleAudioPathLanguage() {
+    #expect(
+      VoxExporter.sampleAudioPath(for: .base1_7B, language: nil)
+        == "embeddings/qwen3-tts/1.7b/sample-audio.wav")
+    #expect(
+      VoxExporter.sampleAudioPath(for: .base1_7B, language: "es")
+        == "embeddings/qwen3-tts/1.7b/es/sample-audio.wav")
+    #expect(
+      VoxExporter.sampleAudioPath(for: .base1_7B, language: "default")
+        == VoxExporter.sampleAudioPath(for: .base1_7B, language: nil))
+  }
+
+  // MARK: - Language-Aware Write Operations
+
+  @Test("addClonePrompt with a language writes the <lang> path, key, and metadata")
+  func addClonePromptWithLanguage() throws {
+    let vox = VoxFile(name: "LangTest", description: "Testing language-aware clone prompt.")
+    let promptData = Data(repeating: 0x45, count: 96)
+    try VoxExporter.addClonePrompt(to: vox, data: promptData, modelRepo: .base1_7B, language: "es")
+
+    // Data is at the language-specific path.
+    #expect(vox[VoxExporter.clonePromptPath(for: .base1_7B, language: "es")]?.data == promptData)
+
+    // A language-distinct embedding key exists and carries the language tag.
+    let entry = vox.manifest.embeddingEntries?["qwen3-tts-1.7b-es-clone-prompt"]
+    #expect(entry != nil)
+    #expect(entry?.language == "es")
+  }
+
+  @Test("default and per-language clone prompts coexist for the same model")
+  func addClonePromptDefaultAndLanguageCoexist() throws {
+    let vox = VoxFile(name: "CoexistTest", description: "Default + es must not collide.")
+    let defaultData = Data(repeating: 0x01, count: 64)
+    let esData = Data(repeating: 0x02, count: 64)
+
+    try VoxExporter.addClonePrompt(to: vox, data: defaultData, modelRepo: .base1_7B)
+    try VoxExporter.addClonePrompt(to: vox, data: esData, modelRepo: .base1_7B, language: "es")
+
+    // Two distinct entries, neither overwriting the other.
+    #expect(vox[VoxExporter.clonePromptPath(for: .base1_7B)]?.data == defaultData)
+    #expect(vox[VoxExporter.clonePromptPath(for: .base1_7B, language: "es")]?.data == esData)
+    #expect(vox.manifest.embeddingEntries?["qwen3-tts-1.7b-clone-prompt"] != nil)
+    #expect(vox.manifest.embeddingEntries?["qwen3-tts-1.7b-es-clone-prompt"] != nil)
+  }
+
+  @Test("addClonePrompt with nil language is byte-for-byte the legacy path and key")
+  func addClonePromptNilLanguageUnchanged() throws {
+    let vox = VoxFile(name: "RegressionTest", description: "nil language == legacy behavior.")
+    let promptData = Data(repeating: 0x33, count: 80)
+    try VoxExporter.addClonePrompt(to: vox, data: promptData, modelRepo: .base1_7B, language: nil)
+
+    // Same path and key the pre-language code produced.
+    #expect(vox[VoxExporter.clonePromptPath(for: .base1_7B)]?.data == promptData)
+    let entry = vox.manifest.embeddingEntries?["qwen3-tts-1.7b-clone-prompt"]
+    #expect(entry != nil)
+    #expect(entry?.language == nil)
+  }
 }

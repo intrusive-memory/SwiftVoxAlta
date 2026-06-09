@@ -2,7 +2,7 @@
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.12.0
+**Current Version**: 0.13.0
 
 ---
 
@@ -120,7 +120,7 @@ SwiftVoxAlta/
 │       ├── BuiltinVoices.swift        # 9 built-in CustomVoice preset speakers
 │       ├── DigaCommand.swift          # CLI entry point (@main, ArgumentParser)
 │       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
-│       ├── Version.swift              # Version constant (0.12.0)
+│       ├── Version.swift              # Version constant (0.13.0)
 │       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # 11 test files (library)
@@ -190,7 +190,7 @@ Implements SwiftHablare's `VoiceProvider` protocol with dual-mode routing.
 
 ```swift
 public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
-    public static let version = "0.12.0"
+    public static let version = "0.13.0"
 
     // VoiceProvider protocol properties
     public let providerId = "voxalta"
@@ -761,6 +761,13 @@ On CI (`GITHUB_ACTIONS` set):
 ---
 
 ## Recent Changes
+
+### v0.13.0
+
+- **feat**: Optional per-language voices. `VoiceLockManager.createLock` gains a `language:` parameter (BCP 47, defaults to `"en"`) that is forwarded to the speaker encoder — the load-bearing fix for non-English (e.g. Spanish) clone-prompt pronunciation.
+- **feat**: `VoxExporter` write paths (`clonePromptPath`/`sampleAudioPath`, `addClonePrompt`/`addSampleAudio`, and the `update*` wrappers) accept an optional `language:`; non-nil inserts a `<lang>` path segment, sets `metadata["language"]`, and keeps embedding keys language-distinct. `nil`/`"default"` is byte-for-byte the prior behavior.
+- **feat**: `VoxImporter.importVox(from:modelQuery:language:)` overload delegates language selection and fallback to vox-format's matchers; the legacy 2-arg form is preserved as a forwarder. Exposes `availableLanguages` via vox-format's discovery helper.
+- **chore**: Bump vox-format pin `0.3.1` -> `0.4.0` (per-language `EmbeddingEntry.language` + language-aware matchers).
 
 ### Unreleased
 

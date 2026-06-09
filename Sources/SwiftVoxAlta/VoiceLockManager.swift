@@ -51,6 +51,11 @@ public enum VoiceLockManager: Sendable {
   ///   - sampleSentence: The text that was spoken in the candidate audio. If nil,
   ///     falls back to the default reference text.
   ///   - modelRepo: The Base model variant to use for cloning. Defaults to `.base1_7B`.
+  ///   - language: BCP 47 language tag (e.g. `"en"`, `"es"`, `"fr-FR"`) of the reference
+  ///     audio / `sampleSentence`. Forwarded to the speaker encoder so the tokenizer aligns
+  ///     the reference text against the reference audio. Defaults to `"en"` (the previous
+  ///     hardcoded value) for backward compatibility. The caller (echada) is responsible for
+  ///     supplying a `sampleSentence` in the same language; `createLock` does not translate.
   /// - Returns: A `VoiceLock` containing the serialized clone prompt.
   /// - Throws: `VoxAltaError.cloningFailed` if clone prompt extraction fails,
   ///           `VoxAltaError.modelNotAvailable` if the Base model cannot be loaded.
@@ -60,7 +65,8 @@ public enum VoiceLockManager: Sendable {
     designInstruction: String,
     modelManager: VoxAltaModelManager,
     sampleSentence: String? = nil,
-    modelRepo: Qwen3TTSModelRepo = .base1_7B
+    modelRepo: Qwen3TTSModelRepo = .base1_7B,
+    language: String = "en"
   ) async throws -> VoiceLock {
     // Load Base model (supports voice cloning)
     let model = try await modelManager.loadModel(modelRepo)
@@ -88,7 +94,7 @@ public enum VoiceLockManager: Sendable {
       clonePrompt = try qwenModel.createVoiceClonePrompt(
         refAudio: refAudio,
         refText: sampleSentence ?? defaultReferenceSampleText,
-        language: "en"
+        language: language
       )
     } catch {
       throw VoxAltaError.cloningFailed(

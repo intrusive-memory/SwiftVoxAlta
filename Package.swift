@@ -47,7 +47,7 @@ let package = Package(
     .package(
       url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "1.7.1")),
     .package(
-      url: "https://github.com/intrusive-memory/vox-format.git", .upToNextMajor(from: "0.3.1")),
+      url: "https://github.com/intrusive-memory/vox-format.git", .upToNextMajor(from: "0.4.0")),
   ],
   targets: [
     .target(
