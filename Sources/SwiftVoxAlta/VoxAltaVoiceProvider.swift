@@ -30,7 +30,7 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
   // MARK: - Version
 
   /// Current version of the SwiftVoxAlta library
-  public static let version = "0.12.0-dev"
+  public static let version = "0.13.0"
 
   // MARK: - VoiceProvider Metadata
 

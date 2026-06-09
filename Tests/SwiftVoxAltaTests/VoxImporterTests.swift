@@ -372,7 +372,9 @@ struct VoxImporterTests {
       languages: ["es"],
       defaultCloneData: defaultClone,
       defaultSampleData: defaultSample,
-      languageData: (clone: Data(repeating: 0x99, count: 64), sample: Data(repeating: 0x88, count: 96)),
+      languageData: (
+        clone: Data(repeating: 0x99, count: 64), sample: Data(repeating: 0x88, count: 96)
+      ),
       in: tempDir)
 
     let legacy = try VoxImporter.importVox(from: voxURL, modelQuery: "1.7b")
