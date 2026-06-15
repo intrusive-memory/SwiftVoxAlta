@@ -51,11 +51,11 @@ public enum VoiceLockManager: Sendable {
   ///   - sampleSentence: The text that was spoken in the candidate audio. If nil,
   ///     falls back to the default reference text.
   ///   - modelRepo: The Base model variant to use for cloning. Defaults to `.base1_7B`.
-  ///   - language: BCP 47 language tag (e.g. `"en"`, `"es"`, `"fr-FR"`) of the reference
-  ///     audio / `sampleSentence`. Forwarded to the speaker encoder so the tokenizer aligns
-  ///     the reference text against the reference audio. Defaults to `"en"` (the previous
-  ///     hardcoded value) for backward compatibility. The caller (echada) is responsible for
-  ///     supplying a `sampleSentence` in the same language; `createLock` does not translate.
+  ///   - language: The ``TTSLanguage`` of the reference audio / `sampleSentence`. Forwarded
+  ///     to the speaker encoder (as `language.modelName`) so the tokenizer aligns the
+  ///     reference text against the reference audio. Defaults to `.english`. The caller
+  ///     (echada) is responsible for supplying a `sampleSentence` in the same language;
+  ///     `createLock` does not translate.
   /// - Returns: A `VoiceLock` containing the serialized clone prompt.
   /// - Throws: `VoxAltaError.cloningFailed` if clone prompt extraction fails,
   ///           `VoxAltaError.modelNotAvailable` if the Base model cannot be loaded.
@@ -66,7 +66,7 @@ public enum VoiceLockManager: Sendable {
     modelManager: VoxAltaModelManager,
     sampleSentence: String? = nil,
     modelRepo: Qwen3TTSModelRepo = .base1_7B,
-    language: String = "en"
+    language: TTSLanguage = .english
   ) async throws -> VoiceLock {
     // Load Base model (supports voice cloning)
     let model = try await modelManager.loadModel(modelRepo)
@@ -89,12 +89,13 @@ public enum VoiceLockManager: Sendable {
     }
 
     // Create voice clone prompt
+    language.logConsumption(stage: "voicelock.createLock", detail: characterName)
     let clonePrompt: VoiceClonePrompt
     do {
       clonePrompt = try qwenModel.createVoiceClonePrompt(
         refAudio: refAudio,
         refText: sampleSentence ?? defaultReferenceSampleText,
-        language: language
+        language: language.modelName
       )
     } catch {
       throw VoxAltaError.cloningFailed(
@@ -136,7 +137,7 @@ public enum VoiceLockManager: Sendable {
   /// - Parameters:
   ///   - context: The generation context containing the phrase and optional metadata.
   ///   - voiceLock: The voice lock containing the serialized clone prompt.
-  ///   - language: The language code for generation. Defaults to "en".
+  ///   - language: The ``TTSLanguage`` for generation. Required — there is no default.
   ///   - modelManager: The model manager used to load the Base model.
   ///   - modelRepo: The Base model variant to use for generation. Defaults to `.base1_7B`.
   ///   - cache: Optional voice cache for clone prompt caching.
@@ -147,7 +148,7 @@ public enum VoiceLockManager: Sendable {
   public static func generateAudio(
     context: GenerationContext,
     voiceLock: VoiceLock,
-    language: String = "en",
+    language: TTSLanguage,
     modelManager: VoxAltaModelManager,
     modelRepo: Qwen3TTSModelRepo = .base1_7B,
     cache: VoxAltaVoiceCache? = nil,
@@ -186,7 +187,7 @@ public enum VoiceLockManager: Sendable {
   /// - Parameters:
   ///   - text: The text to synthesize.
   ///   - voiceLock: The voice lock containing the serialized clone prompt.
-  ///   - language: The language code for generation. Defaults to "en".
+  ///   - language: The ``TTSLanguage`` for generation. Required — there is no default.
   ///   - instruct: Optional performance direction for the TTS model (e.g., "Speak softly").
   ///     Forwarded to Qwen3-TTS as the `instruct` parameter to influence vocal delivery.
   ///   - modelManager: The model manager used to load the Base model.
@@ -200,7 +201,7 @@ public enum VoiceLockManager: Sendable {
   public static func generateAudio(
     text: String,
     voiceLock: VoiceLock,
-    language: String = "en",
+    language: TTSLanguage,
     instruct: String? = nil,
     modelManager: VoxAltaModelManager,
     modelRepo: Qwen3TTSModelRepo = .base1_7B,
@@ -256,6 +257,7 @@ public enum VoiceLockManager: Sendable {
     if let instruct = instruct {
       VoiceLockManagerLogger.log("📝 Instruct: \"\(instruct)\"")
     }
+    language.logConsumption(stage: "voicelock.generate", detail: voiceLock.characterName)
     VoiceLockManagerLogger.log(
       "🗣️  Text (\(text.count) chars): \"\(text.prefix(100))\(text.count > 100 ? "..." : "")\"")
 
@@ -289,10 +291,11 @@ public enum VoiceLockManager: Sendable {
             "  ↳ Chunk \(i + 1)/\(chunks.count) (\(chunk.count) chars): \"\(preview)\(suffix)\""
           )
 
+          TTSLanguage.trace("voicelock.→fork", "\(language.modelName) (chunk)")
           let rawChunkArray = try qwenModel.generateWithClonePrompt(
             text: chunk,
             clonePrompt: clonePrompt,
-            language: language,
+            language: language.modelName,
             instruct: instruct,
             temperature: settings.temperature,
             topP: settings.topP,
@@ -314,10 +317,11 @@ public enum VoiceLockManager: Sendable {
 
         audioArray = MLX.concatenated(arrays, axis: 0)
       } else {
+        TTSLanguage.trace("voicelock.→fork", language.modelName)
         audioArray = try qwenModel.generateWithClonePrompt(
           text: text,
           clonePrompt: clonePrompt,
-          language: language,
+          language: language.modelName,
           instruct: instruct,
           temperature: settings.temperature,
           topP: settings.topP,

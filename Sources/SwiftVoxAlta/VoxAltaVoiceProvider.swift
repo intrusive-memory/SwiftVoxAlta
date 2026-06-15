@@ -30,7 +30,7 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
   // MARK: - Version
 
   /// Current version of the SwiftVoxAlta library
-  public static let version = "0.13.1"
+  public static let version = "0.14.0"
 
   // MARK: - VoiceProvider Metadata
 
@@ -200,12 +200,18 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
   public func generateAudio(context: GenerationContext, voiceId: String, languageCode: String)
     async throws -> Data
   {
+    // Normalize the SwiftHablare-supplied String to a model-aligned TTSLanguage
+    // exactly once, here at the provider boundary. Throws on unsupported tags
+    // instead of silently free-running on an un-conditioned default.
+    let language = try TTSLanguage(languageCode: languageCode)
+    language.logConsumption(stage: "provider", detail: "voiceId=\(voiceId)")
+
     // Route 1: CustomVoice preset speaker (fast path)
     if let speaker = presetSpeaker(for: voiceId) {
       return try await generateWithPresetSpeaker(
         text: context.phrase,
         speakerName: speaker.mlxSpeaker,
-        language: languageCode,
+        language: language,
         instruct: context.instruct
       )
     }
@@ -232,7 +238,7 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     return try await VoiceLockManager.generateAudio(
       context: context,
       voiceLock: voiceLock,
-      language: languageCode,
+      language: language,
       modelManager: modelManager,
       modelRepo: baseModelRepo,
       cache: voiceCache,
@@ -388,13 +394,13 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
   /// - Parameters:
   ///   - text: The text to synthesize.
   ///   - speakerName: The preset speaker ID (e.g., "ryan").
-  ///   - language: The language code for generation.
+  ///   - language: The ``TTSLanguage`` for generation.
   ///   - instruct: Optional performance direction for the TTS model.
   /// - Returns: WAV format audio data (24kHz, 16-bit PCM, mono).
   private func generateWithPresetSpeaker(
     text: String,
     speakerName: String,
-    language: String,
+    language: TTSLanguage,
     instruct: String? = nil
   ) async throws -> Data {
     let model = try await modelManager.loadModel(customVoiceModelRepo)
@@ -426,12 +432,13 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
       arrays.reserveCapacity(chunks.count * 2)
 
       for (i, chunk) in chunks.enumerated() {
+        TTSLanguage.trace("provider.preset.→fork", "\(language.modelName) (chunk)")
         let raw = try await qwenModel.generate(
           text: chunk,
           voice: speakerName,
           refAudio: nil,
           refText: nil,
-          language: language,
+          language: language.modelName,
           instruct: instruct,
           generationParameters: GenerateParameters()
         )
@@ -445,12 +452,13 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
 
       audioArray = MLX.concatenated(arrays, axis: 0)
     } else {
+      TTSLanguage.trace("provider.preset.→fork", language.modelName)
       audioArray = try await qwenModel.generate(
         text: text,
         voice: speakerName,
         refAudio: nil,
         refText: nil,
-        language: language,
+        language: language.modelName,
         instruct: instruct,
         generationParameters: GenerateParameters()
       )
