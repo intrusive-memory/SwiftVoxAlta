@@ -367,7 +367,7 @@ actor DigaEngine {
         wavData = try await VoiceLockManager.generateAudio(
           context: context,
           voiceLock: voiceLock,
-          language: "en",
+          language: .english,
           modelManager: voxAltaModelManager,
           modelRepo: resolvedBaseModelRepo,
           cache: voiceCache,
@@ -466,7 +466,7 @@ actor DigaEngine {
       let wavData = try await VoiceLockManager.generateAudio(
         context: context,
         voiceLock: voiceLock,
-        language: "en",
+        language: .english,
         modelManager: voxAltaModelManager,
         modelRepo: resolvedBaseModelRepo,
         cache: voiceCache,
@@ -537,7 +537,7 @@ actor DigaEngine {
           voice: speakerName,
           refAudio: nil,
           refText: nil,
-          language: "en",
+          language: TTSLanguage.english.modelName,
           instruct: instruct,
           generationParameters: GenerateParameters()
         )
