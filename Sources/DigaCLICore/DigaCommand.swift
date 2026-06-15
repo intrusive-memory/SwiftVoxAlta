@@ -29,7 +29,8 @@ public struct DigaCommand: AsyncParsableCommand {
   @Option(
     name: [.customShort("l"), .long],
     help:
-      "BCP-47 language tag (e.g. es-MX, fr-FR) selecting which language-keyed embedding to import from a multi-language .vox. Resolution falls back exact → base-language → default. Default: the .vox default embedding.")
+      "BCP-47 language tag (e.g. es-MX, fr-FR) selecting which language-keyed embedding to import from a multi-language .vox. Resolution falls back exact → base-language → default. Default: the .vox default embedding."
+  )
   public var language: String?
 
   // MARK: - Model Management Flags
