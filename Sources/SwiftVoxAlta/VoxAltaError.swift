@@ -30,6 +30,9 @@ public enum VoxAltaError: Error, LocalizedError, Sendable {
   /// Importing a voice from .vox format failed.
   case voxImportFailed(String)
 
+  /// The requested language tag could not be mapped to a model-supported language.
+  case unsupportedLanguage(String)
+
   public var errorDescription: String? {
     switch self {
     case .cloningFailed(let detail):
@@ -47,6 +50,9 @@ public enum VoxAltaError: Error, LocalizedError, Sendable {
       return "VOX export failed: \(detail)"
     case .voxImportFailed(let detail):
       return "VOX import failed: \(detail)"
+    case .unsupportedLanguage(let tag):
+      return
+        "Unsupported language '\(tag)'. Qwen3-TTS supports: chinese, english, german, italian, portuguese, spanish, japanese, korean, french, russian (plus beijing_dialect, sichuan_dialect). Regional accents are not selectable by language; control accent via the clone reference audio."
     }
   }
 }
