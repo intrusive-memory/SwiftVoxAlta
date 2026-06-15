@@ -26,6 +26,13 @@ public struct DigaCommand: AsyncParsableCommand {
   @Option(name: .long, help: "Import a voice from a .vox file: --import-vox voice.vox")
   public var importVox: String?
 
+  @Option(
+    name: [.customShort("l"), .long],
+    help:
+      "BCP-47 language tag (e.g. es-MX, fr-FR) selecting which language-keyed embedding to import from a multi-language .vox. Resolution falls back exact → base-language → default. Default: the .vox default embedding."
+  )
+  public var language: String?
+
   // MARK: - Model Management Flags
 
   @Option(
@@ -192,6 +199,24 @@ public struct DigaCommand: AsyncParsableCommand {
     }
   }
 
+  /// Resolves the `--model` flag to a `.vox` model-size slug (`"0.6b"` / `"1.7b"`)
+  /// for import queries, or `nil` when no `--model` was given (→ import every
+  /// supported size present in the archive).
+  ///
+  /// Accepts a bare size slug or a known HuggingFace model ID. An unrecognized
+  /// HuggingFace ID (one not in `Qwen3TTSModelRepo`) has no `.vox` size mapping,
+  /// so it resolves to `nil` (import all). A non-slug, non-`/` value is rejected.
+  private func resolveImportModelSlug() throws -> String? {
+    guard let modelValue = model else { return nil }
+    if let repo = Qwen3TTSModelRepo(slug: modelValue) { return repo.slug }
+    if let repo = Qwen3TTSModelRepo(rawValue: modelValue) { return repo.slug }
+    if modelValue.contains("/") { return nil }
+    let slugs = Qwen3TTSModelRepo.supportedSlugs.sorted().joined(separator: "', '")
+    throw ValidationError(
+      "Invalid model: '\(modelValue)'. Use '\(slugs)', or a HuggingFace model ID (org/repo)."
+    )
+  }
+
   // MARK: - Voice Validation
 
   /// Validates that a voice name exists in built-in voices or the VoiceStore.
@@ -283,7 +308,35 @@ public struct DigaCommand: AsyncParsableCommand {
       throw ValidationError("VOX file not found or not readable: \(path)")
     }
 
-    let result = try VoxImporter.importVox(from: fileURL)
+    // Determine which model sizes to import clone prompts for. An explicit --model
+    // narrows to that single size; otherwise import every supported size the .vox
+    // carries, so the voice works regardless of which model synthesizes it.
+    let requestedSlug = try resolveImportModelSlug()
+    let slugsToImport = requestedSlug.map { [$0] } ?? Qwen3TTSModelRepo.supportedSlugs.sorted()
+    let primarySlug = requestedSlug ?? Qwen3TTSModelRepo.base1_7B.slug
+
+    // Primary import drives metadata, voice type, and language discovery.
+    let result = try VoxImporter.importVox(
+      from: fileURL, modelQuery: primarySlug, language: language)
+    if let language, !language.isEmpty {
+      let available = result.availableLanguages
+      let availableNote = available.isEmpty ? "default only" : available.joined(separator: ", ")
+      print("Selecting language '\(language)' (available: \(availableNote)).")
+    }
+
+    // Collect clone-prompt data per requested size, re-querying the archive for any
+    // non-primary sizes. Sizes the .vox doesn't carry are simply skipped.
+    var clonePromptBySlug: [String: Data] = [:]
+    for slug in slugsToImport {
+      let sized =
+        slug == primarySlug
+        ? result
+        : try VoxImporter.importVox(from: fileURL, modelQuery: slug, language: language)
+      if let data = sized.clonePromptData {
+        clonePromptBySlug[slug] = data
+      }
+    }
+
     let store = VoiceStore()
 
     // Determine voice type from provenance method.
@@ -299,9 +352,9 @@ public struct DigaCommand: AsyncParsableCommand {
       voiceType = .designed
     }
 
-    // Write clone prompt to disk if present.
+    // Write clone prompts to disk for each imported size.
     var clonePromptPath: String?
-    if let promptData = result.clonePromptData {
+    if !clonePromptBySlug.isEmpty {
       try FileManager.default.createDirectory(
         at: store.voicesDirectory,
         withIntermediateDirectories: true
@@ -314,16 +367,23 @@ public struct DigaCommand: AsyncParsableCommand {
         try? FileManager.default.removeItem(at: staleURL)
       }
 
-      // Write to both legacy (unsuffixed) and default model-specific paths.
-      let legacyURL = store.voicesDirectory.appendingPathComponent("\(result.name).cloneprompt")
-      try promptData.write(to: legacyURL, options: .atomic)
+      // Write each imported size to its model-specific path.
+      for (slug, data) in clonePromptBySlug.sorted(by: { $0.key < $1.key }) {
+        let modelURL = store.voicesDirectory.appendingPathComponent(
+          "\(result.name)-\(slug).cloneprompt")
+        try data.write(to: modelURL, options: .atomic)
+      }
 
-      let modelURL = store.voicesDirectory.appendingPathComponent("\(result.name)-1.7b.cloneprompt")
-      try promptData.write(to: modelURL, options: .atomic)
+      // The legacy unsuffixed cache is treated as 1.7B-only by the engine; mirror
+      // the 1.7b data there for backward compatibility when it was imported.
+      if let data17 = clonePromptBySlug[Qwen3TTSModelRepo.base1_7B.slug] {
+        let legacyURL = store.voicesDirectory.appendingPathComponent("\(result.name).cloneprompt")
+        try data17.write(to: legacyURL, options: .atomic)
+      }
     }
 
     // For cloned voices without a clone prompt, store reference audio path.
-    if voiceType == .cloned && result.clonePromptData == nil {
+    if voiceType == .cloned && clonePromptBySlug.isEmpty {
       // Write first reference audio to disk for later clone prompt extraction.
       if let (filename, data) = result.referenceAudio.first {
         let refPath = store.voicesDirectory.appendingPathComponent(filename)
@@ -356,8 +416,9 @@ public struct DigaCommand: AsyncParsableCommand {
     )
     try store.saveVoice(voice)
 
-    if result.clonePromptData != nil {
-      print("Voice \"\(result.name)\" imported (ready to use).")
+    if !clonePromptBySlug.isEmpty {
+      let sizes = clonePromptBySlug.keys.sorted().joined(separator: ", ")
+      print("Voice \"\(result.name)\" imported (ready to use; models: \(sizes)).")
     } else {
       print("Voice \"\(result.name)\" imported (clone prompt will generate on first use).")
     }

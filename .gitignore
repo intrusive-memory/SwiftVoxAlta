@@ -52,3 +52,14 @@ bin/
 .env
 .env.*
 default.profraw
+
+# graphify codemap: commit the portable graph artifacts, ignore machine-specific
+# markers (absolute paths), the regenerable cache, and the absolute-path manifest.
+graphify-out/.graphify_python
+graphify-out/.graphify_root
+graphify-out/.graphify_detect.json
+graphify-out/cache/
+graphify-out/manifest.json
+graphify-out/.graphify_analysis.json
+graphify-out/.graphify_semantic_marker
+graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/

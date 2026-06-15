@@ -2,7 +2,7 @@
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.13.0
+**Current Version**: 0.13.1
 
 ---
 
@@ -94,6 +94,23 @@ xcodebuild test -scheme SwiftVoxAlta-Package -destination 'platform=macOS,arch=a
 
 ---
 
+## Queryable Codemap
+
+A prebuilt [graphify](https://pypi.org/project/graphifyy/) knowledge graph of this
+codebase lives in [`graphify-out/`](graphify-out/) (948 nodes · 1502 edges). **Prefer
+querying it before grepping** for architecture or "what connects to what" questions:
+
+```bash
+graphify query "How does X flow through the system?"
+graphify path "TypeA" "TypeB"      # shortest path between two nodes
+graphify explain "SomeType"        # plain-language node explanation
+```
+
+Human-readable summary: [`graphify-out/GRAPH_REPORT.md`](graphify-out/GRAPH_REPORT.md).
+Refresh after significant changes with `/codemap` (or `graphify . --update`).
+
+---
+
 ## Project Structure
 
 ```
@@ -120,7 +137,7 @@ SwiftVoxAlta/
 │       ├── BuiltinVoices.swift        # 9 built-in CustomVoice preset speakers
 │       ├── DigaCommand.swift          # CLI entry point (@main, ArgumentParser)
 │       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
-│       ├── Version.swift              # Version constant (0.13.0)
+│       ├── Version.swift              # Version constant (0.13.1)
 │       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # 11 test files (library)
@@ -190,7 +207,7 @@ Implements SwiftHablare's `VoiceProvider` protocol with dual-mode routing.
 
 ```swift
 public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
-    public static let version = "0.13.0"
+    public static let version = "0.13.1"
 
     // VoiceProvider protocol properties
     public let providerId = "voxalta"
@@ -761,6 +778,11 @@ On CI (`GITHUB_ACTIONS` set):
 ---
 
 ## Recent Changes
+
+### v0.13.1
+
+- **feat**: `diga --import-vox` now honors `--model` and imports clone prompts for **both** model sizes by default. With no `--model`, every supported size the `.vox` carries (`0.6b` and `1.7b`) is persisted as `<name>-<slug>.cloneprompt`, so the voice works regardless of which model later synthesizes it. `--model 0.6b`/`1.7b` narrows to that single size — fixing the prior behavior that always wrote only the `1.7b` prompt.
+- **feat**: `-l/--language` composes per-size at import time — each size's clone prompt is selected for the requested BCP-47 tag via vox-format's language-aware matchers. The legacy unsuffixed cache continues to mirror the `1.7b` data only (the engine treats it as 1.7B-only).
 
 ### v0.13.0
 
