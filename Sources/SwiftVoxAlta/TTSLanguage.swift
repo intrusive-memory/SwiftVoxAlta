@@ -61,8 +61,10 @@ public enum TTSLanguage: String, Sendable, CaseIterable, Equatable {
     "english": .english, "chinese": .chinese, "german": .german,
     "italian": .italian, "portuguese": .portuguese, "spanish": .spanish,
     "japanese": .japanese, "korean": .korean, "french": .french, "russian": .russian,
-    "beijing_dialect": .beijingDialect, "beijingdialect": .beijingDialect, "beijing": .beijingDialect,
-    "sichuan_dialect": .sichuanDialect, "sichuandialect": .sichuanDialect, "sichuan": .sichuanDialect,
+    "beijing_dialect": .beijingDialect, "beijingdialect": .beijingDialect,
+    "beijing": .beijingDialect,
+    "sichuan_dialect": .sichuanDialect, "sichuandialect": .sichuanDialect,
+    "sichuan": .sichuanDialect,
   ]
 
   /// Resolve from a Swift `Locale`.

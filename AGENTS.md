@@ -2,7 +2,7 @@
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.13.1-dev
+**Current Version**: 0.14.0
 
 ---
 
@@ -778,6 +778,13 @@ On CI (`GITHUB_ACTIONS` set):
 ---
 
 ## Recent Changes
+
+### v0.14.0
+
+- **feat**: New `TTSLanguage` enum (`Sources/SwiftVoxAlta/TTSLanguage.swift`) whose cases mirror the model's on-device `codec_language_id` keys exactly. Resolves from BCP-47 tags, `Locale`, and loose aliases, and exposes `modelName` (the key the model conditions on) plus `logConsumption(stage:detail:)` tracing.
+- **feat**: Thread a model-aligned language through the synthesis pipeline. `VoiceLockManager.createLock` and both `generateAudio` overloads now take `language: TTSLanguage` instead of a stringly-typed `language: String`, forwarding `language.modelName` to the speaker encoder so the tokenizer conditions on a key the model actually recognizes (fixes silent fall-through to un-conditioned generation).
+- **fix**: `DigaEngine` synthesis paths pass `.english` / `TTSLanguage.english.modelName` explicitly rather than the bare `"en"` literal.
+- **breaking**: `VoiceLockManager.generateAudio(...)` no longer defaults `language`; callers must pass an explicit `TTSLanguage`. `createLock`'s `language:` parameter changed type from `String` to `TTSLanguage` (defaults to `.english`).
 
 ### v0.13.1
 
