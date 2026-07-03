@@ -65,21 +65,13 @@ let package = Package(
       "SwiftHablare",
       remote: "https://github.com/intrusive-memory/SwiftHablare.git",
       from: "6.1.1"),
-    // PINNED to 0.8.x line. mlx-audio-swift 0.8.3 itself pins
-    // swift-tokenizers to `.upToNextMinor(from: "0.5.0")` (`>= 0.5.0, < 0.6.0`)
-    // because swift-tokenizers 0.6.x is a breaking release that swaps the
-    // pure-Swift tokenizer for a UniFFI-based Rust artifactbundle, which has
-    // known Xcode module-map / compile issues (even 0.6.2 only ships a
-    // "temporary fix"). A future mlx-audio-swift 0.9.0 will adopt that 0.6.x
-    // tokenizer; until upstream demonstrates the Xcode toolchain issue is
-    // genuinely resolved, the transitive bump cannot leak in here.
-    //
-    // SwiftVoxAlta has no direct `import Tokenizers` call sites — the risk
-    // is purely transitive toolchain compatibility (Metal-shader xcodebuild,
-    // SPM resolution under Xcode 26). Do not relax this constraint without a
-    // deliberate migration PR. See AGENTS.md → "Pending Breaking Upgrades".
+    // mlx-audio-swift 0.9.0 keeps swift-tokenizers pinned to
+    // `.upToNextMinor(from: "0.5.0")` (`>= 0.5.0, < 0.6.0`), so the risky
+    // 0.6.x UniFFI/Rust-artifactbundle tokenizer does NOT leak in transitively
+    // — the earlier 0.8.x cap (which anticipated 0.9.0 adopting 0.6.x) no
+    // longer applies. Floor tracks the latest published release.
     .package(
-      url: "https://github.com/intrusive-memory/mlx-audio-swift.git", .upToNextMinor(from: "0.8.6")),
+      url: "https://github.com/intrusive-memory/mlx-audio-swift.git", .upToNextMajor(from: "0.9.0")),
     sibling(
       "SwiftAcervo",
       remote: "https://github.com/intrusive-memory/SwiftAcervo.git",
