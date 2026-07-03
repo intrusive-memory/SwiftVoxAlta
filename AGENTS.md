@@ -6,7 +6,7 @@ type: reference
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.14.0-dev
+**Current Version**: 0.14.1
 
 ---
 
@@ -786,6 +786,12 @@ On CI (`GITHUB_ACTIONS` set):
 ---
 
 ## Recent Changes
+
+### v0.14.1
+
+- **chore**: Refresh `intrusive-memory/*` dependency pins to their latest published releases — SwiftHablare `6.2.0`, SwiftAcervo `0.23.0`, vox-format `0.4.1`.
+- **fix**: Hold SwiftTuberia at `.upToNextMajor(from: "0.7.4")`. SwiftTuberia `0.7.5+` moved to `swift-tokenizers 0.7.x`, which is incompatible with `mlx-audio-swift 0.9.0` (pins `swift-tokenizers 0.5.x`); `0.7.4` is the last version that co-resolves. Package.swift documents the constraint inline.
+- **docs**: Move `REQUIREMENTS-glosa-integration.md` under `docs/`.
 
 ### v0.14.0
 
