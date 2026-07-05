@@ -25,20 +25,19 @@ let package = Package(
   dependencies: [
     .package(
       url: "https://github.com/intrusive-memory/SwiftHablare.git", .upToNextMajor(from: "6.2.0")),
-    // mlx-audio-swift 0.9.0 keeps swift-tokenizers pinned to
-    // `.upToNextMinor(from: "0.5.0")` (`>= 0.5.0, < 0.6.0`), so the risky
-    // 0.6.x UniFFI/Rust-artifactbundle tokenizer does NOT leak in transitively
-    // — the earlier 0.8.x cap (which anticipated 0.9.0 adopting 0.6.x) no
-    // longer applies. Floor tracks the latest published release.
+    // mlx-audio-swift 0.10.0 adopts swift-tokenizers 0.7.x
+    // (`.upToNextMinor(from: "0.7.1")`), matching SwiftTuberia 0.7.8. The two now
+    // co-resolve on tokenizers 0.7.x, so the earlier 0.5.x/0.6.x pin concerns no
+    // longer apply. Floor tracks the latest published release.
     .package(
-      url: "https://github.com/intrusive-memory/mlx-audio-swift.git", .upToNextMajor(from: "0.9.0")),
+      url: "https://github.com/intrusive-memory/mlx-audio-swift.git", .upToNextMajor(from: "0.10.0")
+    ),
     .package(
       url: "https://github.com/intrusive-memory/SwiftAcervo.git", .upToNextMajor(from: "0.23.0")),
-    // SwiftTuberia >= 0.7.5 moved to swift-tokenizers 0.7.x; mlx-audio-swift 0.9.0
-    // pins swift-tokenizers to 0.5.x, so 0.7.4 is the last version that co-resolves.
-    // Do NOT bump past 0.7.4 until mlx-audio-swift adopts tokenizers 0.7.x.
+    // SwiftTuberia 0.7.x uses swift-tokenizers 0.7.x; mlx-audio-swift 0.10.0 now
+    // also adopts tokenizers 0.7.x, so they co-resolve. Floor tracks latest release.
     .package(
-      url: "https://github.com/intrusive-memory/SwiftTuberia.git", .upToNextMajor(from: "0.7.4")),
+      url: "https://github.com/intrusive-memory/SwiftTuberia.git", .upToNextMajor(from: "0.7.8")),
     .package(
       url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "1.7.1")),
     .package(
