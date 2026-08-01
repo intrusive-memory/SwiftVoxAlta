@@ -76,7 +76,7 @@ let package = Package(
     sibling(
       "SwiftAcervo",
       remote: "https://github.com/intrusive-memory/SwiftAcervo.git",
-      from: "0.23.0"),
+      from: "0.25.0"),
     // SwiftTuberia 0.7.x uses swift-tokenizers 0.7.x; mlx-audio-swift 0.10.0 now
     // also adopts tokenizers 0.7.x, so they co-resolve. Floor tracks latest release.
     sibling(
