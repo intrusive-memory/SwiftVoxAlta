@@ -90,16 +90,3 @@ jobs:
             ${{ steps.package.outputs.tarball }}
             ${{ steps.package.outputs.tarball }}.sha256
 
-      - name: Trigger Homebrew Tap Update
-        if: github.event_name == 'release'
-        uses: peter-evans/repository-dispatch@v4
-        with:
-          token: ${{ secrets.DEPLOY_TOKEN }}
-          repository: intrusive-memory/homebrew-tap
-          event-type: formula-update
-          client-payload: |
-            {
-              "formula": "diga",
-              "version": "${{ steps.version.outputs.tag }}",
-              "repo": "${{ github.repository }}"
-            }
