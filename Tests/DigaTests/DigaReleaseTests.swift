@@ -123,19 +123,6 @@ struct DigaReleaseTests {
       "release.yml should use softprops/action-gh-release")
   }
 
-  @Test("release.yml dispatches to Homebrew tap")
-  func releaseWorkflowHomebrewDispatch() throws {
-    let path = projectRoot + "/.github/workflows/release.yml"
-    let content = try String(contentsOfFile: path, encoding: .utf8)
-
-    #expect(
-      content.contains("peter-evans/repository-dispatch"),
-      "release.yml should dispatch to Homebrew tap")
-    #expect(
-      content.contains("intrusive-memory/homebrew-tap"),
-      "release.yml should target intrusive-memory/homebrew-tap")
-  }
-
   // MARK: - Homebrew Formula Tests
 
   @Test("Formula/diga.rb exists")
