@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import SwiftAcervo
 import SwiftVoxAlta
 
 // `@available` is required here because the executable enters this async root
@@ -15,6 +16,13 @@ public struct DigaCommand: AsyncParsableCommand {
   public static let configuration = CommandConfiguration(
     commandName: "diga",
     abstract: "On-device neural text-to-speech — a drop-in replacement for /usr/bin/say.",
+    discussion: """
+      diga synthesizes speech on-device with Qwen3-TTS. Voice models are
+      fetched from the CDN on first use and cached in the shared App Group
+      container, so every tool in the ecosystem reuses the same download.
+
+      \(Acervo.environmentHelp())
+      """,
     version: "diga \(DigaVersion.current)"
   )
 

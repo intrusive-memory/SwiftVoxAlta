@@ -6,7 +6,7 @@ type: reference
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.14.1
+**Current Version**: 0.14.2
 
 ---
 
@@ -141,7 +141,7 @@ SwiftVoxAlta/
 │       ├── BuiltinVoices.swift        # 9 built-in CustomVoice preset speakers
 │       ├── DigaCommand.swift          # CLI entry point (@main, ArgumentParser)
 │       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
-│       ├── Version.swift              # Version constant (0.13.1)
+│       ├── Version.swift              # Version constant (0.14.2)
 │       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # 11 test files (library)
@@ -215,7 +215,7 @@ Implements SwiftHablare's `VoiceProvider` protocol with dual-mode routing.
 
 ```swift
 public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
-    public static let version = "0.13.1"
+    public static let version = "0.14.2"
 
     // VoiceProvider protocol properties
     public let providerId = "voxalta"
@@ -780,12 +780,18 @@ On CI (`GITHUB_ACTIONS` set):
 1. Bump version in `Sources/diga/Version.swift` and `VoxAltaVoiceProvider.swift`
 2. Tag on `main` (e.g., `v0.9.5`)
 3. GitHub Release triggers `.github/workflows/release.yml`
-4. Release workflow: `make release` -> tarball (`diga-{version}-arm64-macos.tar.gz`) -> upload assets -> dispatch to `intrusive-memory/homebrew-tap`
-5. Homebrew tap auto-updates formula with new URL and SHA256
+4. Release workflow: `make release` -> tarball (`diga-{version}-arm64-macos.tar.gz`) -> upload assets
+5. Homebrew tap (`intrusive-memory/homebrew-tap`) reconciles formulas against latest releases on a 6-hour cron (`reconcile-formulas.yml`) — no dispatch from this repo
 
 ---
 
 ## Recent Changes
+
+### v0.14.2
+
+- **feat**: New `VoxAltaMemoryPolicy` (`Sources/SwiftVoxAlta/VoxAltaMemoryPolicy.swift`) exposing an MLX allocator policy for TTS hosts.
+- **chore**: Dependency floors refreshed — SwiftTuberia `0.8.0`, swift-argument-parser `1.8.2`; SwiftAcervo `0.25.0`, mlx-audio-swift `0.10.0`, SwiftHablare `6.2.0`, vox-format `0.4.1` confirmed latest.
+- **test**: Drop the stale Homebrew-dispatch assertion left behind when the dead dispatch step was removed from `release.yml`.
 
 ### v0.14.1
 
