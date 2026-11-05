@@ -6,7 +6,7 @@ type: reference
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.15.0
+**Current Version**: 0.15.0-dev
 
 ---
 
@@ -141,7 +141,7 @@ SwiftVoxAlta/
 │       ├── BuiltinVoices.swift        # 9 built-in CustomVoice preset speakers
 │       ├── DigaCommand.swift          # CLI entry point (@main, ArgumentParser)
 │       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
-│       ├── Version.swift              # Version constant (0.15.0)
+│       ├── Version.swift              # Version constant (0.15.0-dev)
 │       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # 11 test files (library)
