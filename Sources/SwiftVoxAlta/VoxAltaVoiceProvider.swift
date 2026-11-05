@@ -2,7 +2,13 @@
 //  VoxAltaVoiceProvider.swift
 //  SwiftVoxAlta
 //
-//  VoiceProvider conformance for on-device Qwen3-TTS voice generation via VoxAlta.
+//  The VoxAlta-native synthesis engine (clone-prompt voices + preset speakers).
+//
+//  Through SwiftVoxAlta 0.14.x this type conformed to SwiftHablare 6.x's
+//  `VoiceProvider`. SwiftHablare 7 removed that protocol; the Hablare-facing
+//  integration is now `VoxAltaPlugin` (a `HablarePlugin`), which drives this
+//  engine. The type and its VoxAlta-specific API (`loadVoice`, `generateAudio`,
+//  telemetry hooks) are kept for direct callers.
 //
 
 import Foundation
@@ -12,27 +18,24 @@ import Foundation
 @preconcurrency import MLXLMCommon
 import SwiftHablare
 
-#if canImport(SwiftUI)
-  import SwiftUI
-#endif
-
-/// On-device VoiceProvider implementation using Qwen3-TTS models via mlx-audio-swift.
+/// On-device Qwen3-TTS synthesis engine using Qwen3-TTS models via mlx-audio-swift.
 ///
 /// `VoxAltaVoiceProvider` manages a cache of loaded voices (clone prompts) and generates
 /// speech audio using the locked voice identity. Voices must be loaded via `loadVoice(id:clonePromptData:)`
 /// before calling `generateAudio`. The voice ID is typically the character name (e.g., "ELENA").
 ///
-/// This class conforms to `VoiceProvider` from SwiftHablare and is marked `@unchecked Sendable`
+/// It is no longer a SwiftHablare `VoiceProvider` (removed in SwiftHablare 7); register
+/// ``VoxAltaPlugin`` with a `PluginRegistry` instead. The class is marked `@unchecked Sendable`
 /// because all mutable state is held in the `VoxAltaVoiceCache` actor and the `VoxAltaModelManager`
 /// actor, both of which are inherently thread-safe.
-public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
+public final class VoxAltaVoiceProvider: @unchecked Sendable {
 
   // MARK: - Version
 
   /// Current version of the SwiftVoxAlta library
   public static let version = "0.14.2-dev"
 
-  // MARK: - VoiceProvider Metadata
+  // MARK: - Metadata
 
   public let providerId = "voxalta"
   public let displayName = "VoxAlta (On-Device)"
@@ -43,7 +46,7 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
   // MARK: - Preset Speakers
 
   /// CustomVoice preset speakers available without clone prompts.
-  private static let presetSpeakers:
+  static let presetSpeakers:
     [(id: String, name: String, description: String, gender: String, mlxSpeaker: String)] = [
       ("ryan", "Ryan", "Dynamic male voice with strong rhythmic drive", "male", "ryan"),
       ("aiden", "Aiden", "Sunny American male voice with clear midrange", "male", "aiden"),
@@ -98,7 +101,7 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     self.generationSettings = generationSettings
   }
 
-  // MARK: - VoiceProvider Protocol
+  // MARK: - Engine API
 
   /// Check if the provider is configured.
   ///
@@ -246,42 +249,6 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     )
   }
 
-  /// Generate processed audio with duration measurement.
-  ///
-  /// Generates audio via `generateAudio`, then computes the duration from the WAV data.
-  /// The returned `ProcessedAudio` uses `"audio/wav"` as the MIME type since VoxAlta
-  /// outputs WAV directly without transcoding.
-  ///
-  /// - Parameters:
-  ///   - text: The text to synthesize.
-  ///   - voiceId: The voice identifier (character name) to use.
-  ///   - languageCode: The language code for generation.
-  /// - Returns: A `ProcessedAudio` containing the WAV data and measured duration.
-  public func generateProcessedAudio(
-    text: String,
-    voiceId: String,
-    languageCode: String
-  ) async throws -> ProcessedAudio {
-    let audioData = try await generateAudio(
-      text: text, voiceId: voiceId, languageCode: languageCode)
-    let duration = Self.measureWAVDuration(audioData)
-
-    // DIAGNOSTIC: Log actual WAV data size vs expected size from duration
-    let expectedSize = Int(duration * 24000) * 2 + 44  // samples * bytes_per_sample + header
-    FileHandle.standardError.write(
-      Data(
-        "[VoxAlta] WAV data: \(audioData.count) bytes, expected from duration: \(expectedSize) bytes, duration: \(String(format: "%.2f", duration))s\n"
-          .utf8))
-
-    return ProcessedAudio(
-      audioData: audioData,
-      durationSeconds: duration,
-      trimmedStart: 0,
-      trimmedEnd: 0,
-      mimeType: mimeType
-    )
-  }
-
   /// Estimate the duration of audio that would be generated from the given text.
   ///
   /// Uses a simple heuristic: word count divided by 150 words per minute.
@@ -310,30 +277,6 @@ public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
     let cached = await voiceCache.get(id: voiceId)
     return cached != nil
   }
-
-  #if canImport(SwiftUI)
-    /// Build the SwiftUI configuration panel for VoxAlta.
-    ///
-    /// Returns a minimal placeholder view. Configuration is handled externally
-    /// by the application (Produciesta) through the voice design workflow.
-    @MainActor
-    public func makeConfigurationView(onConfigured: @escaping (Bool) -> Void) -> AnyView {
-      AnyView(
-        VStack(spacing: 12) {
-          Text("VoxAlta (On-Device)")
-            .font(.headline)
-          Text("On-device voice generation using Qwen3-TTS. No API key required.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-          Button("Done") {
-            onConfigured(true)
-          }
-        }
-        .padding()
-      )
-    }
-  #endif
 
   // MARK: - VoxAlta-Specific API
 

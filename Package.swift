@@ -23,7 +23,9 @@ let package = Package(
     ),
   ],
   dependencies: [
-    .package(url: "https://github.com/intrusive-memory/SwiftHablare.git", .upToNextMajor(from: "6.2.0")),
+    // SwiftHablare 7.x: VoxAlta ships as a `HablarePlugin` (`VoxAltaPlugin`). 7.1.0 adds
+    // `SpeechRequest.previousText/nextText` and the `SwiftHablareTesting` conformance kit.
+    .package(url: "https://github.com/intrusive-memory/SwiftHablare.git", .upToNextMajor(from: "7.1.0")),
     // mlx-audio-swift 0.10.0 adopts swift-tokenizers 0.7.x
     // (`.upToNextMinor(from: "0.7.1")`), matching SwiftTuberia 0.8.0. The two now
     // co-resolve on tokenizers 0.7.x, so the earlier 0.5.x/0.6.x pin concerns no
@@ -78,6 +80,8 @@ let package = Package(
       name: "SwiftVoxAltaTests",
       dependencies: [
         "SwiftVoxAlta",
+        .product(name: "SwiftHablare", package: "SwiftHablare"),
+        .product(name: "SwiftHablareTesting", package: "SwiftHablare"),
         .product(name: "SwiftAcervo", package: "SwiftAcervo"),
         .product(name: "Tuberia", package: "SwiftTuberia"),
         .product(name: "VoxFormat", package: "vox-format"),
