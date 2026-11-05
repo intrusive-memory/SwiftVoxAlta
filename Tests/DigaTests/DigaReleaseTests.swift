@@ -94,12 +94,12 @@ struct DigaReleaseTests {
     #expect(content.contains("published"), "release.yml should trigger on release published")
   }
 
-  @Test("release.yml uses macos-26 runner")
+  @Test("release.yml uses xcode-27 runner")
   func releaseWorkflowRunner() throws {
     let path = projectRoot + "/.github/workflows/release.yml"
     let content = try String(contentsOfFile: path, encoding: .utf8)
 
-    #expect(content.contains("macos-26"), "release.yml should use macos-26 runner")
+    #expect(content.contains("runs-on: xcode-27"), "release.yml should use the xcode-27 runner")
   }
 
   @Test("release.yml packages tarball with correct naming")

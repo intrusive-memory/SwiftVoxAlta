@@ -6,10 +6,12 @@
 //  telemetry events via the capture(_:) helper.
 //
 
+import Foundation
 import MLX
 import MLXAudioCore
 import MLXAudioTTS
 import MLXLMCommon
+import SwiftHablare
 import Testing
 
 @testable import SwiftVoxAlta
@@ -45,10 +47,36 @@ private final class StubSpeechGenerationModel: SpeechGenerationModel, @unchecked
   }
 }
 
+/// Gate for tests whose `loadModel` call reaches `Acervo.ensureComponentReady`.
+///
+/// That path resolves `Acervo.cdnBaseURL`, which `fatalError`s when
+/// `ACERVO_CDN_BASE_URL` is unset (xcodebuild does not pass the shell env to the
+/// test runner), and it downloads the model when it is not on disk. So these tests
+/// run only when the CDN variable is set AND the Qwen3-TTS 1.7B Base model is
+/// already on disk; otherwise they are skipped. No CDN URL is set here and nothing
+/// is downloaded.
+enum AcervoModelLoadGate {
+  static let repo = Qwen3TTSModelRepo.base1_7B.rawValue
+
+  static let reason: Comment =
+    "Skipped: needs ACERVO_CDN_BASE_URL set and Qwen3-TTS 1.7B Base on disk (loadModel reaches Acervo.ensureComponentReady)"
+
+  static var canLoad: Bool {
+    let environment = ProcessInfo.processInfo.environment
+    guard let cdn = environment["ACERVO_CDN_BASE_URL"], !cdn.isEmpty else { return false }
+    if environment["ACERVO_APP_GROUP_ID"] == nil {
+      setenv("ACERVO_APP_GROUP_ID", "group.intrusive-memory.models", 0)
+    }
+    // Offline probe; reports missing (never traps) when no models directory is configured.
+    let model = ModelDescriptor(id: "gate", acervoModelId: repo)
+    return LocalModelAvailability().availability(of: model) == .available
+  }
+}
+
 @Suite("VoxAltaModelManager — load/unload telemetry", .acervoEnvironment, .serialized)
 struct LoadUnloadTelemetryTests {
 
-  @Test("loadModel emits .modelLoadStart even when load throws")
+  @Test("loadModel emits .modelLoadStart even when load throws", .enabled(if: AcervoModelLoadGate.canLoad, AcervoModelLoadGate.reason))
   func loadModelEmitsStartEvenOnThrow() async {
     let manager = VoxAltaModelManager()
     let reporter = MockTelemetryReporter()
@@ -142,7 +170,7 @@ struct LoadUnloadTelemetryTests {
       "Cache hit should emit no telemetry; got \(events.count) event(s): \(events)")
   }
 
-  @Test("loadModel different repo on cache hit unloads + emits real load start")
+  @Test("loadModel different repo on cache hit unloads + emits real load start", .enabled(if: AcervoModelLoadGate.canLoad, AcervoModelLoadGate.reason))
   func loadModelDifferentRepoTriggersRealLoadTelemetry() async {
     let manager = VoxAltaModelManager()
     let reporter = MockTelemetryReporter()
@@ -190,7 +218,7 @@ struct LoadUnloadTelemetryTests {
     )
   }
 
-  @Test("Telemetry nil reporter is a no-op (no crash on load/unload without reporter)")
+  @Test("Telemetry nil reporter is a no-op (no crash on load/unload without reporter)", .enabled(if: AcervoModelLoadGate.canLoad, AcervoModelLoadGate.reason))
   func nilTelemetryIsNoOp() async {
     let manager = VoxAltaModelManager()
     // No setTelemetry call — telemetry is nil.
