@@ -8,7 +8,7 @@ type: doc
 
 # SwiftVoxAlta
 
-A thin VoiceProvider library for [SwiftHablare](https://github.com/intrusive-memory/SwiftHablare) that provides on-device Qwen3-TTS voice synthesis via [mlx-audio-swift](https://github.com/intrusive-memory/mlx-audio-swift).
+A thin SwiftHablare 7 plugin (`VoxAltaPlugin`) for [SwiftHablare](https://github.com/intrusive-memory/SwiftHablare) that provides on-device Qwen3-TTS voice synthesis via [mlx-audio-swift](https://github.com/intrusive-memory/mlx-audio-swift).
 
 ## Overview
 
@@ -16,8 +16,8 @@ VoxAlta loads voice identities from `.vox` files, resolves clone prompts, and re
 
 ### What VoxAlta Provides
 
-- **VoiceProvider implementation** -- text + voiceId -> audio Data (Qwen3-TTS Base model cloning)
-- **VoiceProviderDescriptor** -- for auto-registration with SwiftHablare's registry
+- **`VoxAltaPlugin`** -- a SwiftHablare 7 `HablarePlugin` (id `voxalta`): `.vox` assets and preset speakers -> 24 kHz mono 16-bit PCM
+- **Model size via `PluginConfiguration`** -- `model_size`: `1.7b` (default) or `0.6b`
 - **VoxImporter/VoxExporter** -- portable `.vox` voice identity files (container-first API)
 - **`diga` CLI** -- drop-in replacement for `/usr/bin/say` with neural text-to-speech
 
@@ -56,7 +56,7 @@ brew install diga
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/intrusive-memory/SwiftVoxAlta.git", from: "0.14.2")
+    .package(url: "https://github.com/intrusive-memory/SwiftVoxAlta.git", from: "0.15.0")
 ]
 ```
 
@@ -127,7 +127,7 @@ For detailed integration instructions, see **[Produciesta Integration Guide](doc
 
 ## Dependencies
 
-- [SwiftHablare](https://github.com/intrusive-memory/SwiftHablare) -- VoiceProvider protocol
+- [SwiftHablare](https://github.com/intrusive-memory/SwiftHablare) -- `HablarePlugin` contract
 - [mlx-audio-swift](https://github.com/intrusive-memory/mlx-audio-swift) -- Qwen3-TTS inference (`>= 0.9.0, < 1.0.0`; 0.9.0 kept `swift-tokenizers` on 0.5.x, so the earlier cap was lifted — see [AGENTS.md → mlx-audio-swift 0.9.0](AGENTS.md#mlx-audio-swift-090--cap-lifted-2026-07-02))
 - [SwiftAcervo](https://github.com/intrusive-memory/SwiftAcervo) -- Shared model management and caching
 - [vox-format](https://github.com/intrusive-memory/vox-format) -- Portable `.vox` voice identity file format

@@ -17,6 +17,29 @@ import Testing
 /// These start as smoke checks ("does it produce real audio?"). Spectral /
 /// timbre comparisons against a reference clip can be layered on later once
 /// determinism characteristics of mlx-audio-swift are established.
+/// Gate for the synthesis test: `diga` loads the CustomVoice model through
+/// `Acervo.ensureComponentReady`, which `fatalError`s when `ACERVO_CDN_BASE_URL` is unset
+/// (xcodebuild does not pass the shell env to the test runner or its subprocesses) and
+/// downloads the model when it is not on disk. Runs only when the CDN variable is set AND
+/// the Qwen3-TTS 1.7B CustomVoice model is already on disk; skipped otherwise. No CDN URL
+/// is set here and nothing is downloaded.
+enum DigaModelLoadGate {
+  static let repo = "mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16"
+
+  static let reason: Comment =
+    "Skipped: needs ACERVO_CDN_BASE_URL set and Qwen3-TTS 1.7B CustomVoice on disk (diga reaches Acervo.ensureComponentReady)"
+
+  static var canSynthesize: Bool {
+    let environment = ProcessInfo.processInfo.environment
+    guard let cdn = environment["ACERVO_CDN_BASE_URL"], !cdn.isEmpty else { return false }
+    if environment["ACERVO_APP_GROUP_ID"] == nil {
+      setenv("ACERVO_APP_GROUP_ID", "group.intrusive-memory.models", 0)
+    }
+    guard Acervo.resolvedSharedModelsDirectory != nil else { return false }
+    return Acervo.isModelAvailable(repo)
+  }
+}
+
 @Suite("Diga Binary Integration Tests", .acervoEnvironment)
 struct DigaBinaryIntegrationTests {
 
@@ -115,7 +138,9 @@ struct DigaBinaryIntegrationTests {
 
   // MARK: - Full synthesis (requires cached model)
 
-  @Test("Synthesis produces a non-empty, well-formed WAV file")
+  @Test(
+    "Synthesis produces a non-empty, well-formed WAV file",
+    .enabled(if: DigaModelLoadGate.canSynthesize, DigaModelLoadGate.reason))
   func synthesisProducesValidWAV() throws {
     let outputURL = FileManager.default.temporaryDirectory
       .appendingPathComponent("diga-integ-\(UUID().uuidString).wav")

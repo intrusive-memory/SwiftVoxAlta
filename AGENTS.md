@@ -6,7 +6,7 @@ type: reference
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.14.2
+**Current Version**: 0.15.0
 
 ---
 
@@ -31,7 +31,7 @@ The pipeline is: `echada cast` creates a `.vox` file -> `diga --import-vox voice
 ### What VoxAlta Provides
 
 - **Speech synthesis** -- text + voiceId -> WAV audio Data (24kHz, 16-bit PCM, mono)
-- **VoiceProvider for SwiftHablare** -- plug-and-play integration with the voice provider registry
+- **`VoxAltaPlugin` for SwiftHablare 7** -- a `HablarePlugin` (id `voxalta`) registered with `PluginRegistry`
 - **`.vox` file consumption** -- import `.vox` archives created by SwiftEchada, extract clone prompts
 - **9 preset speakers** -- built-in CustomVoice speakers that work without any `.vox` file
 - **GenerationSettings** -- tunable sampling parameters (temperature, topP, repetitionPenalty, maxTokens)
@@ -130,9 +130,9 @@ SwiftVoxAlta/
 │   │   ├── VoxAltaConfig.swift        # Configuration (model IDs, output format)
 │   │   ├── VoxAltaError.swift         # Error types (7 cases)
 │   │   ├── VoxAltaModelManager.swift  # Qwen3-TTS model lifecycle (actor)
-│   │   ├── VoxAltaProviderDescriptor.swift  # SwiftHablare registration factory
+│   │   ├── Plugin/                    # VoxAltaPlugin, VoxAltaSynthesizer, VoxAltaModelSize (Hablare 7)
 │   │   ├── VoxAltaVoiceCache.swift    # Thread-safe voice + clone prompt cache (actor)
-│   │   ├── VoxAltaVoiceProvider.swift # VoiceProvider protocol implementation
+│   │   ├── VoxAltaVoiceProvider.swift # VoxAlta engine (preset + clone-prompt routing)
 │   │   ├── VoxExporter.swift          # Add/update clone prompts and sample audio in .vox
 │   │   └── VoxImporter.swift          # Import .vox archives, extract voice identity data
 │   └── diga/                          # CLI executable target
@@ -141,7 +141,7 @@ SwiftVoxAlta/
 │       ├── BuiltinVoices.swift        # 9 built-in CustomVoice preset speakers
 │       ├── DigaCommand.swift          # CLI entry point (@main, ArgumentParser)
 │       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
-│       ├── Version.swift              # Version constant (0.14.2)
+│       ├── Version.swift              # Version constant (0.15.0)
 │       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # 11 test files (library)
@@ -165,7 +165,7 @@ SwiftVoxAlta/
 
 | Package | Source | Branch/Version | Purpose |
 |---------|--------|---------------|---------|
-| [SwiftHablare](https://github.com/intrusive-memory/SwiftHablare) | intrusive-memory | `development` | VoiceProvider protocol and registry |
+| [SwiftHablare](https://github.com/intrusive-memory/SwiftHablare) | intrusive-memory | `.upToNextMajor(from: "7.1.0")` | `HablarePlugin` contract, `VoiceAsset`, registry; `SwiftHablareTesting` conformance kit in tests |
 | [mlx-audio-swift](https://github.com/intrusive-memory/mlx-audio-swift) | intrusive-memory (fork) | `>= 0.9.0, < 1.0.0` | Qwen3-TTS inference engine (MLXAudioTTS) |
 | [SwiftAcervo](https://github.com/intrusive-memory/SwiftAcervo) | intrusive-memory | `main` | Shared model management and caching |
 | [vox-format](https://github.com/intrusive-memory/vox-format) | intrusive-memory | `development` | Portable `.vox` voice identity file format |
@@ -209,39 +209,69 @@ dependency is decoupled from the mlx-audio graph.
 
 ## Library API Surface
 
-### VoxAltaVoiceProvider
+### VoxAltaPlugin (SwiftHablare 7 plugin)
 
-Implements SwiftHablare's `VoiceProvider` protocol with dual-mode routing.
+VoxAlta integrates with SwiftHablare 7 as a `HablarePlugin`. The 6.x `VoiceProvider`
+conformance and `VoxAltaProviderDescriptor` were removed with Hablare 7.
 
 ```swift
-public final class VoxAltaVoiceProvider: VoiceProvider, @unchecked Sendable {
-    public static let version = "0.14.2"
+public final class VoxAltaPlugin: HablarePlugin, VoiceListing, @unchecked Sendable {
+    public static let id = "voxalta"                 // kind .local, no credentials
+    public static var models: [ModelDescriptor]      // "1.7b", "1.7b-customvoice", "0.6b", "0.6b-customvoice"
+    public static var settingsSchema: SettingsSchema // per-plugin "model_size": "1.7b" (default) | "0.6b"
+    public static let sharedModelManager: VoxAltaModelManager
+    public static var presetVoiceIds: [String]
 
-    // VoiceProvider protocol properties
-    public let providerId = "voxalta"
-    public let displayName = "VoxAlta (On-Device)"
-    public let requiresAPIKey = false
-    public let mimeType = "audio/wav"
-    public var defaultVoiceId: String? { nil }
+    public init(context: PluginContext) async throws // uses sharedModelManager; loads no model
+    public init(context: PluginContext, modelManager: VoxAltaModelManager,
+                generationSettings: GenerationSettings = .default) throws
+    public let modelSize: VoxAltaModelSize
+    public var synthesizer: (any VoiceSynthesizer)?  // VoxAltaSynthesizer
+    public func status() async -> PluginStatus       // .needsModel([Base model of modelSize]) when not on disk
+    public func setTelemetry(_:) async; public func setMLXTelemetry(_:) async
+}
+```
 
+- **Synthesizer** (`VoxAltaSynthesizer`): capabilities `[.instruct, .onDevice]` (no `.seed`, so
+  `cacheKey` is `nil`), `nativeFormats [.pcm24kMono16]` (headerless PCM; the WAV header is
+  stripped), `maxConcurrentRequests 1`, `droppedInstruct` always `false`.
+- **Voices**: `.asset(URL)` reads `embeddings/qwen3-tts/<size>/[<lang>/]clone-prompt.bin` through
+  Hablare's `VoiceAsset` (`readiness` → `.needsPreparation(source:)` until `prepare`, which loads
+  the clone prompt; `release` drops it). `.catalog(pluginId: "voxalta", voiceId:)` addresses the
+  nine CustomVoice presets (always `.ready(source: nil)`).
+- **Model size**: `VoxAltaModelSize` (`.large` = `"1.7b"` → `.base1_7B` / `.customVoice1_7B`,
+  `.small` = `"0.6b"` → `.base0_6B` / `.customVoice0_6B`). `VoxAltaModelSize.small.configuration`
+  builds the `PluginConfiguration`.
+- Errors are `HablareError` (categorised). Models still download on demand through
+  `VoxAltaModelManager` (SwiftAcervo) on first synthesis.
+
+```swift
+let registry = PluginRegistry.default
+await registry.register(VoxAltaPlugin.self)
+let plugin = try await registry.plugin(id: "voxalta", configuration: VoxAltaModelSize.small.configuration)
+let audio = try await plugin.synthesizer!.synthesize(
+    SpeechRequest(text: "Hello", voice: .asset(voxURL), languageCode: "en", instruct: "softly"))
+```
+
+### VoxAltaVoiceProvider (engine)
+
+The VoxAlta-native engine the plugin drives. No longer a SwiftHablare `VoiceProvider`; kept for
+direct callers (Produciesta's `LiveSwiftVoxAlta`, telemetry tests). `generateProcessedAudio` and
+`makeConfigurationView` were removed with Hablare 7 (`ProcessedAudio` and SwiftUI are gone there).
+
+```swift
+public final class VoxAltaVoiceProvider: @unchecked Sendable {
     public init(
         modelManager: VoxAltaModelManager = VoxAltaModelManager(),
         baseModelRepo: Qwen3TTSModelRepo = .base1_7B,
         customVoiceModelRepo: Qwen3TTSModelRepo = .customVoice1_7B,
         generationSettings: GenerationSettings = .default
     )
-
-    // VoiceProvider protocol methods
-    public func isConfigured() async -> Bool
     public func fetchVoices(languageCode: String) async throws -> [Voice]
     public func generateAudio(text: String, voiceId: String, languageCode: String) async throws -> Data
     public func generateAudio(text: String, voiceId: String, languageCode: String, instruct: String?) async throws -> Data
     public func generateAudio(context: GenerationContext, voiceId: String, languageCode: String) async throws -> Data
-    public func generateProcessedAudio(text: String, voiceId: String, languageCode: String) async throws -> ProcessedAudio
-    public func estimateDuration(text: String, voiceId: String) async -> TimeInterval
     public func isVoiceAvailable(voiceId: String) async -> Bool
-
-    // VoxAlta-specific methods
     public func loadVoice(id: String, clonePromptData: Data, gender: String? = nil) async
     public func unloadVoice(id: String) async
     public func unloadAllVoices() async
@@ -268,13 +298,6 @@ let audio = try await provider.generateAudio(text: "Hello", voiceId: "ELENA", la
 |-----------------|------------------------|-------|
 | `anna` | `ono_anna` | Only name that differs from its speaker ID |
 | All others | Same as user name | `ryan` -> `"ryan"`, etc. |
-
-#### Registration with SwiftHablare
-
-```swift
-let registry = VoiceProviderRegistry.shared
-await registry.register(VoxAltaProviderDescriptor.descriptor())
-```
 
 ### GenerationSettings
 
@@ -733,7 +756,7 @@ See [SwiftAcervo USAGE.md](https://github.com/intrusive-memory/SwiftAcervo/blob/
 
 ## Design Patterns
 
-- **VoiceProvider abstraction** -- Implements SwiftHablare's protocol for plug-and-play integration
+- **Hablare plugin** -- `VoxAltaPlugin` implements SwiftHablare 7's `HablarePlugin` contract
 - **Actor isolation** -- `VoxAltaModelManager` and `VoxAltaVoiceCache` are actors for thread safety; `DigaEngine` is also an actor
 - **Two-layer clone prompt cache** -- Layer 1: raw `Data` in `VoxAltaVoiceCache.voices`; Layer 2: deserialized `VoiceClonePrompt` in `clonePromptCache`
 - **Lazy model loading** -- Models loaded on-demand, cached, auto-unloaded on model switch
@@ -786,6 +809,11 @@ On CI (`GITHUB_ACTIONS` set):
 ---
 
 ## Recent Changes
+
+### v0.15.0
+
+- **breaking**: VoxAlta is now a SwiftHablare 7 plugin (`VoxAltaPlugin` / `VoxAltaSynthesizer`, `model_size` setting). `VoiceProvider` conformance on `VoxAltaVoiceProvider`, `VoxAltaProviderDescriptor`, `generateProcessedAudio` and `makeConfigurationView` removed. Requires SwiftHablare 7.x (`from: "7.1.0"`).
+- **test**: 4 model-loading tests skip-gated on `ACERVO_CDN_BASE_URL` + model on disk.
 
 ### v0.14.2
 

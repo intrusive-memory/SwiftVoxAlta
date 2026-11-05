@@ -11,7 +11,7 @@ jobs:
   # Fast unit tests (no binary or model downloads required)
   unit-tests:
     name: Unit Tests
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 30
 
     steps:
@@ -33,7 +33,7 @@ jobs:
   # Run integration tests locally to verify audio generation functionality
   #integration-tests:
   #  name: Integration Tests
-  #  runs-on: macos-26
+  #  runs-on: xcode-27
   #  timeout-minutes: 30
   #
   #  steps:

@@ -2,7 +2,8 @@
 //  VoxAltaVoiceProviderTests.swift
 //  SwiftVoxAltaTests
 //
-//  Tests for VoxAltaVoiceProvider conformance and VoxAltaProviderDescriptor.
+//  Tests for the VoxAltaVoiceProvider engine API. (The 6.x VoxAltaProviderDescriptor was
+//  removed with SwiftHablare 7; see VoxAltaPluginTests for the Hablare plugin.)
 //
 
 import Foundation
@@ -273,59 +274,5 @@ struct VoxAltaVoiceProviderWAVDurationTests {
     let data = Data(repeating: 0xAA, count: 100)
     let duration = VoxAltaVoiceProvider.measureWAVDuration(data)
     #expect(duration == 0.0)
-  }
-}
-
-// MARK: - Provider Descriptor
-
-@Suite("VoxAltaProviderDescriptor", .acervoEnvironment)
-struct VoxAltaProviderDescriptorTests {
-
-  @Test("Descriptor has correct metadata")
-  func descriptorMetadata() {
-    let descriptor = VoxAltaProviderDescriptor.descriptor()
-
-    #expect(descriptor.id == "voxalta")
-    #expect(descriptor.displayName == "VoxAlta (On-Device)")
-    #expect(descriptor.isEnabledByDefault == false)
-    #expect(descriptor.requiresConfiguration == true)
-  }
-
-  @Test("Descriptor factory creates provider with correct providerId")
-  func descriptorCreatesProvider() {
-    let descriptor = VoxAltaProviderDescriptor.descriptor()
-    let provider = descriptor.makeProvider()
-
-    #expect(provider.providerId == "voxalta")
-    #expect(provider.displayName == "VoxAlta (On-Device)")
-  }
-
-  @Test("Descriptor factory creates VoxAltaVoiceProvider instance")
-  func descriptorCreatesCorrectType() {
-    let descriptor = VoxAltaProviderDescriptor.descriptor()
-    let provider = descriptor.makeProvider()
-
-    let isVoxAlta = provider is VoxAltaVoiceProvider
-    #expect(isVoxAlta)
-  }
-
-  @Test("Descriptor accepts custom model manager")
-  func descriptorWithCustomModelManager() {
-    let manager = VoxAltaModelManager()
-    let descriptor = VoxAltaProviderDescriptor.descriptor(modelManager: manager)
-
-    let provider = descriptor.makeProvider()
-    #expect(provider.providerId == "voxalta")
-  }
-
-  @Test("Descriptor factory creates distinct instances")
-  func descriptorFactoryCreatesDistinctInstances() {
-    let descriptor = VoxAltaProviderDescriptor.descriptor()
-
-    let provider1 = descriptor.makeProvider() as! VoxAltaVoiceProvider
-    let provider2 = descriptor.makeProvider() as! VoxAltaVoiceProvider
-
-    // They should be different class instances
-    #expect(provider1 !== provider2)
   }
 }
