@@ -6,7 +6,7 @@ type: reference
 
 Documentation for AI agents working with the SwiftVoxAlta codebase.
 
-**Current Version**: 0.14.2-dev
+**Current Version**: 0.15.0
 
 ---
 
@@ -141,7 +141,7 @@ SwiftVoxAlta/
 │       ├── BuiltinVoices.swift        # 9 built-in CustomVoice preset speakers
 │       ├── DigaCommand.swift          # CLI entry point (@main, ArgumentParser)
 │       ├── DigaEngine.swift           # Synthesis orchestrator (text -> chunked WAV)
-│       ├── Version.swift              # Version constant (0.14.2)
+│       ├── Version.swift              # Version constant (0.15.0)
 │       └── VoiceStore.swift           # Persistent custom voice storage (~/.diga/voices/)
 ├── Tests/
 │   ├── SwiftVoxAltaTests/             # 11 test files (library)
@@ -809,6 +809,11 @@ On CI (`GITHUB_ACTIONS` set):
 ---
 
 ## Recent Changes
+
+### v0.15.0
+
+- **breaking**: VoxAlta is now a SwiftHablare 7 plugin (`VoxAltaPlugin` / `VoxAltaSynthesizer`, `model_size` setting). `VoiceProvider` conformance on `VoxAltaVoiceProvider`, `VoxAltaProviderDescriptor`, `generateProcessedAudio` and `makeConfigurationView` removed. Requires SwiftHablare 7.x (`from: "7.1.0"`).
+- **test**: 4 model-loading tests skip-gated on `ACERVO_CDN_BASE_URL` + model on disk.
 
 ### v0.14.2
 

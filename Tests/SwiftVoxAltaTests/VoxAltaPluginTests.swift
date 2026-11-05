@@ -93,7 +93,8 @@ struct VoxAltaPluginMetadataTests {
     #expect(VoxAltaPlugin.id == "voxalta")
     #expect(VoxAltaPlugin.kind == .local)
     #expect(VoxAltaPlugin.credentials.isEmpty)
-    #expect(VoxAltaPlugin.models.map(\.id) == ["1.7b", "1.7b-customvoice", "0.6b", "0.6b-customvoice"])
+    #expect(
+      VoxAltaPlugin.models.map(\.id) == ["1.7b", "1.7b-customvoice", "0.6b", "0.6b-customvoice"])
     #expect(VoxAltaPlugin.models.allSatisfy { $0.kind == .local && $0.acervoModelId != nil })
     #expect(VoxAltaPlugin.presetVoiceIds.contains("ryan"))
     #expect(VoxAltaPlugin.presetVoiceIds.count == 9)
@@ -227,12 +228,17 @@ struct VoxAltaPluginVoiceReferenceTests {
   @Test("Catalog presets are ready; other catalogs are unsupported")
   func catalogReadiness() async throws {
     let synth = try #require(try PluginFixtures.plugin().synthesizer)
-    #expect(await synth.readiness(for: .catalog(pluginId: "voxalta", voiceId: "ryan")) == .ready(source: nil))
-    if case .unsupported = await synth.readiness(for: .catalog(pluginId: "apple", voiceId: "ryan")) {
+    #expect(
+      await synth.readiness(for: .catalog(pluginId: "voxalta", voiceId: "ryan"))
+        == .ready(source: nil))
+    if case .unsupported = await synth.readiness(for: .catalog(pluginId: "apple", voiceId: "ryan"))
+    {
     } else {
       Issue.record("another plugin's catalog voice must be unsupported")
     }
-    if case .unsupported = await synth.readiness(for: .catalog(pluginId: "voxalta", voiceId: "nobody")) {
+    if case .unsupported = await synth.readiness(
+      for: .catalog(pluginId: "voxalta", voiceId: "nobody"))
+    {
     } else {
       Issue.record("an unknown preset must be unsupported")
     }

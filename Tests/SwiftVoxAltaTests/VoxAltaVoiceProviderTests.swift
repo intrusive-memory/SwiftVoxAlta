@@ -276,4 +276,3 @@ struct VoxAltaVoiceProviderWAVDurationTests {
     #expect(duration == 0.0)
   }
 }
-

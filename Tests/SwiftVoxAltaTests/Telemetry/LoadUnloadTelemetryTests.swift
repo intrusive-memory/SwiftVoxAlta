@@ -76,7 +76,9 @@ enum AcervoModelLoadGate {
 @Suite("VoxAltaModelManager — load/unload telemetry", .acervoEnvironment, .serialized)
 struct LoadUnloadTelemetryTests {
 
-  @Test("loadModel emits .modelLoadStart even when load throws", .enabled(if: AcervoModelLoadGate.canLoad, AcervoModelLoadGate.reason))
+  @Test(
+    "loadModel emits .modelLoadStart even when load throws",
+    .enabled(if: AcervoModelLoadGate.canLoad, AcervoModelLoadGate.reason))
   func loadModelEmitsStartEvenOnThrow() async {
     let manager = VoxAltaModelManager()
     let reporter = MockTelemetryReporter()
@@ -170,7 +172,9 @@ struct LoadUnloadTelemetryTests {
       "Cache hit should emit no telemetry; got \(events.count) event(s): \(events)")
   }
 
-  @Test("loadModel different repo on cache hit unloads + emits real load start", .enabled(if: AcervoModelLoadGate.canLoad, AcervoModelLoadGate.reason))
+  @Test(
+    "loadModel different repo on cache hit unloads + emits real load start",
+    .enabled(if: AcervoModelLoadGate.canLoad, AcervoModelLoadGate.reason))
   func loadModelDifferentRepoTriggersRealLoadTelemetry() async {
     let manager = VoxAltaModelManager()
     let reporter = MockTelemetryReporter()
@@ -218,7 +222,9 @@ struct LoadUnloadTelemetryTests {
     )
   }
 
-  @Test("Telemetry nil reporter is a no-op (no crash on load/unload without reporter)", .enabled(if: AcervoModelLoadGate.canLoad, AcervoModelLoadGate.reason))
+  @Test(
+    "Telemetry nil reporter is a no-op (no crash on load/unload without reporter)",
+    .enabled(if: AcervoModelLoadGate.canLoad, AcervoModelLoadGate.reason))
   func nilTelemetryIsNoOp() async {
     let manager = VoxAltaModelManager()
     // No setTelemetry call — telemetry is nil.
